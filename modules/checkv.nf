@@ -1,0 +1,26 @@
+process CHECKV {
+    tag "$sample_id"
+    publishDir "${params.outdir}/checkv", mode: 'copy'
+    container = 'docker://quay.io/biocontainers/checkv:1.0.2--pyhdfd78af_0'
+
+    input:
+    tuple val(sample_id), path(phage_sequences)
+
+    output:
+    tuple val(sample_id), path("${sample_id}_checkv"), emit: results
+    path "versions.yml", emit: versions
+
+    script:
+    """
+    # Check if input file is empty or has no sequences
+    if [ -s ${phage_sequences} ] && grep -q ">" ${phage_sequences}; then
+        checkv end_to_end ${phage_sequences} ${sample_id}_checkv -t ${task.cpus} -d /homes/tylerdoe/databases/checkv-db-v1.5
+    else
+        echo "No phage sequences found - creating empty results directory"
+        mkdir -p ${sample_id}_checkv
+        touch ${sample_id}_checkv/quality_summary.tsv
+    fi
+    
+    echo '"CHECKV": {"version": "1.0.2"}' > versions.yml
+    """
+}

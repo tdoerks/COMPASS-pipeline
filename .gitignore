@@ -1,0 +1,24 @@
+# Nextflow
+work/
+.nextflow/
+.nextflow.log*
+*.html
+*.dot
+
+# Results
+results/
+test_results/
+filtered_samples/
+metadata/
+
+# SLURM logs
+slurm-*.out
+
+# Test files
+test_metadata.nf
+test_metadata.config
+run_metadata_test.sh
+
+# Python cache
+__pycache__/
+*.pyc

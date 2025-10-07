@@ -22,3 +22,8 @@ run_metadata_test.sh
 # Python cache
 __pycache__/
 *.pyc
+
+# Test workflows
+test_*.nf
+test_*.config
+run_*_test.sh

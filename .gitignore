@@ -27,3 +27,13 @@ __pycache__/
 test_*.nf
 test_*.config
 run_*_test.sh
+
+# Backup files
+*.backup
+*.backup2
+
+# Container images
+*.sif
+
+# Temp files
+temp_*.txt

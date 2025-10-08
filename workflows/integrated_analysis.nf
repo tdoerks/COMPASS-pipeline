@@ -17,8 +17,11 @@ workflow AMR_PHAGE_ANALYSIS {
     // Run AMR analysis
     AMRFINDER(samples, DOWNLOAD_AMRFINDER_DB.out.db)
 
+    // Transform channel for VIBRANT: [meta, fasta] -> [sample_id, fasta]
+    vibrant_input = samples.map { meta, fasta -> [meta.id, fasta] }
+
     // Run Phage analysis
-    VIBRANT(samples)
+    VIBRANT(vibrant_input)
     DIAMOND_PROPHAGE(VIBRANT.out.phages, DOWNLOAD_PROPHAGE_DB.out.db)
     CHECKV(VIBRANT.out.phages)
     PHANOTATE(VIBRANT.out.phages)

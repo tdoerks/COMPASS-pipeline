@@ -1,7 +1,7 @@
 process DOWNLOAD_PROPHAGE_DB {
     tag "prophage_db"
     publishDir "${params.outdir}/databases", mode: 'copy'
-    container = 'docker://staphb/diamond'
+    container = 'staphb/diamond'
 
     output:
     path "prophage_db.dmnd", emit: db
@@ -17,7 +17,7 @@ process DOWNLOAD_PROPHAGE_DB {
 process DIAMOND_PROPHAGE {
     tag "$sample_id"
     publishDir "${params.outdir}/diamond_prophage", mode: 'copy'
-    container = 'docker://staphb/diamond'
+    container = 'staphb/diamond'
 
     input:
     tuple val(sample_id), path(phage_sequences)

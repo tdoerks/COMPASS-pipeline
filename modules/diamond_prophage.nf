@@ -9,7 +9,7 @@ process DOWNLOAD_PROPHAGE_DB {
 
     script:
     """
-    cp /homes/tylerdoe/databases/prophage_db.dmnd .
+    cp ${params.prophage_db} .
     echo '"DOWNLOAD_PROPHAGE_DB": {"database": "local_copy"}' > versions.yml
     """
 }

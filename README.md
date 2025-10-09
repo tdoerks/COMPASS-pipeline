@@ -22,6 +22,35 @@ COMPASS automates the analysis of bacterial genomes, providing:
 - **HPC Ready**: Configured for SLURM cluster execution
 - **Comprehensive Output**: Enhanced reports combining AMR and phage data
 
+## Pipeline Architecture
+
+COMPASS uses a modular architecture with the following components:
+
+### Subworkflows
+
+1. **Data Acquisition** (`subworkflows/data_acquisition.nf`)
+   - Downloads and filters NARMS metadata
+   - Downloads SRA data from NCBI
+   - Supports metadata filtering or direct SRR accession lists
+
+2. **Assembly** (`subworkflows/assembly.nf`)
+   - Genome assembly using SPAdes
+   - Metadata integration for downstream analysis
+
+3. **AMR Analysis** (`subworkflows/amr_analysis.nf`)
+   - AMRFinder+ database download and management
+   - Antimicrobial resistance gene detection
+
+4. **Phage Analysis** (`subworkflows/phage_analysis.nf`)
+   - VIBRANT prophage detection
+   - DIAMOND prophage classification
+   - CheckV quality assessment
+   - PHANOTATE gene annotation
+
+5. **Complete Pipeline** (`workflows/complete_pipeline.nf`)
+   - Orchestrates all subworkflows
+   - Combines results for final reporting
+
 ## Quick Start
 
 ### Prerequisites
@@ -39,21 +68,16 @@ cd COMPASS-pipeline
 
 ### Basic Usage
 
-```bash
-# Analyze pre-assembled genomes
-nextflow run main.nf --input samplesheet.csv --outdir results
+COMPASS supports three input modes:
 
-# Download and filter NARMS data for Kansas samples
-nextflow run main.nf \
-    --filter_state "KS" \
-    --filter_year_start 2020 \
-    --outdir results
+#### 1. FASTA Mode (Default)
+Analyze pre-assembled genomes from a samplesheet:
+
+```bash
+nextflow run main.nf --input samplesheet.csv --outdir results
 ```
 
-## Input Formats
-
-### Samplesheet (CSV)
-
+**Samplesheet format (CSV):**
 ```csv
 sample,organism,fasta
 Sample1,Salmonella,/path/to/assembly1.fasta
@@ -66,23 +90,50 @@ Sample3,Campylobacter,/path/to/assembly3.fasta
 - `organism`: Organism name (for AMRFinder+)
 - `fasta`: Path to assembly file
 
-### NARMS Metadata Filtering
+#### 2. NARMS Metadata Mode
+Download and filter NARMS BioProject data automatically:
 
-COMPASS can automatically download and filter NARMS BioProject data:
+```bash
+nextflow run main.nf \
+    --input_mode metadata \
+    --filter_state "KS" \
+    --filter_year_start 2020 \
+    --outdir results
+```
+
+**NARMS BioProjects:**
 - **Campylobacter**: PRJNA292664
 - **Salmonella**: PRJNA292661
 - **E. coli**: PRJNA292663
+
+#### 3. SRA List Mode
+Process samples from a list of SRA accessions:
+
+```bash
+nextflow run main.nf \
+    --input_mode sra_list \
+    --input srr_accessions.txt \
+    --outdir results
+```
+
+**SRA list format (TXT):**
+```
+SRR12345678
+SRR12345679
+SRR12345680
+```
 
 ## Parameters
 
 ### Core Parameters
 
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `--input` | Input samplesheet CSV | `samplesheet.csv` |
-| `--outdir` | Output directory | `results` |
+| Parameter | Description | Default | Required |
+|-----------|-------------|---------|----------|
+| `--input_mode` | Input mode: `fasta`, `metadata`, or `sra_list` | `fasta` | No |
+| `--input` | Input file path (samplesheet CSV or SRR list TXT) | `samplesheet.csv` | Depends on mode |
+| `--outdir` | Output directory | `results` | No |
 
-### Metadata Filtering
+### Metadata Filtering (for `metadata` mode)
 
 | Parameter | Description | Example |
 |-----------|-------------|---------|
@@ -164,31 +215,70 @@ Interactive report with:
 
 ## Usage Examples
 
-### Example 1: Kansas NARMS samples from 2020-2023
+### Example 1: Pre-assembled FASTA files (default mode)
 
 ```bash
 nextflow run main.nf \
+    --input my_samples.csv \
+    --outdir my_analysis
+```
+
+### Example 2: Kansas NARMS samples from 2020-2023 (metadata mode)
+
+```bash
+nextflow run main.nf \
+    --input_mode metadata \
     --filter_state "KS" \
     --filter_year_start 2020 \
     --filter_year_end 2023 \
     --outdir kansas_2020-2023
 ```
 
-### Example 2: California Salmonella from clinical sources
+### Example 3: California Salmonella from clinical sources (metadata mode)
 
 ```bash
 nextflow run main.nf \
+    --input_mode metadata \
     --filter_state "CA" \
     --filter_source "clinical" \
     --outdir california_clinical
 ```
 
-### Example 3: Custom assemblies
+### Example 4: Process specific SRA accessions (sra_list mode)
 
 ```bash
 nextflow run main.nf \
-    --input my_samples.csv \
-    --outdir my_analysis
+    --input_mode sra_list \
+    --input my_srr_list.txt \
+    --outdir sra_analysis
+```
+
+## Directory Structure
+
+```
+COMPASS-pipeline/
+├── main.nf                      # Main entry point
+├── nextflow.config              # Pipeline configuration
+├── modules/                     # Individual process definitions
+│   ├── amrfinder.nf            # AMR detection
+│   ├── assembly.nf             # Genome assembly
+│   ├── checkv.nf               # Phage quality control
+│   ├── combine_results.nf      # Results aggregation
+│   ├── diamond_prophage.nf     # Prophage classification
+│   ├── metadata_filtering.nf   # NARMS data filtering
+│   ├── phanotate.nf            # Gene prediction
+│   ├── sra_download.nf         # SRA data download
+│   └── vibrant.nf              # Phage detection
+├── subworkflows/                # Logical workflow components
+│   ├── data_acquisition.nf     # Data download/filtering
+│   ├── assembly.nf             # Assembly workflow
+│   ├── amr_analysis.nf         # AMR workflow
+│   └── phage_analysis.nf       # Phage workflow
+└── workflows/                   # High-level workflows
+    ├── complete_pipeline.nf    # Main orchestration workflow
+    ├── integrated_analysis.nf  # Legacy combined analysis
+    ├── full_pipeline.nf        # Legacy full pipeline
+    └── metadata_to_results.nf  # Legacy metadata workflow
 ```
 
 ## Configuration

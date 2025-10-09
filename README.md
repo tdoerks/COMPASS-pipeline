@@ -84,12 +84,13 @@ COMPASS can automatically download and filter NARMS BioProject data:
 
 ### Metadata Filtering
 
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `--filter_state` | State code (2-letter) | `KS`, `CA`, `TX` |
-| `--filter_year_start` | Minimum year | `2020` |
-| `--filter_year_end` | Maximum year | `2023` |
-| `--filter_source` | Source keyword | `chicken`, `clinical` |
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `--filter_state` | State code (2-letter) | `KS` | `KS`, `CA`, `TX` |
+| `--filter_year_start` | Minimum year | `null` | `2020` |
+| `--filter_year_end` | Maximum year | `null` | `2023` |
+| `--filter_source` | Source keyword | `null` | `chicken`, `clinical` |
+| `--max_samples` | Maximum samples to process | `10000` | `5000`, `50000` |
 
 ### Database Paths
 
@@ -189,6 +190,17 @@ nextflow run main.nf \
 nextflow run main.nf \
     --input my_samples.csv \
     --outdir my_analysis
+```
+
+### Example 4: Limit number of samples
+
+```bash
+# Process only the first 100 samples after filtering
+nextflow run main.nf \
+    --filter_state "CA" \
+    --filter_year_start 2020 \
+    --max_samples 100 \
+    --outdir california_limited
 ```
 
 ## Configuration

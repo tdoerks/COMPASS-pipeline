@@ -131,6 +131,7 @@ process FILTER_NARMS_SAMPLES {
             open(f"{org.lower()}_srr_list.txt", 'w').close()
     else:
         combined = pd.concat(all_samples, ignore_index=True)
+        combined = combined.head(5)
         print(f"\\nTotal filtered samples: {len(combined)}")
         for org in combined['organism'].unique():
             count = len(combined[combined['organism'] == org])

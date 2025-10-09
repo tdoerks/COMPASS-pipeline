@@ -131,18 +131,27 @@ process FILTER_NARMS_SAMPLES {
             open(f"{org.lower()}_srr_list.txt", 'w').close()
     else:
         combined = pd.concat(all_samples, ignore_index=True)
-        combined = combined.head(5)
-        print(f"\\nTotal filtered samples: {len(combined)}")
+        print(f"\\nTotal filtered samples before max limit: {len(combined)}")
+
+        # Apply max_samples limit
+        max_samples = "${params.max_samples}"
+        if max_samples and max_samples != "null":
+            max_samples = int(max_samples)
+            if len(combined) > max_samples:
+                print(f"  Limiting to first {max_samples} samples")
+                combined = combined.head(max_samples)
+
+        print(f"\\nTotal samples to process: {len(combined)}")
         for org in combined['organism'].unique():
             count = len(combined[combined['organism'] == org])
             print(f"  {org}: {count}")
-        
+
         combined.to_csv('filtered_samples.csv', index=False)
-        
+
         with open('srr_accessions.txt', 'w') as f:
             for srr in combined['Run']:
                 f.write(f"{srr}\\n")
-        
+
         for pathogen in combined['organism'].unique():
             subset = combined[combined['organism'] == pathogen]
             filename = f"{pathogen.lower()}_srr_list.txt"

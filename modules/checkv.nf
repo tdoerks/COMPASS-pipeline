@@ -15,8 +15,8 @@ process CHECKV {
     """
     # Check if input file is empty or has no sequences
     if [ -s ${phage_sequences} ] && grep -q ">" ${phage_sequences}; then
-        # CheckV container has database at /usr/local/share/checkv-db
-        checkv end_to_end ${phage_sequences} ${sample_id}_checkv -t ${task.cpus} -d \${CHECKVDB}
+        # Use the default CheckV database location in the container
+        checkv end_to_end ${phage_sequences} ${sample_id}_checkv -t ${task.cpus}
     else
         echo "No phage sequences found - creating empty results directory"
         mkdir -p ${sample_id}_checkv

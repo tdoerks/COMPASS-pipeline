@@ -1,7 +1,6 @@
 process CHECKV {
     tag "$sample_id"
     publishDir "${params.outdir}/checkv", mode: 'copy'
-    
     container = 'quay.io/biocontainers/checkv:1.0.2--pyhdfd78af_0'
     
     input:

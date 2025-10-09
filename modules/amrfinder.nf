@@ -1,6 +1,7 @@
 process DOWNLOAD_AMRFINDER_DB {
     tag "amrfinder_db"
-    
+    container = 'quay.io/biocontainers/ncbi-amrfinderplus:3.12.8--h283d18e_0'
+
     output:
     path "amrfinder_db", emit: db
     path "versions.yml", emit: versions
@@ -16,7 +17,7 @@ process DOWNLOAD_AMRFINDER_DB {
 process AMRFINDER {
     tag "$meta.id"
     publishDir "${params.outdir}/amrfinder", mode: 'copy'
-    container 'quay.io/biocontainers/ncbi-amrfinderplus:3.12.8--h283d18e_0'
+    container = 'quay.io/biocontainers/ncbi-amrfinderplus:3.12.8--h283d18e_0'
     
     input:
     tuple val(meta), path(fasta)

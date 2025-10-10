@@ -42,5 +42,4 @@ process DOWNLOAD_CHECKV_DB {
     ln -s ${params.checkv_db} checkv_db
     echo '"DOWNLOAD_CHECKV_DB": {"database": "local_copy"}' > versions.yml
     """
-    """
 }

@@ -1,5 +1,6 @@
 process COMBINE_RESULTS {
     publishDir "${params.outdir}/summary", mode: 'copy'
+    container 'quay.io/biocontainers/pandas:1.5.2'
 
     input:
     path amr_results

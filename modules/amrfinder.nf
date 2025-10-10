@@ -1,10 +1,11 @@
 process DOWNLOAD_AMRFINDER_DB {
     tag "amrfinder_db"
-    
+    container 'quay.io/biocontainers/ncbi-amrfinderplus:3.12.8--h283d18e_0'
+
     output:
     path "amrfinder_db", emit: db
     path "versions.yml", emit: versions
-    
+
     script:
     """
     # Use existing database

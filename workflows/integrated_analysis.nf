@@ -1,7 +1,7 @@
 include { AMRFINDER; DOWNLOAD_AMRFINDER_DB } from '../modules/amrfinder'
 include { VIBRANT } from '../modules/vibrant'
 include { DOWNLOAD_PROPHAGE_DB; DIAMOND_PROPHAGE } from '../modules/diamond_prophage'
-include { CHECKV, DOWNLOAD_CHECKV_DB } from '../modules/checkv'
+include { CHECKV; DOWNLOAD_CHECKV_DB } from '../modules/checkv'
 include { PHANOTATE } from '../modules/phanotate'
 include { COMBINE_RESULTS } from '../modules/combine_results'
 

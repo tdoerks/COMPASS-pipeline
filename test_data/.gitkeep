@@ -1,0 +1,2 @@
+# This file ensures the test_data directory is tracked in git
+# Replace test_genome*.fasta with real small genomes for actual testing

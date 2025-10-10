@@ -24,8 +24,8 @@ workflow AMR_PHAGE_ANALYSIS {
     // Run Phage analysis
     VIBRANT(vibrant_input)
     DIAMOND_PROPHAGE(VIBRANT.out.phages, DOWNLOAD_PROPHAGE_DB.out.db)
-    CHECKV(VIBRANT.out.phages)
-    PHANOTATE(VIBRANT.out.phages, DOWNLOAD_CHECKV_DB.out.db)
+    CHECKV(VIBRANT.out.phages, DOWNLOAD_CHECKV_DB.out.db)
+    PHANOTATE(VIBRANT.out.phages)
 
     // Combine all results (without CheckV for now)
     COMBINE_RESULTS(

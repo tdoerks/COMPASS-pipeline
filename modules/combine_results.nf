@@ -5,6 +5,7 @@ process COMBINE_RESULTS {
     path amr_results
     path vibrant_results
     path diamond_results
+    path checkv_results
 
     output:
     path "combined_analysis_summary.tsv", emit: summary
@@ -84,6 +85,37 @@ for vdir in vibrant_dirs:
         'low_quality': low_quality
     })
 
+# ===== PROCESS CHECKV RESULTS =====
+checkv_dirs = glob.glob("*_checkv")
+checkv_data = {}
+for cdir in checkv_dirs:
+    sample_id = cdir.replace('_checkv', '')
+
+    quality_file = os.path.join(cdir, "quality_summary.tsv")
+
+    complete_count = 0
+    high_quality_checkv = 0
+    medium_quality_checkv = 0
+    low_quality_checkv = 0
+
+    if os.path.exists(quality_file) and os.path.getsize(quality_file) > 0:
+        try:
+            df = pd.read_csv(quality_file, sep='\\t')
+            if 'checkv_quality' in df.columns:
+                complete_count = len(df[df['checkv_quality'] == 'Complete'])
+                high_quality_checkv = len(df[df['checkv_quality'] == 'High-quality'])
+                medium_quality_checkv = len(df[df['checkv_quality'] == 'Medium-quality'])
+                low_quality_checkv = len(df[df['checkv_quality'] == 'Low-quality'])
+        except:
+            pass
+
+    checkv_data[sample_id] = {
+        'complete_phages': complete_count,
+        'checkv_high_quality': high_quality_checkv,
+        'checkv_medium_quality': medium_quality_checkv,
+        'checkv_low_quality': low_quality_checkv
+    }
+
 # ===== PROCESS DIAMOND RESULTS =====
 diamond_files = glob.glob("*_diamond_results.tsv")
 diamond_data = {}
@@ -129,6 +161,7 @@ all_samples = set()
 for item in summary_data:
     all_samples.add(item['sample_id'])
 all_samples.update(diamond_data.keys())
+all_samples.update(checkv_data.keys())
 all_samples.update(phanotate_data.keys())
 all_samples.update(amr_data.keys())
 
@@ -146,6 +179,10 @@ for sample in sorted(all_samples):
         'high_quality': vibrant_info.get('high_quality', 0),
         'medium_quality': vibrant_info.get('medium_quality', 0),
         'low_quality': vibrant_info.get('low_quality', 0),
+        'complete_phages': checkv_data.get(sample, {}).get('complete_phages', 0),
+        'checkv_high_quality': checkv_data.get(sample, {}).get('checkv_high_quality', 0),
+        'checkv_medium_quality': checkv_data.get(sample, {}).get('checkv_medium_quality', 0),
+        'checkv_low_quality': checkv_data.get(sample, {}).get('checkv_low_quality', 0),
         'prophage_hits': diamond_data.get(sample, {}).get('prophage_hits', 0),
         'best_match_identity': diamond_data.get(sample, {}).get('best_identity', 0),
         'best_prophage_match': diamond_data.get(sample, {}).get('best_match', 'None'),
@@ -233,6 +270,10 @@ html_report = f'''
                     <div class="stat-number">{summary_df['prophage_hits'].sum()}</div>
                     <div class="stat-label">Prophage Hits</div>
                 </div>
+                <div class="stat-box">
+                    <div class="stat-number">{summary_df['complete_phages'].sum()}</div>
+                    <div class="stat-label">Complete (CheckV)</div>
+                </div>
             </div>
         </div>
 
@@ -270,8 +311,21 @@ html_report = f'''
             
             <h3>Gene Prediction</h3>
             <p><strong>Total Genes Predicted:</strong> {summary_df['predicted_genes'].sum()}</p>
-            <p><strong>Average per Phage:</strong> {summary_df['predicted_genes'].sum() / summary_df['total_phages'].sum():.1f} 
+            <p><strong>Average per Phage:</strong> {summary_df['predicted_genes'].sum() / summary_df['total_phages'].sum():.1f}
                (if phages detected)</p>
+        </div>
+
+        <div class="section" style="border-left: 4px solid #27ae60;">
+            <h2>✅ CheckV Quality Assessment</h2>
+            <p><strong>Complete Genomes:</strong> {summary_df['complete_phages'].sum()}</p>
+            <p><strong>High-quality:</strong> {summary_df['checkv_high_quality'].sum()}</p>
+            <p><strong>Medium-quality:</strong> {summary_df['checkv_medium_quality'].sum()}</p>
+            <p><strong>Low-quality:</strong> {summary_df['checkv_low_quality'].sum()}</p>
+
+            <p style="margin-top: 15px; font-size: 14px; color: #555;">
+                CheckV provides an independent assessment of viral genome quality based on comparison
+                to a database of complete viral genomes.
+            </p>
         </div>
 
         <div class="tools">

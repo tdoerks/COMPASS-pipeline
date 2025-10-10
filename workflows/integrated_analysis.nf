@@ -13,6 +13,7 @@ workflow AMR_PHAGE_ANALYSIS {
     // Download/prepare databases
     DOWNLOAD_AMRFINDER_DB()
     DOWNLOAD_PROPHAGE_DB()
+    DOWNLOAD_CHECKV_DB()
 
     // Run AMR analysis
     AMRFINDER(samples, DOWNLOAD_AMRFINDER_DB.out.db)
@@ -23,8 +24,8 @@ workflow AMR_PHAGE_ANALYSIS {
     // Run Phage analysis
     VIBRANT(vibrant_input)
     DIAMOND_PROPHAGE(VIBRANT.out.phages, DOWNLOAD_PROPHAGE_DB.out.db)
-    CHECKV(VIBRANT.out.phages)  // COMMENTED OUT FOR TESTING
-    PHANOTATE(VIBRANT.out.phages)
+    CHECKV(VIBRANT.out.phages)
+    PHANOTATE(VIBRANT.out.phages, DOWNLOAD_CHECKV_DB.out.db)
 
     // Combine all results (without CheckV for now)
     COMBINE_RESULTS(

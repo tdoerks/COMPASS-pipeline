@@ -5,7 +5,7 @@
 
 include { VIBRANT } from '../modules/vibrant'
 include { DOWNLOAD_PROPHAGE_DB; DIAMOND_PROPHAGE } from '../modules/diamond_prophage'
-include { CHECKV } from '../modules/checkv'
+include { DOWNLOAD_CHECKV_DB; CHECKV } from '../modules/checkv'
 include { PHANOTATE } from '../modules/phanotate'
 
 workflow PHAGE_ANALYSIS {
@@ -15,6 +15,7 @@ workflow PHAGE_ANALYSIS {
     main:
     // Download prophage database
     DOWNLOAD_PROPHAGE_DB()
+    DOWNLOAD_CHECKV_DB()
 
     // Transform channel for VIBRANT: [meta, fasta] -> [sample_id, fasta]
     // Handle both meta and non-meta input formats
@@ -33,7 +34,7 @@ workflow PHAGE_ANALYSIS {
 
     // Run downstream phage analyses
     DIAMOND_PROPHAGE(VIBRANT.out.phages, DOWNLOAD_PROPHAGE_DB.out.db)
-    CHECKV(VIBRANT.out.phages)
+    CHECKV(VIBRANT.out.phages, DOWNLOAD_CHECKV_DB.out.db)
     PHANOTATE(VIBRANT.out.phages)
 
     // Collect versions

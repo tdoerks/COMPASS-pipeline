@@ -8,10 +8,43 @@ process DOWNLOAD_PROPHAGE_DB {
     path "versions.yml", emit: versions
 
     script:
-    """
-    cp /homes/tylerdoe/databases/prophage_db.dmnd .
-    echo '"DOWNLOAD_PROPHAGE_DB": {"database": "local_copy"}' > versions.yml
-    """
+    if (params.prophage_db && file(params.prophage_db).exists()) {
+        // Use existing local database
+        """
+        cp ${params.prophage_db} prophage_db.dmnd
+        echo '"DOWNLOAD_PROPHAGE_DB": {"database": "local_copy", "source": "${params.prophage_db}"}' > versions.yml
+        """
+    } else {
+        // Download and build database from Dryad
+        """
+        echo "Downloading Prophage-DB protein sequences from Dryad..."
+
+        # Try direct download from Dryad
+        wget -O prophage_proteins.faa.gz "https://datadryad.org/stash/downloads/file_stream/2907143" || \\
+        curl -L -o prophage_proteins.faa.gz "https://datadryad.org/stash/downloads/file_stream/2907143" || \\
+        {
+            echo "ERROR: Automatic download failed due to Dryad access restrictions."
+            echo "Please manually download the database from:"
+            echo "https://datadryad.org/stash/dataset/doi:10.5061/dryad.3n5tb2rs5"
+            echo ""
+            echo "Download 'prophage_proteins.faa.gz' and either:"
+            echo "1. Set params.prophage_db to point to a pre-built .dmnd file, or"
+            echo "2. Place prophage_proteins.faa.gz in the work directory"
+            exit 1
+        }
+
+        echo "Extracting protein sequences..."
+        gunzip prophage_proteins.faa.gz
+
+        echo "Building DIAMOND database (this may take several minutes)..."
+        diamond makedb --in prophage_proteins.faa --db prophage_db --threads ${task.cpus}
+
+        # Clean up intermediate files
+        rm -f prophage_proteins.faa
+
+        echo '"DOWNLOAD_PROPHAGE_DB": {"database": "Prophage-DB", "version": "2024-07-18", "source": "https://doi.org/10.5061/dryad.3n5tb2rs5"}' > versions.yml
+        """
+    }
 }
 
 process DIAMOND_PROPHAGE {

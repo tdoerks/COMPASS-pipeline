@@ -7,6 +7,7 @@ include { DATA_ACQUISITION } from '../subworkflows/data_acquisition'
 include { ASSEMBLY } from '../subworkflows/assembly'
 include { AMR_ANALYSIS } from '../subworkflows/amr_analysis'
 include { PHAGE_ANALYSIS } from '../subworkflows/phage_analysis'
+include { TYPING } from '../subworkflows/typing'
 include { COMBINE_RESULTS } from '../modules/combine_results'
 
 workflow COMPLETE_PIPELINE {
@@ -60,6 +61,10 @@ workflow COMPLETE_PIPELINE {
     PHAGE_ANALYSIS(ch_assemblies)
     ch_versions = ch_versions.mix(PHAGE_ANALYSIS.out.versions)
 
+    // Run Typing analysis (MLST, serotyping)
+    TYPING(ch_assemblies)
+    ch_versions = ch_versions.mix(TYPING.out.versions)
+
     // Combine all results
     COMBINE_RESULTS(
         AMR_ANALYSIS.out.results.map { it[1] }.collect(),
@@ -76,5 +81,6 @@ workflow COMPLETE_PIPELINE {
     diamond_results = PHAGE_ANALYSIS.out.diamond_results
     checkv_results = PHAGE_ANALYSIS.out.checkv_results
     phanotate_results = PHAGE_ANALYSIS.out.phanotate_results
+    mlst_results = TYPING.out.mlst_results
     versions = ch_versions.unique()
 }

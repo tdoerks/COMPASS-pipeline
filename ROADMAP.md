@@ -3,11 +3,28 @@
 ## Current Status (October 2025)
 ✅ **Working:**
 - Full end-to-end pipeline: Metadata → SRA → Assembly → AMR + Phage Analysis
-- AMRFinder for resistance gene detection
-- VIBRANT for phage identification  
-- DIAMOND for prophage database matching
-- PHANOTATE for phage gene prediction
-- Combined HTML report generation
+- **Quality Control Suite:**
+  - FastQC for raw read assessment
+  - fastp for read trimming and filtering
+  - BUSCO for assembly completeness
+  - QUAST for assembly statistics
+  - MultiQC for aggregated reporting
+- **Strain Characterization:**
+  - MLST for multi-locus sequence typing
+  - SISTR for Salmonella serotyping
+- **Mobile Genetic Elements:**
+  - MOB-suite for plasmid detection and typing
+- **AMR Detection:**
+  - AMRFinder+ for resistance genes
+  - ABRicate for multi-database screening (NCBI, CARD, ResFinder, ARG-ANNOT)
+- **Phage Analysis:**
+  - VIBRANT for phage identification
+  - DIAMOND for prophage database matching
+  - PHANOTATE for phage gene prediction
+- **Integrated Reporting:**
+  - COMPASS summary TSV with all metrics
+  - Combined HTML report generation
+  - MultiQC dashboard
 - Parallelized execution (up to 30 concurrent downloads, 10 assemblies)
 
 🔧 **In Progress:**
@@ -43,22 +60,25 @@
 ### Genomic Analysis Modules
 
 #### 4. Typing & Classification
-- [ ] **MLST** (Multi-Locus Sequence Typing) - Track strain distribution
-  - Tool: `mlst`
+- [x] **MLST** (Multi-Locus Sequence Typing) - Track strain distribution ✅
+  - Tool: `mlst` (v2.23.0)
   - Output: Sequence types, allelic profiles
   - Use case: Outbreak investigation, epidemiology
+  - **Status: Implemented in typing subworkflow**
 
-- [ ] **Serotyping** - Organism-specific identification
-  - `SISTR` for Salmonella
-  - `SerotypeFinder` for E. coli
-  - `ClermonTyping` for E. coli phylogroups
+- [x] **Serotyping** - Organism-specific identification (partial) ✅
+  - [x] `SISTR` for Salmonella ✅ **Implemented**
+  - [ ] `SerotypeFinder` for E. coli
+  - [ ] `ClermonTyping` for E. coli phylogroups
   - Use case: Regulatory reporting, source tracking
 
 #### 5. Mobile Genetic Elements
-- [ ] **Plasmid Detection** - Track mobile AMR
-  - Tools: `PlasmidFinder`, `MOB-suite`
-  - Output: Plasmid types, incompatibility groups
+- [x] **Plasmid Detection** - Track mobile AMR (partial) ✅
+  - [x] `MOB-suite` (v3.1.9) ✅ **Implemented**
+  - [ ] `PlasmidFinder`
+  - Output: Plasmid types, incompatibility groups, reconstructed sequences
   - Use case: Understanding AMR transmission
+  - **Status: MOB-suite in mobile_elements subworkflow**
 
 - [ ] **Integron Detection** - Mobile resistance cassettes
   - Tool: `IntegronFinder`
@@ -83,17 +103,28 @@
   - Use case: Population structure, niche adaptation
 
 #### 8. Advanced Resistance
-- [ ] **Comprehensive AMR prediction**
-  - Add `ResFinder` alongside AMRFinder
-  - Point mutation detection (quinolones, colistin)
+- [x] **Comprehensive AMR prediction** (partial) ✅
+  - [x] `ABRicate` with multiple databases ✅ **Implemented**
+    - NCBI, CARD, ResFinder, ARG-ANNOT
+    - Summary matrix across databases
+  - [x] `AMRFinder+` ✅ **Already present**
+  - Point mutation detection (already in AMRFinder+)
   - Resistance mechanism annotation
+  - **Status: Enhanced in AMR analysis subworkflow**
 
 #### 9. Quality Control
-- [ ] **Assembly QC**
-  - `CheckM` for completeness/contamination
-  - `BUSCO` for gene completeness
-  - `QUAST` for assembly statistics
-  - Auto-filter low-quality assemblies
+- [x] **Assembly QC** (mostly complete) ✅
+  - [ ] `CheckM` for completeness/contamination
+  - [x] `BUSCO` (v5.7.1) for gene completeness ✅ **Implemented**
+  - [x] `QUAST` (v5.2.0) for assembly statistics ✅ **Implemented**
+  - [ ] Auto-filter low-quality assemblies
+  - **Status: Integrated in assembly subworkflow**
+
+- [x] **Read QC** ✅
+  - [x] `FastQC` (v0.12.1) for raw read assessment ✅ **Implemented**
+  - [x] `fastp` (v0.23.4) for trimming and filtering ✅ **Implemented**
+  - [x] `MultiQC` (v1.25.1) for aggregated reporting ✅ **Implemented**
+  - **Status: Complete QC pipeline in assembly subworkflow**
 
 #### 10. Annotation
 - [ ] **Functional Annotation**

@@ -7,15 +7,16 @@ An integrated Nextflow pipeline for comprehensive bacterial genomic analysis com
 ## Overview
 
 COMPASS automates the analysis of bacterial genomes, providing:
-- **Quality Control**: FastQC, fastp, BUSCO, and MultiQC for comprehensive QC
-- **Strain Typing**: MLST for sequence type determination
+- **Quality Control**: FastQC, fastp, BUSCO, QUAST, and MultiQC for comprehensive QC
+- **Assembly Statistics**: Detailed metrics on assembly quality and contiguity
+- **Strain Typing**: MLST for sequence type determination across 100+ species
 - **Serotyping**: SISTR for Salmonella serovar prediction
-- **Plasmid Detection**: MOB-suite for identifying mobile genetic elements
-- **AMR Detection**: AMRFinder+ for antimicrobial resistance gene identification
+- **Plasmid Detection**: MOB-suite for identifying and typing mobile genetic elements
+- **AMR Detection**: AMRFinder+ and ABRicate for multi-database resistance screening
 - **Phage Identification**: VIBRANT for prophage detection and lifestyle prediction
 - **Prophage Analysis**: DIAMOND database comparison and CheckV quality assessment
 - **Gene Prediction**: PHANOTATE for ORF calling in phage sequences
-- **Integrated Reporting**: MultiQC and custom HTML reports with enhanced metrics
+- **Integrated Reporting**: MultiQC aggregation and COMPASS summary TSV with all metrics
 
 ## Features
 

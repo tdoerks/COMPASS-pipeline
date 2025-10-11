@@ -10,6 +10,7 @@ include { PHAGE_ANALYSIS } from '../subworkflows/phage_analysis'
 include { TYPING } from '../subworkflows/typing'
 include { MOBILE_ELEMENTS } from '../subworkflows/mobile_elements'
 include { COMBINE_RESULTS } from '../modules/combine_results'
+include { MULTIQC } from '../modules/multiqc'
 
 workflow COMPLETE_PIPELINE {
     take:
@@ -78,6 +79,19 @@ workflow COMPLETE_PIPELINE {
     )
     ch_versions = ch_versions.mix(COMBINE_RESULTS.out.versions)
 
+    // Collect all QC outputs for MultiQC
+    ch_multiqc = Channel.empty()
+    if (input_mode != 'fasta') {
+        // Only add read QC if we assembled from reads
+        ch_multiqc = ch_multiqc.mix(ASSEMBLY.out.fastqc_html.collect().ifEmpty([]))
+        ch_multiqc = ch_multiqc.mix(ASSEMBLY.out.fastp_json.collect().ifEmpty([]))
+    }
+    ch_multiqc = ch_multiqc.mix(ASSEMBLY.out.busco_summary.collect().ifEmpty([]))
+
+    // Run MultiQC to aggregate all QC reports
+    MULTIQC(ch_multiqc.collect())
+    ch_versions = ch_versions.mix(MULTIQC.out.versions)
+
     emit:
     summary = COMBINE_RESULTS.out.summary
     report = COMBINE_RESULTS.out.report
@@ -90,5 +104,6 @@ workflow COMPLETE_PIPELINE {
     sistr_results = TYPING.out.sistr_results
     mobsuite_results = MOBILE_ELEMENTS.out.mobsuite_results
     plasmids = MOBILE_ELEMENTS.out.plasmids
+    multiqc_report = MULTIQC.out.report
     versions = ch_versions.unique()
 }

@@ -87,6 +87,7 @@ workflow COMPLETE_PIPELINE {
         ch_multiqc = ch_multiqc.mix(ASSEMBLY.out.fastp_json.collect().ifEmpty([]))
     }
     ch_multiqc = ch_multiqc.mix(ASSEMBLY.out.busco_summary.collect().ifEmpty([]))
+    ch_multiqc = ch_multiqc.mix(ASSEMBLY.out.quast_report.collect().ifEmpty([]))
 
     // Run MultiQC to aggregate all QC reports
     MULTIQC(ch_multiqc.collect())

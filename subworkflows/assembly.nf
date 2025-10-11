@@ -7,6 +7,7 @@ include { FASTQC } from '../modules/fastqc'
 include { FASTP } from '../modules/fastp'
 include { ASSEMBLE_SPADES } from '../modules/assembly'
 include { BUSCO } from '../modules/busco'
+include { QUAST } from '../modules/quast'
 
 workflow ASSEMBLY {
     take:
@@ -25,6 +26,9 @@ workflow ASSEMBLY {
 
     // Quality assessment of assemblies with BUSCO
     BUSCO(ASSEMBLE_SPADES.out.assembly)
+
+    // Assembly statistics with QUAST
+    QUAST(ASSEMBLE_SPADES.out.assembly)
 
     // Create meta channel for downstream processes
     // If metadata is provided, join with assemblies
@@ -57,5 +61,7 @@ workflow ASSEMBLY {
     fastp_html = FASTP.out.html  // channel: path(html)
     busco_results = BUSCO.out.results  // channel: path(busco_dir)
     busco_summary = BUSCO.out.summary  // channel: path(summary.txt)
-    versions = FASTQC.out.versions.mix(FASTP.out.versions).mix(ASSEMBLE_SPADES.out.versions).mix(BUSCO.out.versions)
+    quast_results = QUAST.out.results  // channel: [sample_id, dir]
+    quast_report = QUAST.out.report  // channel: path(report.tsv)
+    versions = FASTQC.out.versions.mix(FASTP.out.versions).mix(ASSEMBLE_SPADES.out.versions).mix(BUSCO.out.versions).mix(QUAST.out.versions)
 }

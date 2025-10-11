@@ -1,0 +1,4 @@
+sample,organism,fasta
+Sample001,Salmonella enterica,/path/to/sample001_assembly.fasta
+Sample002,Escherichia coli,/path/to/sample002_assembly.fasta
+Sample003,Campylobacter jejuni,/path/to/sample003_assembly.fasta

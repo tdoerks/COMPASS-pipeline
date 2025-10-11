@@ -7,7 +7,9 @@ work/
 
 # Results
 results/
-test_results/
+test_results*/
+test_narms*/
+test_sra*/
 filtered_samples/
 metadata/
 

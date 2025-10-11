@@ -87,6 +87,7 @@ workflow COMPLETE_PIPELINE {
     checkv_results = PHAGE_ANALYSIS.out.checkv_results
     phanotate_results = PHAGE_ANALYSIS.out.phanotate_results
     mlst_results = TYPING.out.mlst_results
+    sistr_results = TYPING.out.sistr_results
     mobsuite_results = MOBILE_ELEMENTS.out.mobsuite_results
     plasmids = MOBILE_ELEMENTS.out.plasmids
     versions = ch_versions.unique()

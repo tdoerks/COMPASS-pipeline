@@ -34,7 +34,10 @@ COMPASS uses a modular architecture with the following components:
    - Supports metadata filtering or direct SRR accession lists
 
 2. **Assembly** (`subworkflows/assembly.nf`)
+   - Raw read quality assessment with FastQC
+   - Quality trimming with fastp
    - Genome assembly using SPAdes
+   - Assembly quality assessment with BUSCO
    - Metadata integration for downstream analysis
 
 3. **AMR Analysis** (`subworkflows/amr_analysis.nf`)
@@ -150,6 +153,15 @@ SRR12345680
 | `--amrfinder_db` | AMRFinder+ database directory |
 | `--prophage_db` | Prophage DIAMOND database (.dmnd) |
 | `--checkv_db` | CheckV database directory |
+| `--busco_download_path` | BUSCO lineage datasets directory |
+
+### BUSCO Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `--busco_lineage` | BUSCO lineage dataset | `bacteria_odb10` |
+| `--busco_mode` | BUSCO mode (genome, proteins, transcriptome) | `genome` |
+| `--busco_download_path` | Path for BUSCO lineage datasets | See config |
 
 ## Output Structure
 
@@ -163,6 +175,20 @@ results/
 │   ├── filtered_samples.csv
 │   ├── srr_accessions.txt
 │   └── *_srr_list.txt
+├── fastqc/                      # Raw read quality assessment
+│   ├── *_fastqc.html
+│   └── *_fastqc.zip
+├── fastp/                       # Read quality control and trimming reports
+│   ├── *_fastp.json
+│   └── *_fastp.html
+├── trimmed_fastq/               # Quality-trimmed reads
+│   └── *_trimmed*.fastq.gz
+├── assemblies/                  # Assembled genomes
+│   └── *_scaffolds.fasta
+├── busco/                       # Assembly quality assessment
+│   └── *_busco/
+│       ├── short_summary.*.txt
+│       └── full_table.tsv
 ├── amrfinder/                   # AMR detection results
 │   ├── *_amr.tsv
 │   └── *_mutations.tsv
@@ -199,6 +225,29 @@ Interactive report with:
 - Detailed per-sample results table
 - Tool version information
 
+### Quality Control Reports
+
+**FastQC** - Raw read quality assessment:
+- `*_fastqc.html`: Interactive HTML report with per-base quality, GC content, adapter content, and more
+- `*_fastqc.zip`: Archive containing all FastQC analysis files and plots
+
+**fastp** - Trimming and post-QC reports:
+- `*_fastp.html`: Interactive HTML report with quality metrics, filtering stats, and adapter detection
+- `*_fastp.json`: Machine-readable JSON format with comprehensive QC data
+
+These complementary tools provide before/after quality assessment for read trimming.
+
+### Assembly Quality Assessment
+
+**BUSCO** - Genome completeness and contamination:
+- `short_summary.*.txt`: Summary statistics with percentages of complete, fragmented, and missing BUSCOs
+- `full_table.tsv`: Detailed results for each BUSCO gene assessed
+- Metrics include:
+  - Complete and single-copy BUSCOs (C:S)
+  - Complete and duplicated BUSCOs (C:D) - indicates potential contamination
+  - Fragmented BUSCOs (F) - partial gene presence
+  - Missing BUSCOs (M) - expected genes not found
+
 ### AMRFinder Results
 
 - `*_amr.tsv`: Detected resistance genes
@@ -208,6 +257,10 @@ Interactive report with:
 
 | Tool | Version | Purpose |
 |------|---------|---------|
+| FastQC | 0.12.1 | Raw read quality assessment |
+| fastp | 0.23.4 | Read quality trimming |
+| SPAdes | 3.15.5 | Genome assembly |
+| BUSCO | 5.7.1 | Assembly quality assessment |
 | AMRFinder+ | 3.12.8 | AMR gene detection |
 | VIBRANT | 4.0 | Phage identification |
 | DIAMOND | 2.0 | Prophage database search |

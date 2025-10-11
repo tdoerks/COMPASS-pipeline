@@ -31,26 +31,22 @@ workflow ASSEMBLY {
     QUAST(ASSEMBLE_SPADES.out.assembly)
 
     // Create meta channel for downstream processes
-    // If metadata is provided, join with assemblies
-    // Otherwise, create a basic meta map
-    if (metadata) {
-        assembly_with_meta = ASSEMBLE_SPADES.out.assembly
-            .join(metadata)
-            .map { sample_id, fasta, organism ->
-                def meta = [:]
-                meta.id = sample_id
-                meta.organism = organism
-                [meta, fasta]
-            }
-    } else {
-        assembly_with_meta = ASSEMBLE_SPADES.out.assembly
-            .map { sample_id, fasta ->
-                def meta = [:]
-                meta.id = sample_id
-                meta.organism = "Unknown"
-                [meta, fasta]
-            }
-    }
+    // Join with metadata if available, otherwise use Unknown
+    ch_metadata_default = ASSEMBLE_SPADES.out.assembly
+        .map { sample_id, fasta -> [sample_id, "Unknown"] }
+
+    ch_metadata_combined = metadata
+        .mix(ch_metadata_default)
+        .unique { it[0] }  // Keep first occurrence (prioritize actual metadata)
+
+    assembly_with_meta = ASSEMBLE_SPADES.out.assembly
+        .join(ch_metadata_combined, by: 0)
+        .map { sample_id, fasta, organism ->
+            def meta = [:]
+            meta.id = sample_id
+            meta.organism = organism
+            [meta, fasta]
+        }
 
     emit:
     assemblies = assembly_with_meta  // channel: [meta, fasta]

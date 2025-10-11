@@ -11,6 +11,8 @@ include { TYPING } from '../subworkflows/typing'
 include { MOBILE_ELEMENTS } from '../subworkflows/mobile_elements'
 include { COMBINE_RESULTS } from '../modules/combine_results'
 include { MULTIQC } from '../modules/multiqc'
+include { BUSCO } from '../modules/busco'
+include { QUAST } from '../modules/quast'
 
 workflow COMPLETE_PIPELINE {
     take:
@@ -21,10 +23,24 @@ workflow COMPLETE_PIPELINE {
     ch_assemblies = Channel.empty()
     ch_versions = Channel.empty()
 
+    ch_qc_outputs = Channel.empty()
+    ch_has_assembly_qc = false
+
     if (input_mode == 'fasta') {
         // Direct FASTA input: [meta, fasta]
         // Expected input format from samplesheet: sample, organism, fasta
         ch_assemblies = input_data
+
+        // Run assembly QC on pre-assembled genomes
+        // Convert [meta, fasta] to [sample_id, fasta] for QC tools
+        ch_assemblies_for_qc = ch_assemblies.map { meta, fasta -> [meta.id, fasta] }
+
+        BUSCO(ch_assemblies_for_qc)
+        QUAST(ch_assemblies_for_qc)
+
+        ch_busco_summary = BUSCO.out.summary
+        ch_quast_report = QUAST.out.report
+        ch_versions = ch_versions.mix(BUSCO.out.versions).mix(QUAST.out.versions)
 
     } else if (input_mode == 'metadata') {
         // NARMS metadata mode: download metadata, filter, download SRA, assemble
@@ -37,6 +53,9 @@ workflow COMPLETE_PIPELINE {
         )
 
         ch_assemblies = ASSEMBLY.out.assemblies
+        ch_qc_outputs = ASSEMBLY.out
+        ch_busco_summary = ASSEMBLY.out.busco_summary
+        ch_quast_report = ASSEMBLY.out.quast_report
         ch_versions = ch_versions.mix(DATA_ACQUISITION.out.versions)
         ch_versions = ch_versions.mix(ASSEMBLY.out.versions.first())
 
@@ -51,6 +70,9 @@ workflow COMPLETE_PIPELINE {
         )
 
         ch_assemblies = ASSEMBLY.out.assemblies
+        ch_qc_outputs = ASSEMBLY.out
+        ch_busco_summary = ASSEMBLY.out.busco_summary
+        ch_quast_report = ASSEMBLY.out.quast_report
         ch_versions = ch_versions.mix(DATA_ACQUISITION.out.versions)
         ch_versions = ch_versions.mix(ASSEMBLY.out.versions.first())
     }
@@ -81,17 +103,23 @@ workflow COMPLETE_PIPELINE {
 
     // Collect all QC outputs for MultiQC
     ch_multiqc = Channel.empty()
+
     if (input_mode != 'fasta') {
-        // Only add read QC if we assembled from reads
-        ch_multiqc = ch_multiqc.mix(ASSEMBLY.out.fastqc_html.collect().ifEmpty([]))
-        ch_multiqc = ch_multiqc.mix(ASSEMBLY.out.fastp_json.collect().ifEmpty([]))
+        // Include read QC when we assembled from reads
+        ch_multiqc = ch_multiqc
+            .mix(ch_qc_outputs.fastqc_html.collect().ifEmpty([]))
+            .mix(ch_qc_outputs.fastp_json.collect().ifEmpty([]))
     }
-    ch_multiqc = ch_multiqc.mix(ASSEMBLY.out.busco_summary.collect().ifEmpty([]))
-    ch_multiqc = ch_multiqc.mix(ASSEMBLY.out.quast_report.collect().ifEmpty([]))
+
+    // Always include assembly QC (BUSCO and QUAST)
+    ch_multiqc = ch_multiqc
+        .mix(ch_busco_summary.collect().ifEmpty([]))
+        .mix(ch_quast_report.collect().ifEmpty([]))
 
     // Run MultiQC to aggregate all QC reports
     MULTIQC(ch_multiqc.collect())
     ch_versions = ch_versions.mix(MULTIQC.out.versions)
+    ch_multiqc_report = MULTIQC.out.report
 
     emit:
     summary = COMBINE_RESULTS.out.summary
@@ -105,6 +133,6 @@ workflow COMPLETE_PIPELINE {
     sistr_results = TYPING.out.sistr_results
     mobsuite_results = MOBILE_ELEMENTS.out.mobsuite_results
     plasmids = MOBILE_ELEMENTS.out.plasmids
-    multiqc_report = MULTIQC.out.report
+    multiqc_report = ch_multiqc_report
     versions = ch_versions.unique()
 }

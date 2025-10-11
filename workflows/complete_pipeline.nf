@@ -8,6 +8,7 @@ include { ASSEMBLY } from '../subworkflows/assembly'
 include { AMR_ANALYSIS } from '../subworkflows/amr_analysis'
 include { PHAGE_ANALYSIS } from '../subworkflows/phage_analysis'
 include { TYPING } from '../subworkflows/typing'
+include { MOBILE_ELEMENTS } from '../subworkflows/mobile_elements'
 include { COMBINE_RESULTS } from '../modules/combine_results'
 
 workflow COMPLETE_PIPELINE {
@@ -65,6 +66,10 @@ workflow COMPLETE_PIPELINE {
     TYPING(ch_assemblies)
     ch_versions = ch_versions.mix(TYPING.out.versions)
 
+    // Run Mobile Elements analysis (plasmids)
+    MOBILE_ELEMENTS(ch_assemblies)
+    ch_versions = ch_versions.mix(MOBILE_ELEMENTS.out.versions)
+
     // Combine all results
     COMBINE_RESULTS(
         AMR_ANALYSIS.out.results.map { it[1] }.collect(),
@@ -82,5 +87,7 @@ workflow COMPLETE_PIPELINE {
     checkv_results = PHAGE_ANALYSIS.out.checkv_results
     phanotate_results = PHAGE_ANALYSIS.out.phanotate_results
     mlst_results = TYPING.out.mlst_results
+    mobsuite_results = MOBILE_ELEMENTS.out.mobsuite_results
+    plasmids = MOBILE_ELEMENTS.out.plasmids
     versions = ch_versions.unique()
 }

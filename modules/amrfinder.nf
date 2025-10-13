@@ -18,9 +18,10 @@ process DOWNLOAD_AMRFINDER_DB {
         # Download and prepare latest database
         amrfinder_update --force_update --database amrfinder_db
 
-        # Verify database was created
-        if [ ! -f "amrfinder_db/AMRProt" ]; then
+        # Verify database was created (check for any version subdirectory)
+        if [ ! -d "amrfinder_db" ] || [ -z "\$(find amrfinder_db -name 'AMRProt' 2>/dev/null)" ]; then
             echo "ERROR: AMRFinder database download failed" >&2
+            ls -la amrfinder_db/ || true
             exit 1
         fi
 

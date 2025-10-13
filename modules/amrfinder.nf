@@ -5,13 +5,22 @@ process DOWNLOAD_AMRFINDER_DB {
     output:
     path "amrfinder_db", emit: db
     path "versions.yml", emit: versions
-    
+
     script:
-    """
-    # Use existing database
-    ln -s ${params.amrfinder_db} amrfinder_db
-    echo '"DOWNLOAD_AMRFINDER_DB": {"database": "local_copy"}' > versions.yml
-    """
+    if (params.amrfinder_db && params.amrfinder_db != "") {
+        """
+        # Use existing database
+        ln -s ${params.amrfinder_db} amrfinder_db
+        echo '"DOWNLOAD_AMRFINDER_DB": {"database": "local_copy"}' > versions.yml
+        """
+    } else {
+        """
+        # Download latest database
+        mkdir -p amrfinder_db
+        amrfinder_update --force_update --database amrfinder_db
+        echo '"DOWNLOAD_AMRFINDER_DB": {"version": "latest", "source": "NCBI"}' > versions.yml
+        """
+    }
 }
 
 process AMRFINDER {

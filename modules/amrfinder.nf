@@ -15,9 +15,15 @@ process DOWNLOAD_AMRFINDER_DB {
         """
     } else {
         """
-        # Download latest database
-        mkdir -p amrfinder_db
+        # Download and prepare latest database
         amrfinder_update --force_update --database amrfinder_db
+
+        # Verify database was created
+        if [ ! -f "amrfinder_db/AMRProt" ]; then
+            echo "ERROR: AMRFinder database download failed" >&2
+            exit 1
+        fi
+
         echo '"DOWNLOAD_AMRFINDER_DB": {"version": "latest", "source": "NCBI"}' > versions.yml
         """
     }

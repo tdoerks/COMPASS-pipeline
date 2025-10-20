@@ -97,7 +97,12 @@ workflow COMPLETE_PIPELINE {
     COMBINE_RESULTS(
         AMR_ANALYSIS.out.results.map { it[1] }.collect(),
         PHAGE_ANALYSIS.out.vibrant_results.map { it[1] }.collect(),
-        PHAGE_ANALYSIS.out.diamond_results.map { it[1] }.collect()
+        PHAGE_ANALYSIS.out.diamond_results.map { it[1] }.collect(),
+        AMR_ANALYSIS.out.abricate_summary,
+        ch_quast_report.collect().ifEmpty([]),
+        ch_busco_summary.collect().ifEmpty([]),
+        TYPING.out.mlst_results.map { it[1] }.collect().ifEmpty([]),
+        TYPING.out.sistr_results.map { it[1] }.collect().ifEmpty([])
     )
     ch_versions = ch_versions.mix(COMBINE_RESULTS.out.versions)
 

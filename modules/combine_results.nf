@@ -6,6 +6,11 @@ process COMBINE_RESULTS {
     path amr_results
     path vibrant_results
     path diamond_results
+    path abricate_summary, stageAs: 'abricate_summary.tsv'
+    path quast_reports
+    path busco_summaries
+    path mlst_results
+    path sistr_results
 
     output:
     path "combined_analysis_summary.tsv", emit: summary
@@ -115,15 +120,104 @@ phanotate_files = glob.glob("*_phanotate.gff")
 phanotate_data = {}
 for gff_file in phanotate_files:
     sample_id = Path(gff_file).stem.replace('_phanotate', '')
-    
+
     gene_count = 0
     if os.path.exists(gff_file) and os.path.getsize(gff_file) > 0:
         with open(gff_file, 'r') as f:
             for line in f:
                 if not line.startswith('>') and not line.startswith('#') and 'CDS' in line:
                     gene_count += 1
-    
+
     phanotate_data[sample_id] = gene_count
+
+# ===== PROCESS QUAST RESULTS =====
+quast_files = glob.glob("*_quast/report.tsv")
+quast_data = {}
+for quast_file in quast_files:
+    sample_id = Path(quast_file).parent.stem.replace('_quast', '')
+
+    if os.path.exists(quast_file) and os.path.getsize(quast_file) > 0:
+        df = pd.read_csv(quast_file, sep='\\t')
+        if not df.empty and len(df.columns) > 1:
+            quast_data[sample_id] = {
+                'num_contigs': df.loc[df.iloc[:, 0] == '# contigs', df.columns[1]].values[0] if '# contigs' in df.iloc[:, 0].values else 0,
+                'largest_contig': df.loc[df.iloc[:, 0] == 'Largest contig', df.columns[1]].values[0] if 'Largest contig' in df.iloc[:, 0].values else 0,
+                'total_length': df.loc[df.iloc[:, 0] == 'Total length', df.columns[1]].values[0] if 'Total length' in df.iloc[:, 0].values else 0,
+                'n50': df.loc[df.iloc[:, 0] == 'N50', df.columns[1]].values[0] if 'N50' in df.iloc[:, 0].values else 0,
+                'gc_percent': df.loc[df.iloc[:, 0] == 'GC (%)', df.columns[1]].values[0] if 'GC (%)' in df.iloc[:, 0].values else 0
+            }
+    else:
+        quast_data[sample_id] = {'num_contigs': 0, 'largest_contig': 0, 'total_length': 0, 'n50': 0, 'gc_percent': 0}
+
+# ===== PROCESS BUSCO RESULTS =====
+busco_files = glob.glob("*_busco/short_summary.*.txt")
+busco_data = {}
+for busco_file in busco_files:
+    sample_id = Path(busco_file).parent.stem.replace('_busco', '')
+
+    if os.path.exists(busco_file) and os.path.getsize(busco_file) > 0:
+        with open(busco_file, 'r') as f:
+            content = f.read()
+            # Parse BUSCO summary: C:99.1%[S:98.8%,D:0.3%],F:0.3%,M:0.6%,n:124
+            import re
+            match = re.search(r'C:([\d.]+)%.*F:([\d.]+)%.*M:([\d.]+)%', content)
+            if match:
+                busco_data[sample_id] = {
+                    'complete': float(match.group(1)),
+                    'fragmented': float(match.group(2)),
+                    'missing': float(match.group(3))
+                }
+            else:
+                busco_data[sample_id] = {'complete': 0, 'fragmented': 0, 'missing': 0}
+    else:
+        busco_data[sample_id] = {'complete': 0, 'fragmented': 0, 'missing': 0}
+
+# ===== PROCESS MLST RESULTS =====
+mlst_files = glob.glob("*_mlst.tsv")
+mlst_data = {}
+for mlst_file in mlst_files:
+    sample_id = Path(mlst_file).stem.replace('_mlst', '')
+
+    if os.path.exists(mlst_file) and os.path.getsize(mlst_file) > 0:
+        df = pd.read_csv(mlst_file, sep='\\t', header=None)
+        if not df.empty and len(df.columns) >= 3:
+            mlst_data[sample_id] = {
+                'scheme': df.iloc[0, 1] if pd.notna(df.iloc[0, 1]) else 'Unknown',
+                'st': df.iloc[0, 2] if pd.notna(df.iloc[0, 2]) else 'Unknown'
+            }
+    else:
+        mlst_data[sample_id] = {'scheme': 'Unknown', 'st': 'Unknown'}
+
+# ===== PROCESS SISTR RESULTS =====
+sistr_files = glob.glob("*_sistr.tsv")
+sistr_data = {}
+for sistr_file in sistr_files:
+    sample_id = Path(sistr_file).stem.replace('_sistr', '')
+
+    if os.path.exists(sistr_file) and os.path.getsize(sistr_file) > 0:
+        df = pd.read_csv(sistr_file, sep='\\t')
+        if not df.empty:
+            sistr_data[sample_id] = {
+                'serovar': df.iloc[0]['serovar'] if 'serovar' in df.columns else 'Unknown',
+                'serogroup': df.iloc[0]['serogroup'] if 'serogroup' in df.columns else 'Unknown',
+                'h1': df.iloc[0]['h1'] if 'h1' in df.columns else '',
+                'h2': df.iloc[0]['h2'] if 'h2' in df.columns else ''
+            }
+    else:
+        sistr_data[sample_id] = {'serovar': 'Unknown', 'serogroup': 'Unknown', 'h1': '', 'h2': ''}
+
+# ===== PROCESS ABRICATE SUMMARY =====
+abricate_data = {}
+if os.path.exists('abricate_summary.tsv') and os.path.getsize('abricate_summary.tsv') > 0:
+    ab_df = pd.read_csv('abricate_summary.tsv', sep='\\t')
+    if not ab_df.empty and 'NUM_FOUND' in ab_df.columns:
+        for idx, row in ab_df.iterrows():
+            sample_id = row.iloc[0]  # First column is sample ID
+            if sample_id not in abricate_data:
+                abricate_data[sample_id] = {}
+            # Store database-specific counts
+            db_name = row['DATABASE'] if 'DATABASE' in ab_df.columns else 'unknown'
+            abricate_data[sample_id][db_name] = row['NUM_FOUND']
 
 # ===== COMBINE ALL RESULTS =====
 all_samples = set()
@@ -132,15 +226,38 @@ for item in summary_data:
 all_samples.update(diamond_data.keys())
 all_samples.update(phanotate_data.keys())
 all_samples.update(amr_data.keys())
+all_samples.update(quast_data.keys())
+all_samples.update(busco_data.keys())
+all_samples.update(mlst_data.keys())
+all_samples.update(sistr_data.keys())
+all_samples.update(abricate_data.keys())
 
 final_summary = []
 for sample in sorted(all_samples):
     vibrant_info = next((item for item in summary_data if item['sample_id'] == sample), {})
-    
+
     row = {
         'sample_id': sample,
+        # Assembly QC
+        'num_contigs': quast_data.get(sample, {}).get('num_contigs', 'N/A'),
+        'total_length': quast_data.get(sample, {}).get('total_length', 'N/A'),
+        'n50': quast_data.get(sample, {}).get('n50', 'N/A'),
+        'gc_percent': quast_data.get(sample, {}).get('gc_percent', 'N/A'),
+        'busco_complete': busco_data.get(sample, {}).get('complete', 'N/A'),
+        'busco_fragmented': busco_data.get(sample, {}).get('fragmented', 'N/A'),
+        'busco_missing': busco_data.get(sample, {}).get('missing', 'N/A'),
+        # Typing
+        'mlst_scheme': mlst_data.get(sample, {}).get('scheme', 'Unknown'),
+        'mlst_st': mlst_data.get(sample, {}).get('st', 'Unknown'),
+        'sistr_serovar': sistr_data.get(sample, {}).get('serovar', 'Unknown'),
+        'sistr_serogroup': sistr_data.get(sample, {}).get('serogroup', 'Unknown'),
+        # AMR
         'total_amr_genes': amr_data.get(sample, {}).get('total_amr_genes', 0),
         'unique_amr_genes': amr_data.get(sample, {}).get('unique_amr_genes', 0),
+        'abricate_card': abricate_data.get(sample, {}).get('card', 0),
+        'abricate_ncbi': abricate_data.get(sample, {}).get('ncbi', 0),
+        'abricate_resfinder': abricate_data.get(sample, {}).get('resfinder', 0),
+        # Phage
         'total_phages': vibrant_info.get('total_phages', 0),
         'lytic_phages': vibrant_info.get('lytic_phages', 0),
         'lysogenic_phages': vibrant_info.get('lysogenic_phages', 0),
@@ -152,7 +269,7 @@ for sample in sorted(all_samples):
         'best_prophage_match': diamond_data.get(sample, {}).get('best_match', 'None'),
         'predicted_genes': phanotate_data.get(sample, 0)
     }
-    
+
     final_summary.append(row)
 
 summary_df = pd.DataFrame(final_summary)
@@ -237,6 +354,28 @@ html_report = f'''
             </div>
         </div>
 
+        <div class="section" style="border-left: 4px solid #2ecc71;">
+            <h2>✅ Assembly Quality Summary</h2>
+            <p><strong>Average N50:</strong> {summary_df['n50'].replace('N/A', 0).astype(float).mean():.0f} bp</p>
+            <p><strong>Average BUSCO Complete:</strong> {summary_df['busco_complete'].replace('N/A', 0).astype(float).mean():.1f}%</p>
+            <p><strong>Average Total Length:</strong> {summary_df['total_length'].replace('N/A', 0).astype(float).mean():.0f} bp</p>
+            <p><strong>Samples passing QC (BUSCO >90%):</strong> {len([x for x in summary_df['busco_complete'] if x != 'N/A' and float(x) > 90])} / {len(summary_df)}</p>
+        </div>
+
+        <div class="section" style="border-left: 4px solid #9b59b6;">
+            <h2>🔬 Typing Summary</h2>
+            <p><strong>Unique MLST Sequence Types:</strong> {len(summary_df['mlst_st'].unique())}</p>
+            <p><strong>Unique Serovars (SISTR):</strong> {len(summary_df['sistr_serovar'].unique())}</p>
+            <h3>Top 5 Sequence Types:</h3>
+            <ul>
+                {"".join([f"<li><strong>ST-{st}:</strong> {count} samples</li>" for st, count in summary_df[summary_df['mlst_st'] != 'Unknown']['mlst_st'].value_counts().head(5).items()])}
+            </ul>
+            <h3>Top 5 Serovars:</h3>
+            <ul>
+                {"".join([f"<li><strong>{serovar}:</strong> {count} samples</li>" for serovar, count in summary_df[summary_df['sistr_serovar'] != 'Unknown']['sistr_serovar'].value_counts().head(5).items()])}
+            </ul>
+        </div>
+
         <h2>📊 Detailed Results by Sample</h2>
         {summary_df.to_html(index=False, classes='data-table', escape=False)}
 
@@ -277,8 +416,23 @@ html_report = f'''
 
         <div class="tools">
             <h2>🔬 Analysis Pipeline</h2>
+            <h3>Assembly QC</h3>
             <ul>
-                <li><strong>AMRFinderPlus:</strong> Antimicrobial resistance gene identification</li>
+                <li><strong>QUAST:</strong> Assembly quality statistics (N50, contigs, length)</li>
+                <li><strong>BUSCO:</strong> Genome completeness assessment</li>
+            </ul>
+            <h3>Typing & Characterization</h3>
+            <ul>
+                <li><strong>MLST:</strong> Multi-locus sequence typing for strain identification</li>
+                <li><strong>SISTR:</strong> Salmonella in silico serotyping</li>
+            </ul>
+            <h3>Antimicrobial Resistance</h3>
+            <ul>
+                <li><strong>AMRFinderPlus:</strong> NCBI AMR gene identification</li>
+                <li><strong>ABRicate:</strong> Multi-database AMR screening (CARD, ResFinder, NCBI, ARG-ANNOT)</li>
+            </ul>
+            <h3>Phage Analysis</h3>
+            <ul>
                 <li><strong>VIBRANT v4.0:</strong> Phage identification and lifestyle prediction</li>
                 <li><strong>DIAMOND + Prophage-DB:</strong> Homology-based prophage detection</li>
                 <li><strong>CheckV:</strong> Phage sequence quality assessment</li>

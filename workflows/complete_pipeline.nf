@@ -22,6 +22,7 @@ workflow COMPLETE_PIPELINE {
     main:
     ch_assemblies = Channel.empty()
     ch_versions = Channel.empty()
+    ch_metadata = Channel.empty()
 
     ch_qc_outputs = Channel.empty()
     ch_has_assembly_qc = false
@@ -56,6 +57,7 @@ workflow COMPLETE_PIPELINE {
         ch_qc_outputs = ASSEMBLY.out
         ch_busco_summary = ASSEMBLY.out.busco_summary
         ch_quast_report = ASSEMBLY.out.quast_report
+        ch_metadata = DATA_ACQUISITION.out.metadata
         ch_versions = ch_versions.mix(DATA_ACQUISITION.out.versions)
         ch_versions = ch_versions.mix(ASSEMBLY.out.versions.first())
 
@@ -102,7 +104,8 @@ workflow COMPLETE_PIPELINE {
         ch_quast_report.collect().ifEmpty([]),
         ch_busco_summary.collect().ifEmpty([]),
         TYPING.out.mlst_results.map { it[1] }.collect().ifEmpty([]),
-        TYPING.out.sistr_results.map { it[1] }.collect().ifEmpty([])
+        TYPING.out.sistr_results.map { it[1] }.collect().ifEmpty([]),
+        ch_metadata.ifEmpty(file('NO_FILE'))
     )
     ch_versions = ch_versions.mix(COMBINE_RESULTS.out.versions)
 

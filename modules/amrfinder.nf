@@ -48,9 +48,19 @@ process AMRFINDER {
     def organism_flag = meta.organism ? "-O ${meta.organism}" : ""
     """
     # Find the actual database directory (handles versioned subdirectories)
-    DB_PATH=\$(find ${amrfinder_db} -name "AMRProt" -type f | head -1 | xargs dirname)
-    if [ -z "\$DB_PATH" ]; then
-        DB_PATH="${amrfinder_db}"
+    # Look for latest symlink first, then search for AMRProt
+    if [ -d "${amrfinder_db}/latest" ]; then
+        DB_PATH="${amrfinder_db}/latest"
+    elif [ -L "${amrfinder_db}/latest" ]; then
+        DB_PATH=\$(readlink -f "${amrfinder_db}/latest")
+    else
+        # Find any version directory containing AMRProt
+        DB_PATH=\$(find ${amrfinder_db} -name "AMRProt" -type f 2>/dev/null | head -1)
+        if [ ! -z "\$DB_PATH" ]; then
+            DB_PATH=\$(dirname "\$DB_PATH")
+        else
+            DB_PATH="${amrfinder_db}"
+        fi
     fi
 
     amrfinder \\

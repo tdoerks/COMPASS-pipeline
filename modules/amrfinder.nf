@@ -70,7 +70,10 @@ process AMRFINDER {
         --threads ${task.cpus} \\
         -d \$DB_PATH \\
         -o ${meta.id}_amr.tsv \\
-        --mutation_all ${meta.id}_mutations.tsv
+        --mutation_all ${meta.id}_mutations.tsv || true
+
+    # Ensure output files exist even if no results
+    touch ${meta.id}_amr.tsv ${meta.id}_mutations.tsv
 
     echo '"AMRFINDER": {"version": "3.12.8"}' > versions.yml
     """

@@ -47,15 +47,21 @@ process AMRFINDER {
     script:
     def organism_flag = meta.organism ? "-O ${meta.organism}" : ""
     """
+    # Find the actual database directory (handles versioned subdirectories)
+    DB_PATH=\$(find ${amrfinder_db} -name "AMRProt" -type f | head -1 | xargs dirname)
+    if [ -z "\$DB_PATH" ]; then
+        DB_PATH="${amrfinder_db}"
+    fi
+
     amrfinder \\
         -n ${fasta} \\
         ${organism_flag} \\
         --plus \\
         --threads ${task.cpus} \\
-        -d ${amrfinder_db} \\
+        -d \$DB_PATH \\
         -o ${meta.id}_amr.tsv \\
         --mutation_all ${meta.id}_mutations.tsv
-    
+
     echo '"AMRFINDER": {"version": "3.12.8"}' > versions.yml
     """
 }

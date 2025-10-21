@@ -11,107 +11,51 @@ process COMBINE_RESULTS {
     path busco_summaries
     path mlst_results
     path sistr_results
-    path metadata, stageAs: 'sample_metadata.csv'
 
     output:
     path "combined_analysis_summary.tsv", emit: summary
     path "combined_analysis_report.html", emit: report
     path "versions.yml", emit: versions
 
-    shell:
-    '''
-    cat > combine_results.py << 'PYTHON_SCRIPT'
-#!/usr/bin/env python3
+    script:
+    """
+    #!/usr/bin/env python3
 
 import pandas as pd
 import glob
 import os
 from pathlib import Path
-import re
 
 # Initialize summary data
 summary_data = []
 
-# ===== PROCESS SAMPLE METADATA =====
-metadata_dict = {}
-if os.path.exists('sample_metadata.csv') and os.path.getsize('sample_metadata.csv') > 0:
-    meta_df = pd.read_csv('sample_metadata.csv')
-    for idx, row in meta_df.iterrows():
-        srr_id = row['Run'] if 'Run' in meta_df.columns else None
-        if srr_id:
-            # Extract year from ReleaseDate if available
-            year = None
-            if 'ReleaseDate' in meta_df.columns and pd.notna(row['ReleaseDate']):
-                try:
-                    year = pd.to_datetime(row['ReleaseDate']).year
-                except:
-                    pass
-
-            # Extract state from sample name (pattern: digits + STATE + digits, e.g., 19KS07)
-            state = 'Unknown'
-            for col in ['Sample Name', 'LibraryName', 'SampleName']:
-                if col in meta_df.columns and pd.notna(row[col]):
-                    match = re.search(r'\\d{{2}}([A-Z]{{2}})\\d{{2}}', str(row[col]))
-                    if match:
-                        state = match.group(1)
-                        break
-
-            # Extract source
-            source = 'Unknown'
-            for col in ['isolation_source', 'host', 'Sample Name']:
-                if col in meta_df.columns and pd.notna(row[col]):
-                    source = str(row[col])
-                    break
-
-            metadata_dict[srr_id] = {{
-                'year': year if year else 'Unknown',
-                'state': state,
-                'source': source[:50] if len(source) > 50 else source,  # Limit length
-                'organism': row['organism'] if 'organism' in meta_df.columns else 'Unknown'
-            }}
-
 # ===== PROCESS AMR RESULTS =====
 amr_files = glob.glob("*_amr.tsv")
 amr_data = {}
-amr_gene_details = {}  # Store detailed gene information for each sample
 for amr_file in amr_files:
     sample_id = Path(amr_file).stem.replace('_amr', '')
-
+    
     if os.path.exists(amr_file) and os.path.getsize(amr_file) > 0:
         df = pd.read_csv(amr_file, sep='\\t')
-
+        
         # Count AMR genes by class
         amr_count = len(df)
         amr_classes = df['Class'].value_counts().to_dict() if 'Class' in df.columns else {}
-
+        
         # Get unique gene counts
         unique_genes = df['Gene symbol'].nunique() if 'Gene symbol' in df.columns else 0
-
-        # Store detailed gene information
-        gene_list = []
-        for idx, row in df.iterrows():
-            gene_info = {{
-                'gene': row.get('Gene symbol', 'Unknown'),
-                'class': row.get('Class', 'Unknown'),
-                'subclass': row.get('Subclass', ''),
-                'method': row.get('Method', ''),
-                'identity': row.get('% Identity to reference sequence', 'N/A')
-            }}
-            gene_list.append(gene_info)
-
-        amr_data[sample_id] = {{
+        
+        amr_data[sample_id] = {
             'total_amr_genes': amr_count,
             'unique_amr_genes': unique_genes,
             'amr_classes': amr_classes
-        }}
-        amr_gene_details[sample_id] = gene_list
+        }
     else:
-        amr_data[sample_id] = {{
+        amr_data[sample_id] = {
             'total_amr_genes': 0,
             'unique_amr_genes': 0,
-            'amr_classes': {{}}
-        }}
-        amr_gene_details[sample_id] = []
+            'amr_classes': {}
+        }
 
 # ===== PROCESS VIBRANT RESULTS =====
 vibrant_dirs = glob.glob("*_vibrant")
@@ -291,15 +235,9 @@ all_samples.update(abricate_data.keys())
 final_summary = []
 for sample in sorted(all_samples):
     vibrant_info = next((item for item in summary_data if item['sample_id'] == sample), {})
-    sample_meta = metadata_dict.get(sample, {})
 
     row = {
         'sample_id': sample,
-        # Metadata
-        'year': sample_meta.get('year', 'Unknown'),
-        'state': sample_meta.get('state', 'Unknown'),
-        'source': sample_meta.get('source', 'Unknown'),
-        'organism': sample_meta.get('organism', 'Unknown'),
         # Assembly QC
         'num_contigs': quast_data.get(sample, {}).get('num_contigs', 'N/A'),
         'total_length': quast_data.get(sample, {}).get('total_length', 'N/A'),
@@ -350,61 +288,11 @@ for sample_id in amr_data:
 
 top_amr_classes = sorted(all_amr_classes.items(), key=lambda x: x[1], reverse=True)[:5]
 
-# Prepare data for charts
-import json
-
-# AMR genes per sample (top 10 samples)
-amr_per_sample = summary_df.nlargest(10, 'total_amr_genes')[['sample_id', 'total_amr_genes']]
-amr_chart_labels = amr_per_sample['sample_id'].tolist()
-amr_chart_data = amr_per_sample['total_amr_genes'].tolist()
-
-# Phage lifestyle distribution
-lytic_total = summary_df['lytic_phages'].sum()
-lysogenic_total = summary_df['lysogenic_phages'].sum()
-
-# BUSCO completeness per sample
-busco_per_sample = summary_df[summary_df['busco_complete'] != 'N/A'].copy()
-busco_per_sample['busco_complete'] = busco_per_sample['busco_complete'].astype(float)
-busco_chart_labels = busco_per_sample['sample_id'].tolist()
-busco_chart_data = busco_per_sample['busco_complete'].tolist()
-
-# Top serovars
-serovar_counts = summary_df[summary_df['sistr_serovar'] != 'Unknown']['sistr_serovar'].value_counts().head(5)
-serovar_chart_labels = serovar_counts.index.tolist()
-serovar_chart_data = serovar_counts.values.tolist()
-
-# ===== CORRELATION ANALYSIS =====
-# Calculate correlations between AMR and phage metrics
-correlation_insights = []
-
-# AMR vs Phage count
-amr_phage_corr = summary_df[['total_amr_genes', 'total_phages']].corr().iloc[0, 1]
-correlation_insights.append(f"AMR genes vs Total phages: {amr_phage_corr:.3f}")
-
-# AMR vs Lysogenic phages (hypothesis: lysogenic phages may carry AMR genes)
-if summary_df['lysogenic_phages'].sum() > 0:
-    amr_lysogenic_corr = summary_df[['total_amr_genes', 'lysogenic_phages']].corr().iloc[0, 1]
-    correlation_insights.append(f"AMR genes vs Lysogenic phages: {amr_lysogenic_corr:.3f}")
-
-# Assembly quality vs AMR (better assemblies may detect more genes)
-if summary_df['n50'].replace('N/A', 0).astype(float).sum() > 0:
-    n50_numeric = summary_df['n50'].replace('N/A', 0).astype(float)
-    amr_numeric = summary_df['total_amr_genes'].astype(float)
-    n50_amr_corr = pd.DataFrame({{'n50': n50_numeric, 'amr': amr_numeric}}).corr().iloc[0, 1]
-    correlation_insights.append(f"Assembly N50 vs AMR genes: {n50_amr_corr:.3f}")
-
-# Samples with both AMR and phages
-samples_with_both = len(summary_df[(summary_df['total_amr_genes'] > 0) & (summary_df['total_phages'] > 0)])
-samples_with_amr_only = len(summary_df[(summary_df['total_amr_genes'] > 0) & (summary_df['total_phages'] == 0)])
-samples_with_phage_only = len(summary_df[(summary_df['total_amr_genes'] == 0) & (summary_df['total_phages'] > 0)])
-samples_with_neither = len(summary_df[(summary_df['total_amr_genes'] == 0) & (summary_df['total_phages'] == 0)])
-
 html_report = f'''
 <!DOCTYPE html>
 <html>
 <head>
     <title>COMPASS Analysis Report</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         body {{ font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }}
         .container {{ background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
@@ -430,23 +318,6 @@ html_report = f'''
         .tools li {{ padding: 8px 0; }}
         .tools li:before {{ content: "✓ "; color: #27ae60; font-weight: bold; }}
         .warning {{ background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }}
-        .chart-container {{ margin: 30px 0; padding: 20px; background-color: white; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-        .chart-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 30px; margin: 20px 0; }}
-        canvas {{ max-height: 400px; }}
-        .table-controls {{ margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 5px; }}
-        .table-controls input {{ padding: 8px; margin-right: 10px; border: 1px solid #ddd; border-radius: 3px; width: 300px; }}
-        .table-controls select {{ padding: 8px; border: 1px solid #ddd; border-radius: 3px; }}
-        th {{ cursor: pointer; user-select: none; position: relative; }}
-        th:hover {{ background-color: #2980b9; }}
-        th.sort-asc:after {{ content: " ▲"; position: absolute; right: 5px; }}
-        th.sort-desc:after {{ content: " ▼"; position: absolute; right: 5px; }}
-        .data-table {{ width: 100%; }}
-        .expand-btn {{ cursor: pointer; color: #3498db; font-weight: bold; user-select: none; }}
-        .expand-btn:hover {{ color: #2980b9; text-decoration: underline; }}
-        .gene-details {{ background-color: #ecf0f1; padding: 15px; margin: 10px 0; border-left: 4px solid #e74c3c; }}
-        .gene-details table {{ width: 100%; font-size: 12px; background-color: white; }}
-        .gene-details th {{ background-color: #e74c3c; color: white; }}
-        .gene-details td {{ border: 1px solid #ddd; padding: 6px; }}
     </style>
 </head>
 <body>
@@ -505,92 +376,8 @@ html_report = f'''
             </ul>
         </div>
 
-        <h2>📈 Interactive Visualizations</h2>
-
-        <div class="chart-grid">
-            <div class="chart-container">
-                <h3>Top 10 Samples by AMR Genes</h3>
-                <canvas id="amrChart"></canvas>
-            </div>
-
-            <div class="chart-container">
-                <h3>Phage Lifestyle Distribution</h3>
-                <canvas id="phageLifestyleChart"></canvas>
-            </div>
-        </div>
-
-        <div class="chart-grid">
-            <div class="chart-container">
-                <h3>BUSCO Completeness by Sample</h3>
-                <canvas id="buscoChart"></canvas>
-            </div>
-
-            <div class="chart-container">
-                <h3>Top 5 Serovars</h3>
-                <canvas id="serovarChart"></canvas>
-            </div>
-        </div>
-
-        <div class="section" style="border-left: 4px solid #f39c12;">
-            <h2>📉 Correlation Analysis: AMR & Phage Relationships</h2>
-
-            <h3>Statistical Correlations</h3>
-            <p>Pearson correlation coefficients between key metrics (ranges from -1 to +1):</p>
-            <ul>
-                {"".join([f"<li>{insight}</li>" for insight in correlation_insights])}
-            </ul>
-
-            <h3>Sample Distribution</h3>
-            <table style="width: auto; font-size: 14px;">
-                <tr>
-                    <th>Category</th>
-                    <th>Count</th>
-                    <th>Percentage</th>
-                </tr>
-                <tr>
-                    <td>Samples with both AMR genes and phages</td>
-                    <td>{samples_with_both}</td>
-                    <td>{round(samples_with_both / len(summary_df) * 100, 1)}%</td>
-                </tr>
-                <tr>
-                    <td>Samples with AMR genes only (no phages)</td>
-                    <td>{samples_with_amr_only}</td>
-                    <td>{round(samples_with_amr_only / len(summary_df) * 100, 1)}%</td>
-                </tr>
-                <tr>
-                    <td>Samples with phages only (no AMR genes)</td>
-                    <td>{samples_with_phage_only}</td>
-                    <td>{round(samples_with_phage_only / len(summary_df) * 100, 1)}%</td>
-                </tr>
-                <tr>
-                    <td>Samples with neither</td>
-                    <td>{samples_with_neither}</td>
-                    <td>{round(samples_with_neither / len(summary_df) * 100, 1)}%</td>
-                </tr>
-            </table>
-
-            <p style="margin-top: 15px;"><em>Note: Correlation values near +1 indicate positive relationship, near -1 indicate negative relationship, and near 0 indicate no linear relationship.</em></p>
-        </div>
-
         <h2>📊 Detailed Results by Sample</h2>
-
-        <div class="table-controls">
-            <strong>Table Controls:</strong><br><br>
-            <input type="text" id="tableSearch" placeholder="Search table..." onkeyup="filterTable()">
-            <select id="columnFilter" onchange="filterTable()">
-                <option value="">Filter by column...</option>
-                <option value="state">State</option>
-                <option value="organism">Organism</option>
-                <option value="sistr_serovar">Serovar</option>
-                <option value="mlst_st">Sequence Type</option>
-            </select>
-            <button onclick="resetFilters()" style="padding: 8px 15px; background-color: #95a5a6; color: white; border: none; border-radius: 3px; cursor: pointer;">Reset Filters</button>
-            <span id="rowCount" style="margin-left: 20px; font-weight: bold;"></span>
-        </div>
-
-        <div id="tableWrapper">
-            {summary_df.to_html(index=False, classes='data-table', table_id='resultsTable', escape=False)}
-        </div>
+        {summary_df.to_html(index=False, classes='data-table', escape=False)}
 
         <div class="section amr-section">
             <h2>🦠 Antimicrobial Resistance Summary</h2>
@@ -657,295 +444,6 @@ html_report = f'''
             Report generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
         </p>
     </div>
-
-    <script>
-        // AMR Gene Details Data
-        const amrGeneDetails = {json.dumps(amr_gene_details)};
-
-        // AMR Genes per Sample Chart
-        const amrCtx = document.getElementById('amrChart').getContext('2d');
-        new Chart(amrCtx, {{
-            type: 'bar',
-            data: {{
-                labels: {json.dumps(amr_chart_labels)},
-                datasets: [{{
-                    label: 'AMR Genes',
-                    data: {json.dumps(amr_chart_data)},
-                    backgroundColor: 'rgba(231, 76, 60, 0.7)',
-                    borderColor: 'rgba(231, 76, 60, 1)',
-                    borderWidth: 2
-                }}]
-            }},
-            options: {{
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {{
-                    legend: {{ display: false }},
-                    title: {{ display: false }}
-                }},
-                scales: {{
-                    y: {{
-                        beginAtZero: true,
-                        title: {{ display: true, text: 'Number of AMR Genes' }}
-                    }},
-                    x: {{
-                        title: {{ display: true, text: 'Sample ID' }}
-                    }}
-                }}
-            }}
-        }});
-
-        // Phage Lifestyle Distribution Chart
-        const phageCtx = document.getElementById('phageLifestyleChart').getContext('2d');
-        new Chart(phageCtx, {{
-            type: 'pie',
-            data: {{
-                labels: ['Lytic', 'Lysogenic'],
-                datasets: [{{
-                    data: [{lytic_total}, {lysogenic_total}],
-                    backgroundColor: [
-                        'rgba(52, 152, 219, 0.7)',
-                        'rgba(155, 89, 182, 0.7)'
-                    ],
-                    borderColor: [
-                        'rgba(52, 152, 219, 1)',
-                        'rgba(155, 89, 182, 1)'
-                    ],
-                    borderWidth: 2
-                }}]
-            }},
-            options: {{
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {{
-                    legend: {{
-                        position: 'bottom',
-                        labels: {{ font: {{ size: 14 }} }}
-                    }}
-                }}
-            }}
-        }});
-
-        // BUSCO Completeness Chart
-        const buscoCtx = document.getElementById('buscoChart').getContext('2d');
-        new Chart(buscoCtx, {{
-            type: 'bar',
-            data: {{
-                labels: {json.dumps(busco_chart_labels)},
-                datasets: [{{
-                    label: 'BUSCO Complete %',
-                    data: {json.dumps(busco_chart_data)},
-                    backgroundColor: 'rgba(46, 204, 113, 0.7)',
-                    borderColor: 'rgba(46, 204, 113, 1)',
-                    borderWidth: 2
-                }}]
-            }},
-            options: {{
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {{
-                    legend: {{ display: false }}
-                }},
-                scales: {{
-                    y: {{
-                        beginAtZero: true,
-                        max: 100,
-                        title: {{ display: true, text: 'Completeness (%)' }}
-                    }},
-                    x: {{
-                        title: {{ display: true, text: 'Sample ID' }}
-                    }}
-                }}
-            }}
-        }});
-
-        // Serovar Distribution Chart
-        const serovarCtx = document.getElementById('serovarChart').getContext('2d');
-        new Chart(serovarCtx, {{
-            type: 'doughnut',
-            data: {{
-                labels: {json.dumps(serovar_chart_labels)},
-                datasets: [{{
-                    data: {json.dumps(serovar_chart_data)},
-                    backgroundColor: [
-                        'rgba(52, 152, 219, 0.7)',
-                        'rgba(46, 204, 113, 0.7)',
-                        'rgba(155, 89, 182, 0.7)',
-                        'rgba(241, 196, 15, 0.7)',
-                        'rgba(231, 76, 60, 0.7)'
-                    ],
-                    borderColor: [
-                        'rgba(52, 152, 219, 1)',
-                        'rgba(46, 204, 113, 1)',
-                        'rgba(155, 89, 182, 1)',
-                        'rgba(241, 196, 15, 1)',
-                        'rgba(231, 76, 60, 1)'
-                    ],
-                    borderWidth: 2
-                }}]
-            }},
-            options: {{
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {{
-                    legend: {{
-                        position: 'bottom',
-                        labels: {{ font: {{ size: 12 }} }}
-                    }}
-                }}
-            }}
-        }});
-
-        // ===== TABLE SORTING AND FILTERING =====
-        let sortDirection = {{}};
-
-        // Add click handlers to table headers for sorting
-        document.addEventListener('DOMContentLoaded', function() {{
-            const table = document.getElementById('resultsTable');
-            const headers = table.querySelectorAll('th');
-
-            headers.forEach((header, index) => {{
-                header.addEventListener('click', () => sortTable(index));
-            }});
-
-            // Add expand buttons to sample_id cells
-            addExpandButtons();
-
-            updateRowCount();
-        }});
-
-        function addExpandButtons() {{
-            const table = document.getElementById('resultsTable');
-            const rows = table.querySelectorAll('tbody tr');
-
-            rows.forEach(row => {{
-                const firstCell = row.cells[0];  // sample_id column
-                const sampleId = firstCell.textContent.trim();
-
-                // Only add button if there are AMR genes for this sample
-                if (amrGeneDetails[sampleId] && amrGeneDetails[sampleId].length > 0) {{
-                    const expandBtn = document.createElement('span');
-                    expandBtn.className = 'expand-btn';
-                    expandBtn.textContent = ' [+]';
-                    expandBtn.onclick = (e) => {{
-                        e.stopPropagation();
-                        toggleGeneDetails(sampleId, row);
-                    }};
-                    firstCell.appendChild(expandBtn);
-                }}
-            }});
-        }}
-
-        function toggleGeneDetails(sampleId, row) {{
-            const existingDetails = row.nextSibling;
-
-            if (existingDetails && existingDetails.classList && existingDetails.classList.contains('details-row')) {{
-                // Remove existing details
-                existingDetails.remove();
-                row.cells[0].querySelector('.expand-btn').textContent = ' [+]';
-            }} else {{
-                // Add details
-                const genes = amrGeneDetails[sampleId];
-                const detailsRow = document.createElement('tr');
-                detailsRow.className = 'details-row';
-                const detailsCell = document.createElement('td');
-                detailsCell.colSpan = row.cells.length;
-
-                let html = '<div class="gene-details"><h4>AMR Genes Detected in ' + sampleId + '</h4>';
-                html += '<table><thead><tr><th>Gene</th><th>Class</th><th>Subclass</th><th>Method</th><th>Identity %</th></tr></thead><tbody>';
-
-                genes.forEach(gene => {{
-                    html += `<tr>
-                        <td>${{gene.gene}}</td>
-                        <td>${{gene.class}}</td>
-                        <td>${{gene.subclass || 'N/A'}}</td>
-                        <td>${{gene.method}}</td>
-                        <td>${{gene.identity}}</td>
-                    </tr>`;
-                }});
-
-                html += '</tbody></table></div>';
-                detailsCell.innerHTML = html;
-                detailsRow.appendChild(detailsCell);
-
-                row.parentNode.insertBefore(detailsRow, row.nextSibling);
-                row.cells[0].querySelector('.expand-btn').textContent = ' [-]';
-            }}
-        }}
-
-        function sortTable(columnIndex) {{
-            const table = document.getElementById('resultsTable');
-            const tbody = table.querySelector('tbody');
-            const rows = Array.from(tbody.querySelectorAll('tr'));
-            const header = table.querySelectorAll('th')[columnIndex];
-
-            // Toggle sort direction
-            const currentDir = sortDirection[columnIndex] || 'asc';
-            const newDir = currentDir === 'asc' ? 'desc' : 'asc';
-            sortDirection[columnIndex] = newDir;
-
-            // Remove sort indicators from all headers
-            table.querySelectorAll('th').forEach(h => {{
-                h.classList.remove('sort-asc', 'sort-desc');
-            }});
-
-            // Add sort indicator to current header
-            header.classList.add(newDir === 'asc' ? 'sort-asc' : 'sort-desc');
-
-            // Sort rows
-            rows.sort((a, b) => {{
-                const aValue = a.cells[columnIndex].textContent.trim();
-                const bValue = b.cells[columnIndex].textContent.trim();
-
-                // Try numeric comparison first
-                const aNum = parseFloat(aValue);
-                const bNum = parseFloat(bValue);
-
-                if (!isNaN(aNum) && !isNaN(bNum)) {{
-                    return newDir === 'asc' ? aNum - bNum : bNum - aNum;
-                }}
-
-                // Fall back to string comparison
-                return newDir === 'asc'
-                    ? aValue.localeCompare(bValue)
-                    : bValue.localeCompare(aValue);
-            }});
-
-            // Re-append sorted rows
-            rows.forEach(row => tbody.appendChild(row));
-        }}
-
-        function filterTable() {{
-            const searchInput = document.getElementById('tableSearch').value.toLowerCase();
-            const table = document.getElementById('resultsTable');
-            const rows = table.querySelectorAll('tbody tr');
-            let visibleCount = 0;
-
-            rows.forEach(row => {{
-                const text = row.textContent.toLowerCase();
-                if (text.includes(searchInput)) {{
-                    row.style.display = '';
-                    visibleCount++;
-                }} else {{
-                    row.style.display = 'none';
-                }}
-            }});
-
-            document.getElementById('rowCount').textContent = `Showing ${{visibleCount}} of ${{rows.length}} samples`;
-        }}
-
-        function resetFilters() {{
-            document.getElementById('tableSearch').value = '';
-            document.getElementById('columnFilter').value = '';
-            filterTable();
-        }}
-
-        function updateRowCount() {{
-            const table = document.getElementById('resultsTable');
-            const rows = table.querySelectorAll('tbody tr');
-            document.getElementById('rowCount').textContent = `Showing ${{rows.length}} of ${{rows.length}} samples`;
-        }}
-    </script>
 </body>
 </html>
 '''
@@ -955,8 +453,5 @@ with open('combined_analysis_report.html', 'w') as f:
 
 with open('versions.yml', 'w') as f:
     f.write('"COMBINE_RESULTS":\\n  python: "3.8+"\\n  pandas: "1.5.3"\\n')
-PYTHON_SCRIPT
-
-    python3 combine_results.py
-    '''
+    """
 }

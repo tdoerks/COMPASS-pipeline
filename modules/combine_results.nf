@@ -19,7 +19,7 @@ process COMBINE_RESULTS {
     path "versions.yml", emit: versions
 
     script:
-    """
+    '''
     #!/usr/bin/env python3
 
 import pandas as pd
@@ -954,5 +954,5 @@ with open('combined_analysis_report.html', 'w') as f:
 
 with open('versions.yml', 'w') as f:
     f.write('"COMBINE_RESULTS":\\n  python: "3.8+"\\n  pandas: "1.5.3"\\n')
-    """
+    '''
 }

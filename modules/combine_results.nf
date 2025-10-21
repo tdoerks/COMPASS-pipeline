@@ -20,7 +20,8 @@ process COMBINE_RESULTS {
 
     script:
     '''
-    #!/usr/bin/env python3
+    cat > combine_results.py << 'PYTHON_SCRIPT'
+#!/usr/bin/env python3
 
 import pandas as pd
 import glob
@@ -954,5 +955,8 @@ with open('combined_analysis_report.html', 'w') as f:
 
 with open('versions.yml', 'w') as f:
     f.write('"COMBINE_RESULTS":\\n  python: "3.8+"\\n  pandas: "1.5.3"\\n')
+PYTHON_SCRIPT
+
+    python3 combine_results.py
     '''
 }

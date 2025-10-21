@@ -19,7 +19,7 @@ process COMBINE_RESULTS {
     path "versions.yml", emit: versions
 
     script:
-    '''
+    """
     cat > combine_results.py << 'PYTHON_SCRIPT'
 #!/usr/bin/env python3
 
@@ -958,5 +958,5 @@ with open('versions.yml', 'w') as f:
 PYTHON_SCRIPT
 
     python3 combine_results.py
-    '''
+    """
 }

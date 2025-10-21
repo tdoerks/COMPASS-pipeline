@@ -18,8 +18,8 @@ process COMBINE_RESULTS {
     path "combined_analysis_report.html", emit: report
     path "versions.yml", emit: versions
 
-    script:
-    """
+    shell:
+    '''
     cat > combine_results.py << 'PYTHON_SCRIPT'
 #!/usr/bin/env python3
 
@@ -958,5 +958,5 @@ with open('versions.yml', 'w') as f:
 PYTHON_SCRIPT
 
     python3 combine_results.py
-    """
+    '''
 }

@@ -5,7 +5,7 @@
 
 include { VIBRANT } from '../modules/vibrant'
 include { DOWNLOAD_PROPHAGE_DB; DIAMOND_PROPHAGE } from '../modules/diamond_prophage'
-include { DOWNLOAD_CHECKV_DB; CHECKV } from '../modules/checkv'
+// include { DOWNLOAD_CHECKV_DB; CHECKV } from '../modules/checkv'  // DISABLED: CheckV has DIAMOND errors
 include { PHANOTATE } from '../modules/phanotate'
 
 workflow PHAGE_ANALYSIS {
@@ -15,7 +15,7 @@ workflow PHAGE_ANALYSIS {
     main:
     // Download prophage database
     DOWNLOAD_PROPHAGE_DB()
-    DOWNLOAD_CHECKV_DB()
+    // DOWNLOAD_CHECKV_DB()  // DISABLED: CheckV has DIAMOND errors
 
     // Transform channel for VIBRANT: [meta, fasta] -> [sample_id, fasta]
     // Handle both meta and non-meta input formats
@@ -34,20 +34,20 @@ workflow PHAGE_ANALYSIS {
 
     // Run downstream phage analyses
     DIAMOND_PROPHAGE(VIBRANT.out.phages, DOWNLOAD_PROPHAGE_DB.out.db)
-    CHECKV(VIBRANT.out.phages, DOWNLOAD_CHECKV_DB.out.db)
+    // CHECKV(VIBRANT.out.phages, DOWNLOAD_CHECKV_DB.out.db)  // DISABLED: CheckV has DIAMOND errors
     PHANOTATE(VIBRANT.out.phages)
 
     // Collect versions
     ch_versions = Channel.empty()
     ch_versions = ch_versions.mix(VIBRANT.out.versions.first())
     ch_versions = ch_versions.mix(DIAMOND_PROPHAGE.out.versions.first())
-    ch_versions = ch_versions.mix(CHECKV.out.versions.first())
+    // ch_versions = ch_versions.mix(CHECKV.out.versions.first())  // DISABLED: CheckV has DIAMOND errors
     ch_versions = ch_versions.mix(PHANOTATE.out.versions.first())
 
     emit:
     vibrant_results = VIBRANT.out.results           // channel: [sample_id, results]
     diamond_results = DIAMOND_PROPHAGE.out.results  // channel: [sample_id, results]
-    checkv_results = CHECKV.out.results             // channel: [sample_id, results]
+    checkv_results = Channel.empty()                // DISABLED: CheckV has DIAMOND errors
     phanotate_results = PHANOTATE.out.results       // channel: [sample_id, results]
     phage_contigs = VIBRANT.out.phages              // channel: [sample_id, fasta]
     versions = ch_versions

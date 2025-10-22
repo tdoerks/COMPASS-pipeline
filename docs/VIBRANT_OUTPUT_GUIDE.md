@@ -1,4 +1,17 @@
-# Understanding VIBRANT Phage Analysis Results
+# Understanding Phage Analysis Results in COMPASS
+
+## Two-Step Phage Analysis
+
+COMPASS uses two complementary tools for phage analysis:
+
+1. **VIBRANT** - *Detects* where phages are (which contigs contain phage sequences)
+2. **DIAMOND** - *Identifies* what phages they are (matches to known phage databases)
+
+Think of it like:
+- **VIBRANT** = "There's a phage on contig_5"
+- **DIAMOND** = "That phage matches *Salmonella phage P22*"
+
+This is similar to how AMRFinder not only detects resistance genes but also tells you *which* genes (e.g., blaCTX-M).
 
 ## What is VIBRANT?
 
@@ -80,7 +93,54 @@ To determine if phages are actually carrying AMR genes, you would need to:
 2. Look at the detailed VIBRANT annotation files for gene content
 3. Use specialized tools like PHASTER or MOB-suite to map gene locations
 
+## DIAMOND Phage Identification
+
+DIAMOND compares your detected phage sequences against a prophage database using BLAST-like alignment.
+
+### Key DIAMOND Columns
+
+- **query**: Your phage contig name (from VIBRANT)
+- **subject**: The known phage it matches to (**this is the phage name/ID!**)
+- **pident**: Percent identity (higher = closer match)
+- **length**: Alignment length
+- **evalue**: E-value (lower = more significant, e.g., 1e-50 is great)
+- **bitscore**: Alignment score (higher = better match)
+
+### Interpreting DIAMOND Results
+
+**Good matches:**
+- pident > 70% = closely related phage
+- evalue < 1e-10 = highly significant
+- Multiple hits to same subject = strong evidence
+
+**Example:**
+```
+query: NODE_5
+subject: Salmonella_phage_P22_complete_genome
+pident: 85.3
+evalue: 2e-89
+```
+**Interpretation:** Your NODE_5 contains a phage that is 85% identical to Salmonella phage P22 - this is a known temperate phage.
+
+## Connecting AMR and Phage Results
+
+To see if AMR genes might be carried by phages:
+
+1. Check AMR results for the scaffold/contig column
+2. Check VIBRANT results for the scaffold column
+3. If they match → that AMR gene is on a phage contig!
+4. Look up that contig in DIAMOND to see which phage it is
+
+**Example workflow:**
+```
+AMR: blaCTX-M found on NODE_5
+VIBRANT: NODE_5 is a lysogenic phage
+DIAMOND: NODE_5 matches Salmonella_phage_P22
+```
+**Conclusion:** blaCTX-M may be carried by a P22-like phage!
+
 ## References
 
 - VIBRANT paper: [Kieft et al. 2020, Microbiome](https://microbiomejournal.biomedcentral.com/articles/10.1186/s40168-020-00867-0)
 - VIBRANT GitHub: https://github.com/AnantharamanLab/VIBRANT
+- DIAMOND: https://github.com/bbuchfink/diamond

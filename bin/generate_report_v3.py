@@ -19,7 +19,7 @@ def read_tsv(file_path, max_rows=None):
 
 def collect_all_results(results_dir):
     results_dir = Path(results_dir)
-    data = {'amr': {}, 'phage': {}, 'mlst': {}, 'sistr': {}, 'mobsuite': {}, 'busco': {}, 'metadata': {}}
+    data = {'amr': {}, 'phage': {}, 'diamond': {}, 'mlst': {}, 'sistr': {}, 'mobsuite': {}, 'busco': {}, 'metadata': {}}
     
     # AMR
     amr_dir = results_dir / 'amrfinder'
@@ -35,7 +35,29 @@ def collect_all_results(results_dir):
             summaries = list(d.glob('**/VIBRANT_summary_results*.tsv'))
             if summaries:
                 data['phage'][sample] = read_tsv(summaries[0])
-    
+
+    # DIAMOND prophage identification
+    diamond_dir = results_dir / 'diamond_prophage'
+    if diamond_dir.exists():
+        for f in diamond_dir.glob('*_diamond_results.tsv'):
+            sample = f.stem.replace('_diamond_results', '')
+            # DIAMOND BLAST tabular format (outfmt 6)
+            # Columns: qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore
+            diamond_hits = read_tsv(f)
+            if diamond_hits and diamond_hits[0]:
+                # Add column names for DIAMOND output if they don't exist
+                if 'qseqid' not in diamond_hits[0]:
+                    for hit in diamond_hits:
+                        if len(hit) >= 12:
+                            keys = list(hit.keys())[:12]
+                            hit_dict = dict(zip(
+                                ['query', 'subject', 'pident', 'length', 'mismatch', 'gapopen',
+                                 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore'],
+                                [hit[k] for k in keys]
+                            ))
+                            diamond_hits[diamond_hits.index(hit)] = hit_dict
+            data['diamond'][sample] = diamond_hits
+
     # MLST
     mlst_dir = results_dir / 'mlst'
     if mlst_dir.exists():
@@ -210,7 +232,8 @@ nav a:hover {{background: #3498db;}}
 <a href="#overview">Overview</a>
 <a href="#cross-ref">Sample Summary</a>
 <a href="#amr">AMR</a>
-<a href="#phage">Phage</a>
+<a href="#phage">Phage Detection</a>
+<a href="#phage-id">Phage ID</a>
 <a href="#typing">Typing</a>
 <a href="#plasmids">Plasmids</a>
 <a href="#about">About</a>
@@ -261,20 +284,40 @@ nav a:hover {{background: #3498db;}}
         html += table_html(amr_list) if count > 0 else '<p><em>No resistance genes</em></p>'
         html += '</div>'
     
-    html += '</div><div id="phage" class="section"><h2>🧬 Phage Analysis Details</h2>'
-    
+    html += '</div><div id="phage" class="section"><h2>🧬 Phage Detection (VIBRANT)</h2>'
+    html += '<p><em>Shows which contigs contain phage sequences and their characteristics.</em></p>'
+
     for sample, phage_list in sorted(data['phage'].items()):
         count = len(phage_list)
         has_amr = len(data['amr'].get(sample, [])) > 0
         highlight = ' class="highlight-both"' if (count > 0 and has_amr) else ''
-        
+
         html += f'<div{highlight}><h3>{sample} <span class="badge badge-info">{count} phages</span>'
         if has_amr:
             html += ' <span class="badge badge-warning">Has AMR</span>'
         html += '</h3>'
         html += table_html(phage_list) if count > 0 else '<p><em>No phages detected</em></p>'
         html += '</div>'
-    
+
+    html += '</div><div id="phage-id" class="section"><h2>🔍 Phage Identification (DIAMOND)</h2>'
+    html += '<p><em>Identifies which known phages your sequences match to (like AMRFinder for AMR genes).</em></p>'
+    html += '<p><strong>Key columns:</strong> <code>query</code> = your phage contig, <code>subject</code> = known phage match, <code>pident</code> = % identity, <code>evalue</code> = significance</p>'
+
+    if data['diamond']:
+        for sample, diamond_list in sorted(data['diamond'].items()):
+            count = len(diamond_list)
+            has_amr = len(data['amr'].get(sample, [])) > 0
+            highlight = ' class="highlight-both"' if (count > 0 and has_amr) else ''
+
+            html += f'<div{highlight}><h3>{sample} <span class="badge badge-success">{count} matches</span>'
+            if has_amr:
+                html += ' <span class="badge badge-warning">Has AMR</span>'
+            html += '</h3>'
+            html += table_html(diamond_list, max_rows=100) if count > 0 else '<p><em>No phage matches found</em></p>'
+            html += '</div>'
+    else:
+        html += '<p><em>No DIAMOND results available. DIAMOND compares detected phages against a prophage database to identify which known phages they match.</em></p>'
+
     html += '</div><div id="typing" class="section"><h2>🔬 Strain Typing</h2>'
     
     if data['mlst']:
@@ -304,7 +347,15 @@ nav a:hover {{background: #3498db;}}
 <li>Sample summary table showing AMR genes, phages, and plasmids per isolate</li>
 <li>Highlighted samples with both AMR and phage content</li>
 <li>Interactive pie charts for distribution analysis</li>
+<li><strong>Phage Detection (VIBRANT):</strong> Identifies which contigs contain phage sequences</li>
+<li><strong>Phage Identification (DIAMOND):</strong> Matches detected phages to known phage databases</li>
 <li>All data embedded - no external files needed</li>
+</ul>
+<p><strong>Understanding Phage Results:</strong></p>
+<ul>
+<li><code>scaffold</code> in VIBRANT = the contig/region containing the phage</li>
+<li><code>subject</code> in DIAMOND = the name of the known phage it matches (like a phage species)</li>
+<li>Compare scaffold names between AMR and phage sections to see if AMR genes are on phage contigs</li>
 </ul>
 <p><strong>Results Directory:</strong> {results_dir}</p>
 </div>
@@ -355,7 +406,7 @@ def main():
     print(f"🔍 Scanning: {args.results_dir}")
     data = collect_all_results(args.results_dir)
     
-    print(f"📊 Found: {len(data['amr'])} AMR, {len(data['phage'])} Phage, {len(data['mlst'])} MLST")
+    print(f"📊 Found: {len(data['amr'])} AMR, {len(data['phage'])} Phage, {len(data['diamond'])} Phage IDs, {len(data['mlst'])} MLST")
     
     output = generate_html(data, args.results_dir, args.output)
     size = os.path.getsize(output) / 1024

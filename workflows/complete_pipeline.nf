@@ -79,6 +79,10 @@ workflow COMPLETE_PIPELINE {
         ch_versions = ch_versions.mix(ASSEMBLY.out.versions.first())
     }
 
+    // Make assemblies channel reusable for multiple downstream processes
+    // In Nextflow DSL2, channels can only be consumed once unless made reusable
+    ch_assemblies = ch_assemblies.collect().flatten().collate(2)
+
     // Run AMR analysis
     AMR_ANALYSIS(ch_assemblies)
     ch_versions = ch_versions.mix(AMR_ANALYSIS.out.versions)

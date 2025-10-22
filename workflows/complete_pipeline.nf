@@ -36,12 +36,19 @@ workflow COMPLETE_PIPELINE {
         // Convert [meta, fasta] to [sample_id, fasta] for QC tools
         ch_assemblies_for_qc = ch_assemblies.map { meta, fasta -> [meta.id, fasta] }
 
-        BUSCO(ch_assemblies_for_qc)
-        QUAST(ch_assemblies_for_qc)
+        // BUSCO (optional)
+        if (!params.skip_busco) {
+            BUSCO(ch_assemblies_for_qc)
+            ch_busco_summary = BUSCO.out.summary
+            ch_versions = ch_versions.mix(BUSCO.out.versions)
+        } else {
+            ch_busco_summary = Channel.empty()
+        }
 
-        ch_busco_summary = BUSCO.out.summary
+        // QUAST
+        QUAST(ch_assemblies_for_qc)
         ch_quast_report = QUAST.out.report
-        ch_versions = ch_versions.mix(BUSCO.out.versions).mix(QUAST.out.versions)
+        ch_versions = ch_versions.mix(QUAST.out.versions)
 
     } else if (input_mode == 'metadata') {
         // NARMS metadata mode: download metadata, filter, download SRA, assemble

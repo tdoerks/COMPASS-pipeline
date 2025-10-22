@@ -24,8 +24,17 @@ workflow ASSEMBLY {
     // Assemble genomes using trimmed reads
     ASSEMBLE_SPADES(FASTP.out.reads)
 
-    // Quality assessment of assemblies with BUSCO
-    BUSCO(ASSEMBLE_SPADES.out.assembly)
+    // Quality assessment of assemblies with BUSCO (optional)
+    if (!params.skip_busco) {
+        BUSCO(ASSEMBLE_SPADES.out.assembly)
+        ch_busco_results = BUSCO.out.results
+        ch_busco_summary = BUSCO.out.summary
+        ch_busco_versions = BUSCO.out.versions
+    } else {
+        ch_busco_results = Channel.empty()
+        ch_busco_summary = Channel.empty()
+        ch_busco_versions = Channel.empty()
+    }
 
     // Assembly statistics with QUAST
     QUAST(ASSEMBLE_SPADES.out.assembly)
@@ -55,9 +64,9 @@ workflow ASSEMBLY {
     fastqc_zip = FASTQC.out.zip  // channel: path(zip)
     fastp_json = FASTP.out.json  // channel: path(json)
     fastp_html = FASTP.out.html  // channel: path(html)
-    busco_results = BUSCO.out.results  // channel: path(busco_dir)
-    busco_summary = BUSCO.out.summary  // channel: path(summary.txt)
+    busco_results = ch_busco_results  // channel: path(busco_dir) or empty
+    busco_summary = ch_busco_summary  // channel: path(summary.txt) or empty
     quast_results = QUAST.out.results  // channel: [sample_id, dir]
     quast_report = QUAST.out.report  // channel: path(report.tsv)
-    versions = FASTQC.out.versions.mix(FASTP.out.versions).mix(ASSEMBLE_SPADES.out.versions).mix(BUSCO.out.versions).mix(QUAST.out.versions)
+    versions = FASTQC.out.versions.mix(FASTP.out.versions).mix(ASSEMBLE_SPADES.out.versions).mix(ch_busco_versions).mix(QUAST.out.versions)
 }

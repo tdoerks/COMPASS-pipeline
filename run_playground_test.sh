@@ -22,6 +22,7 @@ nextflow run main.nf \
     --filter_year_start 2023 \
     --filter_year_end 2023 \
     --max_samples 5 \
+    --skip_busco true \
     --outdir results_playground_test \
     -resume
 

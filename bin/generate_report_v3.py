@@ -126,19 +126,30 @@ def create_cross_reference_table(data):
     
     return summary
 
-def analyze_phage_diversity(phage_data):
-    """Analyze phage types across all samples"""
-    all_phages = []
-    for sample, phages in phage_data.items():
-        for phage in phages:
-            all_phages.append(phage)
-    
-    types = Counter()
-    for phage in all_phages:
-        phage_type = phage.get('type', phage.get('scaffold', phage.get('fragment', 'Unknown')))
-        types[phage_type] += 1
-    
-    return types
+def analyze_phage_diversity(diamond_data):
+    """Analyze phage diversity using DIAMOND identifications"""
+    phage_ids = Counter()
+
+    for sample, diamond_hits in diamond_data.items():
+        for hit in diamond_hits:
+            # Get the subject (phage ID) from DIAMOND results
+            subject = hit.get('subject', hit.get('sseqid', 'Unknown'))
+
+            # Clean up the subject ID to make it more readable
+            # Extract organism name from accessions like "195.SAMN05942178.CP017873"
+            if subject and subject != 'Unknown':
+                # Try to simplify long accessions
+                if '.' in subject and subject.count('.') >= 2:
+                    # Format like "195.SAMN05942178.CP017873" -> "CP017873"
+                    parts = subject.split('.')
+                    subject = parts[-1] if parts[-1] else subject
+                elif subject.startswith('NZ_'):
+                    # Keep NZ_ accessions as-is but they're still cleaner than full BioSample
+                    pass
+
+                phage_ids[subject] += 1
+
+    return phage_ids if phage_ids else Counter({'No DIAMOND matches': 1})
 
 def create_pie_chart_data(counter_data, title="Distribution"):
     """Convert Counter to format for pie chart"""
@@ -173,10 +184,10 @@ def generate_html(data, results_dir, output_file):
     
     # Create cross-reference summary
     cross_ref = create_cross_reference_table(data)
-    
-    # Analyze phage diversity
-    phage_diversity = analyze_phage_diversity(data['phage'])
-    phage_chart_data = create_pie_chart_data(phage_diversity, "Phage Type Distribution")
+
+    # Analyze phage diversity using DIAMOND identifications
+    phage_diversity = analyze_phage_diversity(data['diamond'])
+    phage_chart_data = create_pie_chart_data(phage_diversity, "Phage Identification Distribution")
     
     # Count AMR classes
     amr_classes = Counter()
@@ -251,7 +262,8 @@ nav a:hover {{background: #3498db;}}
 
 <div class="chart-grid">
 <div class="chart-container">
-<h3>Phage Type Distribution</h3>
+<h3>Phage Identification Distribution</h3>
+<p style="font-size: 0.9em; color: #7f8c8d;"><em>Based on DIAMOND prophage database matches</em></p>
 <canvas id="phageChart"></canvas>
 </div>
 

@@ -19,14 +19,33 @@ def read_tsv(file_path, max_rows=None):
 
 def collect_all_results(results_dir):
     results_dir = Path(results_dir)
-    data = {'amr': {}, 'phage': {}, 'diamond': {}, 'mlst': {}, 'sistr': {}, 'mobsuite': {}, 'busco': {}, 'metadata': {}, 'quast': {}}
+    data = {'amr': {}, 'phage': {}, 'diamond': {}, 'mlst': {}, 'sistr': {}, 'mobsuite': {}, 'busco': {}, 'metadata': {}, 'quast': {}, 'abricate': {}, 'abricate_summary': None}
     
     # AMR
     amr_dir = results_dir / 'amrfinder'
     if amr_dir.exists():
         for f in amr_dir.glob('*_amr.tsv'):
             data['amr'][f.stem.replace('_amr', '')] = read_tsv(f)
-    
+
+    # ABRicate (multi-database AMR screening)
+    abricate_dir = results_dir / 'abricate'
+    if abricate_dir.exists():
+        # Collect per-sample, per-database results
+        for f in abricate_dir.glob('*_*.tsv'):
+            if f.name != 'abricate_summary.tsv':
+                # Parse filename: {sample}_{database}.tsv
+                parts = f.stem.rsplit('_', 1)
+                if len(parts) == 2:
+                    sample, database = parts
+                    if sample not in data['abricate']:
+                        data['abricate'][sample] = {}
+                    data['abricate'][sample][database] = read_tsv(f)
+
+        # Collect summary matrix
+        summary_file = abricate_dir / 'abricate_summary.tsv'
+        if summary_file.exists():
+            data['abricate_summary'] = read_tsv(summary_file)
+
     # Phage
     vibrant_dir = results_dir / 'vibrant'
     if vibrant_dir.exists():
@@ -277,7 +296,8 @@ nav a:hover {{background: #3498db;}}
 <a href="#overview">Overview</a>
 <a href="#assembly-qc">Assembly QC</a>
 <a href="#cross-ref">Sample Summary</a>
-<a href="#amr">AMR</a>
+<a href="#amr">AMR (AMRFinder)</a>
+<a href="#abricate">AMR (ABRicate)</a>
 <a href="#phage">Phage Detection</a>
 <a href="#phage-id">Phage ID</a>
 <a href="#typing">Typing</a>
@@ -341,7 +361,34 @@ nav a:hover {{background: #3498db;}}
         html += '</h3>'
         html += table_html(amr_list) if count > 0 else '<p><em>No resistance genes</em></p>'
         html += '</div>'
-    
+
+    html += '</div><div id="abricate" class="section"><h2>🦠 AMR Multi-Database Screening (ABRicate)</h2>'
+    html += '<p><em>Compares assemblies against multiple resistance databases: NCBI, CARD, ResFinder, ARG-ANNOT</em></p>'
+
+    if data['abricate']:
+        for sample in sorted(data['abricate'].keys()):
+            databases = data['abricate'][sample]
+            total_hits = sum(len(hits) for hits in databases.values())
+            has_phage = len(data['phage'].get(sample, [])) > 0
+            highlight = ' class="highlight-both"' if (total_hits > 0 and has_phage) else ''
+
+            html += f'<div{highlight}><h3>{sample} <span class="badge badge-warning">{total_hits} total hits</span>'
+            if has_phage:
+                html += ' <span class="badge badge-info">Has Phages</span>'
+            html += '</h3>'
+
+            for db_name in sorted(databases.keys()):
+                db_hits = databases[db_name]
+                if db_hits:
+                    html += f'<h4>{db_name.upper()} Database <span class="badge badge-success">{len(db_hits)} hits</span></h4>'
+                    html += table_html(db_hits, max_rows=100)
+                else:
+                    html += f'<h4>{db_name.upper()} Database</h4><p><em>No hits</em></p>'
+
+            html += '</div>'
+    else:
+        html += '<p><em>No ABRicate results available</em></p>'
+
     html += '</div><div id="phage" class="section"><h2>🧬 Phage Detection (VIBRANT)</h2>'
     html += '<p><em>Shows which contigs contain phage sequences and their characteristics.</em></p>'
 

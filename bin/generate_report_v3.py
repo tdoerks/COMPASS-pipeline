@@ -19,7 +19,7 @@ def read_tsv(file_path, max_rows=None):
 
 def collect_all_results(results_dir):
     results_dir = Path(results_dir)
-    data = {'amr': {}, 'phage': {}, 'diamond': {}, 'mlst': {}, 'sistr': {}, 'mobsuite': {}, 'busco': {}, 'metadata': {}}
+    data = {'amr': {}, 'phage': {}, 'diamond': {}, 'mlst': {}, 'sistr': {}, 'mobsuite': {}, 'busco': {}, 'metadata': {}, 'quast': {}}
     
     # AMR
     amr_dir = results_dir / 'amrfinder'
@@ -85,8 +85,39 @@ def collect_all_results(results_dir):
         for f in meta_dir.glob('*_metadata.csv'):
             with open(f) as mf:
                 data['metadata'][f.stem.replace('_metadata', '')] = list(csv.DictReader(mf))
-    
+
+    # QUAST assembly quality
+    quast_dir = results_dir / 'quast'
+    if quast_dir.exists():
+        for d in quast_dir.glob('*_quast'):
+            sample = d.name.replace('_quast', '')
+            report_file = d / 'report.tsv'
+            if report_file.exists():
+                quast_data = read_tsv(report_file)
+                if quast_data:
+                    data['quast'][sample] = quast_data[0]  # QUAST has single row per assembly
+
     return data
+
+def create_assembly_quality_table(quast_data):
+    """Create assembly quality summary table from QUAST results"""
+    if not quast_data:
+        return []
+
+    summary = []
+    for sample in sorted(quast_data.keys()):
+        q = quast_data[sample]
+        summary.append({
+            'Sample': sample,
+            'Total Length (bp)': q.get('Total length', q.get('Total length (>= 0 bp)', '-')),
+            '# Contigs': q.get('# contigs', q.get('# contigs (>= 0 bp)', '-')),
+            'Largest Contig (bp)': q.get('Largest contig', '-'),
+            'N50 (bp)': q.get('N50', '-'),
+            'L50': q.get('L50', '-'),
+            'GC (%)': q.get('GC (%)', '-'),
+        })
+
+    return summary
 
 def create_cross_reference_table(data):
     """Create a summary table linking AMR and phage results per isolate"""
@@ -185,6 +216,9 @@ def generate_html(data, results_dir, output_file):
     # Create cross-reference summary
     cross_ref = create_cross_reference_table(data)
 
+    # Create assembly quality summary
+    assembly_qc = create_assembly_quality_table(data['quast'])
+
     # Analyze phage diversity using DIAMOND identifications
     phage_diversity = analyze_phage_diversity(data['diamond'])
     phage_chart_data = create_pie_chart_data(phage_diversity, "Phage Identification Distribution")
@@ -241,6 +275,7 @@ nav a:hover {{background: #3498db;}}
 
 <nav>
 <a href="#overview">Overview</a>
+<a href="#assembly-qc">Assembly QC</a>
 <a href="#cross-ref">Sample Summary</a>
 <a href="#amr">AMR</a>
 <a href="#phage">Phage Detection</a>
@@ -272,6 +307,17 @@ nav a:hover {{background: #3498db;}}
 <canvas id="amrChart"></canvas>
 </div>
 </div>
+</div>
+
+<div id="assembly-qc" class="section">
+<h2>🔬 Assembly Quality Metrics</h2>
+<p>Summary of assembly statistics from QUAST. Key metrics to assess assembly quality:</p>
+<ul>
+<li><strong>N50:</strong> 50% of the assembly is in contigs this size or larger (higher is better)</li>
+<li><strong>L50:</strong> Number of contigs comprising 50% of the assembly (lower is better)</li>
+<li><strong># Contigs:</strong> Fewer contigs indicates a more contiguous assembly</li>
+</ul>
+{table_html(assembly_qc, max_rows=1000)}
 </div>
 
 <div id="cross-ref" class="section">

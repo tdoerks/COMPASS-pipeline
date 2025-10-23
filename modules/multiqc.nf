@@ -3,7 +3,7 @@ process MULTIQC {
     container = 'quay.io/biocontainers/multiqc:1.25.1--pyhdfd78af_0'
 
     input:
-    path('*')  // Collect all QC outputs
+    path(qc_files, stageAs: 'qc_data/*')  // Stage files preserving structure to avoid name collisions
 
     output:
     path "multiqc_report.html", emit: report
@@ -12,7 +12,7 @@ process MULTIQC {
 
     script:
     """
-    multiqc . \\
+    multiqc qc_data \\
         --filename multiqc_report.html \\
         --force \\
         --config ${params.multiqc_config ?: ''} \\

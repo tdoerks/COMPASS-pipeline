@@ -87,23 +87,31 @@ workflow COMPLETE_PIPELINE {
     }
 
     // Make assemblies channel reusable for multiple downstream processes
-    // In Nextflow DSL2, channels can only be consumed once unless made reusable
-    ch_assemblies = ch_assemblies.collect().flatten().collate(2)
+    // Use multiMap to split channel for parallel consumption without batching
+    // This allows samples to flow through independently as they complete assembly
+    ch_assemblies
+        .multiMap { meta, fasta ->
+            amr: [meta, fasta]
+            phage: [meta, fasta]
+            typing: [meta, fasta]
+            mobile: [meta, fasta]
+        }
+        .set { ch_assemblies_split }
 
-    // Run AMR analysis
-    AMR_ANALYSIS(ch_assemblies)
+    // Run AMR analysis - samples processed as they arrive
+    AMR_ANALYSIS(ch_assemblies_split.amr)
     ch_versions = ch_versions.mix(AMR_ANALYSIS.out.versions)
 
-    // Run Phage analysis
-    PHAGE_ANALYSIS(ch_assemblies)
+    // Run Phage analysis - samples processed as they arrive
+    PHAGE_ANALYSIS(ch_assemblies_split.phage)
     ch_versions = ch_versions.mix(PHAGE_ANALYSIS.out.versions)
 
-    // Run Typing analysis (MLST, serotyping)
-    TYPING(ch_assemblies)
+    // Run Typing analysis (MLST, serotyping) - samples processed as they arrive
+    TYPING(ch_assemblies_split.typing)
     ch_versions = ch_versions.mix(TYPING.out.versions)
 
-    // Run Mobile Elements analysis (plasmids)
-    MOBILE_ELEMENTS(ch_assemblies)
+    // Run Mobile Elements analysis (plasmids) - samples processed as they arrive
+    MOBILE_ELEMENTS(ch_assemblies_split.mobile)
     ch_versions = ch_versions.mix(MOBILE_ELEMENTS.out.versions)
 
     // Combine all results

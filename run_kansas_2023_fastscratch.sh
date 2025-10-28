@@ -40,6 +40,7 @@ nextflow run main.nf \
     --skip_busco true \
     --outdir /fastscratch/tylerdoe/results_kansas_2023 \
     -w work_2023 \
+    -name kansas_2023 \
     -resume
 
 EXIT_CODE=$?

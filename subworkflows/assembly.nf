@@ -68,5 +68,6 @@ workflow ASSEMBLY {
     busco_summary = ch_busco_summary  // channel: path(summary.txt) or empty
     quast_results = QUAST.out.results  // channel: [sample_id, dir]
     quast_report = QUAST.out.report  // channel: path(report.tsv)
+    quast_dirs = QUAST.out.results_dir  // channel: path(dir) for MultiQC
     versions = FASTQC.out.versions.mix(FASTP.out.versions).mix(ASSEMBLE_SPADES.out.versions).mix(ch_busco_versions).mix(QUAST.out.versions)
 }

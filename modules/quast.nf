@@ -9,6 +9,7 @@ process QUAST {
     output:
     tuple val(sample_id), path("${sample_id}_quast"), emit: results
     path "${sample_id}_quast/report.tsv", emit: report
+    path "${sample_id}_quast", emit: results_dir  // Emit directory for MultiQC
     path "versions.yml", emit: versions
 
     script:

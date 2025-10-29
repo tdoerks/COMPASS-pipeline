@@ -48,6 +48,7 @@ workflow COMPLETE_PIPELINE {
         // QUAST
         QUAST(ch_assemblies_for_qc)
         ch_quast_report = QUAST.out.report
+        ch_quast_dirs = QUAST.out.results_dir  // Use directories for MultiQC
         ch_versions = ch_versions.mix(QUAST.out.versions)
 
     } else if (input_mode == 'metadata') {
@@ -64,6 +65,7 @@ workflow COMPLETE_PIPELINE {
         ch_qc_outputs = ASSEMBLY.out
         ch_busco_summary = ASSEMBLY.out.busco_summary
         ch_quast_report = ASSEMBLY.out.quast_report
+        ch_quast_dirs = ASSEMBLY.out.quast_dirs  // Use directories for MultiQC
         ch_metadata = DATA_ACQUISITION.out.metadata
         ch_versions = ch_versions.mix(DATA_ACQUISITION.out.versions)
         ch_versions = ch_versions.mix(ASSEMBLY.out.versions.first())
@@ -82,6 +84,7 @@ workflow COMPLETE_PIPELINE {
         ch_qc_outputs = ASSEMBLY.out
         ch_busco_summary = ASSEMBLY.out.busco_summary
         ch_quast_report = ASSEMBLY.out.quast_report
+        ch_quast_dirs = ASSEMBLY.out.quast_dirs  // Use directories for MultiQC
         ch_versions = ch_versions.mix(DATA_ACQUISITION.out.versions)
         ch_versions = ch_versions.mix(ASSEMBLY.out.versions.first())
     }
@@ -139,9 +142,10 @@ workflow COMPLETE_PIPELINE {
     }
 
     // Always include assembly QC (BUSCO and QUAST)
+    // Use QUAST directories instead of individual report.tsv files to avoid name collisions
     ch_multiqc = ch_multiqc
         .mix(ch_busco_summary.collect().ifEmpty([]))
-        .mix(ch_quast_report.collect().ifEmpty([]))
+        .mix(ch_quast_dirs.collect().ifEmpty([]))
 
     // Run MultiQC to aggregate all QC reports
     MULTIQC(ch_multiqc.collect())

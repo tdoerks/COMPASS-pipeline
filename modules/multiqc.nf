@@ -12,32 +12,9 @@ process MULTIQC {
 
     script:
     """
-    # Create unique directory structure for each file type to avoid collisions
-    mkdir -p qc_data
-
-    # Copy files with index to ensure uniqueness
-    i=0
-    for file in ${qc_files}; do
-        # Get file extension and basename
-        ext="\${file##*.}"
-        base="\${file%.*}"
-
-        # Create subdirectory based on file type if possible
-        if [[ \$file == *"quast"* ]]; then
-            cp -r \$file qc_data/quast_\${i}_\$(basename \$file) || true
-        elif [[ \$file == *"busco"* ]]; then
-            cp -r \$file qc_data/busco_\${i}_\$(basename \$file) || true
-        elif [[ \$file == *"fastqc"* ]]; then
-            cp -r \$file qc_data/fastqc_\${i}_\$(basename \$file) || true
-        elif [[ \$file == *"fastp"* ]]; then
-            cp -r \$file qc_data/fastp_\${i}_\$(basename \$file) || true
-        else
-            cp -r \$file qc_data/file_\${i}_\$(basename \$file) || true
-        fi
-        i=\$((i+1))
-    done
-
-    multiqc qc_data \\
+    # MultiQC scans all input files and directories
+    # QUAST directories are passed directly to avoid filename collisions
+    multiqc . \\
         --filename multiqc_report.html \\
         --force \\
         --config ${params.multiqc_config ?: ''} \\

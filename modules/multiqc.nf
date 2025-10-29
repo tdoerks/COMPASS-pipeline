@@ -11,13 +11,14 @@ process MULTIQC {
     path "versions.yml", emit: versions
 
     script:
+    def config_opt = params.multiqc_config ? "--config ${params.multiqc_config}" : ""
     """
     # MultiQC scans all input files and directories
     # QUAST directories are passed directly to avoid filename collisions
     multiqc . \\
         --filename multiqc_report.html \\
         --force \\
-        --config ${params.multiqc_config ?: ''} \\
+        ${config_opt} \\
         --title "COMPASS Pipeline Report" \\
         --comment "Comprehensive bacterial genomics analysis" || {
             echo "MultiQC completed with warnings or partial results"

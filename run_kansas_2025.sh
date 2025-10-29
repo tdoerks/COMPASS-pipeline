@@ -2,7 +2,7 @@
 #SBATCH --job-name=compass_ks_2025
 #SBATCH --output=slurm-%j.out
 #SBATCH --error=slurm-%j.err
-#SBATCH --time=48:00:00
+#SBATCH --time=168:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
 #SBATCH --mail-type=END,FAIL
@@ -25,6 +25,7 @@ module load Nextflow
 #   - Salmonella (PRJNA292661)
 #   - E. coli (PRJNA292663)
 # Filters for KS state code in sample names
+# Uses unique session name and work directory to avoid conflicts
 nextflow run main.nf \
     -profile beocat \
     --input_mode metadata \
@@ -33,6 +34,8 @@ nextflow run main.nf \
     --filter_year_end 2025 \
     --skip_busco true \
     --outdir results_kansas_2025 \
+    -w work_2025 \
+    -name kansas_2025_${SLURM_JOB_ID} \
     -resume
 
 EXIT_CODE=$?

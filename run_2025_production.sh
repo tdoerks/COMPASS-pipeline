@@ -2,7 +2,7 @@
 #SBATCH --job-name=compass_2025_prod
 #SBATCH --output=slurm-%j.out
 #SBATCH --error=slurm-%j.err
-#SBATCH --time=120:00:00
+#SBATCH --time=168:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
 #SBATCH --mail-type=END,FAIL
@@ -24,6 +24,7 @@ module load Nextflow
 #   - Salmonella (PRJNA292661)
 #   - E. coli (PRJNA292663)
 # No state filter = all states included
+# Uses unique session name and work directory to avoid conflicts
 nextflow run main.nf \
     -profile beocat \
     --input_mode metadata \
@@ -32,6 +33,8 @@ nextflow run main.nf \
     --filter_year_end 2025 \
     --skip_busco true \
     --outdir results_2025_production \
+    -w work_2025_prod \
+    -name production_2025_${SLURM_JOB_ID} \
     -resume
 
 EXIT_CODE=$?

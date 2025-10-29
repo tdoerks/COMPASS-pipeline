@@ -30,6 +30,7 @@ module load Nextflow
 #   - Salmonella (PRJNA292661)
 #   - E. coli (PRJNA292663)
 # Filters for KS state code in sample names
+# Uses unique session name and work directory to avoid conflicts
 nextflow run main.nf \
     -profile beocat \
     --input_mode metadata \
@@ -38,6 +39,8 @@ nextflow run main.nf \
     --filter_year_end 2024 \
     --skip_busco true \
     --outdir /fastscratch/tylerdoe/results_kansas_2024 \
+    -w work_2024 \
+    -name kansas_2024_${SLURM_JOB_ID} \
     -resume
 
 EXIT_CODE=$?

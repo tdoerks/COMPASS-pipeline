@@ -117,18 +117,9 @@ workflow COMPLETE_PIPELINE {
     MOBILE_ELEMENTS(ch_assemblies_split.mobile)
     ch_versions = ch_versions.mix(MOBILE_ELEMENTS.out.versions)
 
-    // Combine all results
-    COMBINE_RESULTS(
-        AMR_ANALYSIS.out.results.map { it[1] }.collect(),
-        PHAGE_ANALYSIS.out.vibrant_results.map { it[1] }.collect(),
-        PHAGE_ANALYSIS.out.diamond_results.map { it[1] }.collect(),
-        AMR_ANALYSIS.out.abricate_summary,
-        ch_quast_report.collect().ifEmpty([]),
-        ch_busco_summary.collect().ifEmpty([]),
-        TYPING.out.mlst_results.map { it[1] }.collect().ifEmpty([]),
-        TYPING.out.sistr_results.map { it[1] }.collect().ifEmpty([]),
-        ch_metadata.ifEmpty(file('NO_FILE'))
-    )
+    // Combine all results - runs after all analyses complete
+    // Uses published results from params.outdir
+    COMBINE_RESULTS()
     ch_versions = ch_versions.mix(COMBINE_RESULTS.out.versions)
 
     // Collect all QC outputs for MultiQC
@@ -154,7 +145,6 @@ workflow COMPLETE_PIPELINE {
 
     emit:
     summary = COMBINE_RESULTS.out.summary
-    report = COMBINE_RESULTS.out.report
     amr_results = AMR_ANALYSIS.out.results
     phage_results = PHAGE_ANALYSIS.out.vibrant_results
     diamond_results = PHAGE_ANALYSIS.out.diamond_results

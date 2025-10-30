@@ -145,6 +145,7 @@ workflow COMPLETE_PIPELINE {
 
     emit:
     summary = COMBINE_RESULTS.out.summary
+    report = COMBINE_RESULTS.out.report
     amr_results = AMR_ANALYSIS.out.results
     phage_results = PHAGE_ANALYSIS.out.vibrant_results
     diamond_results = PHAGE_ANALYSIS.out.diamond_results

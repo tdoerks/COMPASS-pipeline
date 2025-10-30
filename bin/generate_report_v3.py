@@ -266,10 +266,6 @@ def generate_html(data, results_dir, output_file):
                 amr_classes[amr_class] += 1
     amr_chart_data = create_pie_chart_data(amr_classes, "AMR Gene Classes")
 
-    # Analyze MLST ST distribution
-    mlst_distribution = analyze_mlst_distribution(data['mlst'])
-    mlst_chart_data = create_pie_chart_data(mlst_distribution, "MLST Sequence Type Distribution")
-
     # Count samples with both AMR and phage
     both_count = sum(1 for s in cross_ref if s['AMR_Genes'] > 0 and s['Phages'] > 0)
     
@@ -344,12 +340,6 @@ nav a:hover {{background: #3498db;}}
 <div class="chart-container">
 <h3>AMR Gene Classes</h3>
 <canvas id="amrChart"></canvas>
-</div>
-
-<div class="chart-container">
-<h3>MLST Sequence Type Distribution</h3>
-<p style="font-size: 0.9em; color: #7f8c8d;"><em>Distribution of strain types across samples</em></p>
-<canvas id="mlstChart"></canvas>
 </div>
 </div>
 </div>
@@ -493,7 +483,6 @@ nav a:hover {{background: #3498db;}}
 <script>
 const phageData = {phage_chart_data};
 const amrData = {amr_chart_data};
-const mlstData = {mlst_chart_data};
 
 new Chart(document.getElementById('phageChart'), {{
     type: 'pie',
@@ -514,18 +503,6 @@ new Chart(document.getElementById('amrChart'), {{
         datasets: [{{
             data: amrData.values,
             backgroundColor: ['#e74c3c','#f39c12','#e67e22','#c0392b','#d35400','#f1c40f','#e85d75','#ff6b81','#fd9644','#fa8231']
-        }}]
-    }},
-    options: {{responsive: true, plugins: {{legend: {{position: 'bottom'}}}}}}
-}});
-
-new Chart(document.getElementById('mlstChart'), {{
-    type: 'pie',
-    data: {{
-        labels: mlstData.labels,
-        datasets: [{{
-            data: mlstData.values,
-            backgroundColor: ['#3498db','#2ecc71','#f39c12','#e74c3c','#9b59b6','#1abc9c','#34495e','#e67e22','#95a5a6','#d35400']
         }}]
     }},
     options: {{responsive: true, plugins: {{legend: {{position: 'bottom'}}}}}}

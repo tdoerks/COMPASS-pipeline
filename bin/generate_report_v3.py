@@ -8,6 +8,14 @@ from pathlib import Path
 from datetime import datetime
 from collections import Counter
 
+# Try to import pandas for metadata processing
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+    pd = None
+
 def read_tsv(file_path, max_rows=None):
     try:
         with open(file_path) as f:
@@ -17,10 +25,120 @@ def read_tsv(file_path, max_rows=None):
     except:
         return []
 
-def collect_all_results(results_dir):
+def load_prophage_metadata(metadata_file):
+    """Load prophage metadata from Excel file and create lookup dictionary."""
+    if not PANDAS_AVAILABLE:
+        print("Warning: pandas not available, metadata enrichment disabled")
+        return None
+
+    if not metadata_file or not Path(metadata_file).exists():
+        print(f"Warning: Metadata file not found: {metadata_file}")
+        return None
+
+    try:
+        print(f"Loading prophage metadata from {metadata_file}...")
+        # Read Table 1 (prophage metadata)
+        phage_df = pd.read_excel(metadata_file, sheet_name='Table 1', header=0)
+
+        # Replace 'NA' strings with actual NaN
+        phage_df = phage_df.replace('NA', pd.NA)
+
+        # Create lookup dictionary keyed by contig_id and file_name
+        metadata_dict = {}
+
+        for _, row in phage_df.iterrows():
+            contig_id = str(row.get('contig_id', '')).strip()
+            file_name = str(row.get('file_name', '')).strip()
+
+            # Create metadata entry
+            entry = {
+                'file_name': file_name,
+                'contig_id': contig_id,
+                'host_domain': row.get('host_domain', ''),
+                'host_phylum': row.get('phylum', ''),
+                'host_class': row.get('class', ''),
+                'host_order': row.get('order', ''),
+                'host_family': row.get('family', ''),
+                'host_genus': row.get('genus', ''),
+                'host_species': row.get('species', ''),
+                'environment': row.get('environment', ''),
+                'isolation_source': row.get('ncbi_isolation_source', ''),
+                'checkv_quality': row.get('checkv_quality', ''),
+                'completeness': row.get('completeness', ''),
+                'viral_genes': row.get('viral_genes', ''),
+                'host_genes': row.get('host_genes', ''),
+                'lineage': row.get('lineage_genomad', ''),
+                'latitude': row.get('latitude', ''),
+                'longitude': row.get('longitude', ''),
+                'country': row.get('ncbi_country', '')
+            }
+
+            # Index by both contig_id and file_name for flexible matching
+            if contig_id:
+                metadata_dict[contig_id] = entry
+            if file_name:
+                metadata_dict[file_name] = entry
+
+        print(f"Loaded metadata for {len(metadata_dict)} prophage entries")
+        return metadata_dict
+
+    except Exception as e:
+        print(f"Warning: Could not load metadata: {e}")
+        return None
+
+def enrich_diamond_with_metadata(diamond_data, metadata_dict):
+    """Add metadata information to DIAMOND results."""
+    if not metadata_dict:
+        return diamond_data
+
+    enriched = {}
+    for sample, hits in diamond_data.items():
+        enriched_hits = []
+        for hit in hits:
+            # Get the subject (matched prophage ID)
+            subject = hit.get('subject', hit.get('sseqid', ''))
+
+            # Look up metadata - try multiple variations of the subject ID
+            meta = None
+            if subject:
+                # Try exact match
+                meta = metadata_dict.get(subject)
+
+                # Try extracting just the accession (e.g., "CP017873" from "195.SAMN05942178.CP017873")
+                if not meta and '.' in subject:
+                    parts = subject.split('.')
+                    for part in parts:
+                        meta = metadata_dict.get(part)
+                        if meta:
+                            break
+
+            # Add metadata fields to the hit
+            if meta:
+                hit['meta_host_genus'] = meta.get('host_genus', '')
+                hit['meta_host_species'] = meta.get('host_species', '')
+                hit['meta_environment'] = meta.get('environment', '')
+                hit['meta_quality'] = meta.get('checkv_quality', '')
+                hit['meta_completeness'] = meta.get('completeness', '')
+                hit['meta_matched'] = 'Yes'
+            else:
+                hit['meta_matched'] = 'No'
+
+            enriched_hits.append(hit)
+
+        enriched[sample] = enriched_hits
+
+    return enriched
+
+def collect_all_results(results_dir, prophage_metadata=None):
     results_dir = Path(results_dir)
-    data = {'amr': {}, 'phage': {}, 'diamond': {}, 'mlst': {}, 'sistr': {}, 'mobsuite': {}, 'busco': {}, 'metadata': {}, 'quast': {}, 'abricate': {}, 'abricate_summary': None}
-    
+    data = {'amr': {}, 'phage': {}, 'diamond': {}, 'mlst': {}, 'sistr': {}, 'mobsuite': {}, 'busco': {}, 'metadata': {}, 'quast': {}, 'abricate': {}, 'abricate_summary': None, 'prophage_metadata': None}
+
+    # Load prophage metadata if provided
+    metadata_dict = None
+    if prophage_metadata:
+        metadata_dict = load_prophage_metadata(prophage_metadata)
+        data['prophage_metadata'] = metadata_dict
+
     # AMR
     amr_dir = results_dir / 'amrfinder'
     if amr_dir.exists():
@@ -76,6 +194,11 @@ def collect_all_results(results_dir):
                             ))
                             diamond_hits[diamond_hits.index(hit)] = hit_dict
             data['diamond'][sample] = diamond_hits
+
+    # Enrich DIAMOND results with metadata if available
+    if metadata_dict and data['diamond']:
+        print(f"Enriching DIAMOND results with prophage metadata...")
+        data['diamond'] = enrich_diamond_with_metadata(data['diamond'], metadata_dict)
 
     # MLST
     mlst_dir = results_dir / 'mlst'
@@ -423,15 +546,26 @@ nav a:hover {{background: #3498db;}}
     html += '<p><em>Identifies which known phages your sequences match to (like AMRFinder for AMR genes).</em></p>'
     html += '<p><strong>Key columns:</strong> <code>query</code> = your phage contig, <code>subject</code> = known phage match, <code>pident</code> = % identity, <code>evalue</code> = significance</p>'
 
+    # Check if metadata was loaded
+    if data.get('prophage_metadata'):
+        html += '<p><span class="badge badge-success">✓ Enhanced with Prophage Metadata</span> Shows host organism, environment, and quality metrics for matched prophages.</p>'
+    else:
+        html += '<p><span class="badge badge-info">ℹ️ Basic View</span> Metadata enrichment available with --prophage-metadata parameter.</p>'
+
     if data['diamond']:
         for sample, diamond_list in sorted(data['diamond'].items()):
             count = len(diamond_list)
             has_amr = len(data['amr'].get(sample, [])) > 0
             highlight = ' class="highlight-both"' if (count > 0 and has_amr) else ''
 
+            # Count how many have metadata
+            with_metadata = sum(1 for hit in diamond_list if hit.get('meta_matched') == 'Yes')
+
             html += f'<div{highlight}><h3>{sample} <span class="badge badge-success">{count} matches</span>'
             if has_amr:
                 html += ' <span class="badge badge-warning">Has AMR</span>'
+            if with_metadata > 0:
+                html += f' <span class="badge badge-info">{with_metadata} with metadata</span>'
             html += '</h3>'
             html += table_html(diamond_list, max_rows=100) if count > 0 else '<p><em>No phage matches found</em></p>'
             html += '</div>'
@@ -469,6 +603,7 @@ nav a:hover {{background: #3498db;}}
 <li>Interactive pie charts for distribution analysis</li>
 <li><strong>Phage Detection (VIBRANT):</strong> Identifies which contigs contain phage sequences</li>
 <li><strong>Phage Identification (DIAMOND):</strong> Matches detected phages to known phage databases</li>
+<li><strong>Metadata Enrichment:</strong> Shows host taxonomy, environment, and quality metrics for matched prophages (when metadata file provided)</li>
 <li>All data embedded - no external files needed</li>
 </ul>
 <p><strong>Understanding Phage Results:</strong></p>
@@ -476,7 +611,18 @@ nav a:hover {{background: #3498db;}}
 <li><code>scaffold</code> in VIBRANT = the contig/region containing the phage</li>
 <li><code>subject</code> in DIAMOND = the name of the known phage it matches (like a phage species)</li>
 <li>Compare scaffold names between AMR and phage sections to see if AMR genes are on phage contigs</li>
+<li>When metadata is available, DIAMOND results include:
+  <ul>
+    <li><code>meta_host_genus</code> and <code>meta_host_species</code>: The bacterial host this prophage came from</li>
+    <li><code>meta_environment</code>: Where the original prophage was isolated (e.g., "human gut", "marine", "soil")</li>
+    <li><code>meta_quality</code>: CheckV quality assessment (High-quality, Medium-quality, Low-quality)</li>
+    <li><code>meta_completeness</code>: Estimated genome completeness percentage</li>
+  </ul>
+</li>
 </ul>
+<p><strong>Metadata Source:</strong></p>
+<p>Prophage metadata from <a href="https://datadryad.org/dataset/doi:10.5061/dryad.3n5tb2rs5" target="_blank">Prophage-DB</a>
+   (356,776 prophage sequences from bacterial and archaeal genomes).</p>
 <p><strong>Results Directory:</strong> {results_dir}</p>
 </div>
 
@@ -521,13 +667,15 @@ def main():
     parser = argparse.ArgumentParser(description='Generate COMPASS report with cross-reference')
     parser.add_argument('results_dir', help='Results directory')
     parser.add_argument('-o', '--output', default='compass_report.html')
+    parser.add_argument('--prophage-metadata', help='Path to prophage metadata.xlsx file (optional)')
     args = parser.parse_args()
-    
+
     print(f"🔍 Scanning: {args.results_dir}")
-    data = collect_all_results(args.results_dir)
-    
-    print(f"📊 Found: {len(data['amr'])} AMR, {len(data['phage'])} Phage, {len(data['diamond'])} Phage IDs, {len(data['mlst'])} MLST")
-    
+    data = collect_all_results(args.results_dir, prophage_metadata=args.prophage_metadata)
+
+    metadata_status = "with metadata" if data.get('prophage_metadata') else "without metadata"
+    print(f"📊 Found: {len(data['amr'])} AMR, {len(data['phage'])} Phage, {len(data['diamond'])} Phage IDs, {len(data['mlst'])} MLST ({metadata_status})")
+
     output = generate_html(data, args.results_dir, args.output)
     size = os.path.getsize(output) / 1024
     print(f"✅ Generated: {output} ({size:.1f} KB)")

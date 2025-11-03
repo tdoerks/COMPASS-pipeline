@@ -23,11 +23,12 @@ process SISTR {
     echo "=================================================="
 
     # Run SISTR for Salmonella serotyping
+    # Note: SISTR appends .tab to the output filename
     sistr \\
         --threads ${task.cpus} \\
         --alleles-output ${sample_id}_sistr_allele.json \\
         --output-format tab \\
-        --output-prediction ${sample_id}_sistr.tsv \\
+        --output-prediction ${sample_id}_sistr \\
         ${assembly} || {
             echo "ERROR: SISTR analysis failed for ${sample_id}"
             echo "This is a real failure, not a skip"
@@ -35,6 +36,11 @@ process SISTR {
             echo -e "genome\\tserovar\\tserogroup\\th1\\th2\\to_antigen\\tqc_status" > ${sample_id}_sistr.tsv
             echo -e "${sample_id}\\t-\\t-\\t-\\t-\\t-\\tFAIL" >> ${sample_id}_sistr.tsv
         }
+
+    # SISTR creates .tab extension, rename to .tsv for consistency
+    if [ -f "${sample_id}_sistr.tab" ]; then
+        mv ${sample_id}_sistr.tab ${sample_id}_sistr.tsv
+    fi
 
     echo '"SISTR": {"sistr_cmd": "1.1.1"}' > versions.yml
     """

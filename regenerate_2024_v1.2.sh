@@ -42,7 +42,7 @@ nextflow run main.nf \
     --skip_busco false \
     --outdir /fastscratch/tylerdoe/results_kansas_2024 \
     -w work_2024 \
-    -name kansas_2024_v1.2_${SLURM_JOB_ID} \
+    -name kansas_2024_v12_${SLURM_JOB_ID} \
     -resume
 
 EXIT_CODE=$?

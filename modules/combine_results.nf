@@ -1,6 +1,6 @@
 process COMBINE_RESULTS {
     publishDir "${params.outdir}/summary", mode: 'copy'
-    container = 'quay.io/biocontainers/pandas:1.5.2'
+    container = 'python:3.9'
 
     output:
     path "combined_analysis_summary.tsv", emit: summary
@@ -10,6 +10,9 @@ process COMBINE_RESULTS {
     script:
     def metadata_arg = params.prophage_metadata ? "--prophage-metadata ${params.prophage_metadata}" : ""
     """
+    # Install required Python packages
+    pip install pandas openpyxl > /dev/null 2>&1
+
     # Generate TSV summary
     generate_compass_summary.py --outdir ${params.outdir} --output combined_analysis_summary.tsv
 

@@ -14,7 +14,17 @@ process BUSCO {
     script:
     def lineage = params.busco_lineage ?: 'bacteria_odb10'
     def mode = params.busco_mode ?: 'genome'
+    def download_path = params.busco_download_path ?: '/tmp/busco_downloads'
     """
+    # Auto-download lineage dataset if not present
+    if [ ! -d "${download_path}/lineages/${lineage}" ]; then
+        echo "BUSCO lineage ${lineage} not found. Downloading..."
+        mkdir -p ${download_path}
+        busco --download ${lineage} --download_path ${download_path}
+    else
+        echo "BUSCO lineage ${lineage} found at ${download_path}/lineages/${lineage}"
+    fi
+
     # Run BUSCO
     busco \\
         -i ${assembly} \\
@@ -23,7 +33,7 @@ process BUSCO {
         -l ${lineage} \\
         --cpu ${task.cpus} \\
         --offline \\
-        --download_path ${params.busco_download_path ?: '/tmp/busco_downloads'} \\
+        --download_path ${download_path} \\
         --force
 
     echo '"BUSCO": {"busco": "5.7.1"}' > versions.yml

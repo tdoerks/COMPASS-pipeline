@@ -119,7 +119,10 @@ workflow COMPLETE_PIPELINE {
 
     // Combine all results - runs after all analyses complete
     // Uses published results from params.outdir
-    COMBINE_RESULTS()
+    COMBINE_RESULTS(
+        file("${projectDir}/bin/generate_compass_summary.py"),
+        file("${projectDir}/bin/generate_report_v3.py")
+    )
     ch_versions = ch_versions.mix(COMBINE_RESULTS.out.versions)
 
     // Collect all QC outputs for MultiQC

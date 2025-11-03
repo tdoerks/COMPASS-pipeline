@@ -2,6 +2,10 @@ process COMBINE_RESULTS {
     publishDir "${params.outdir}/summary", mode: 'copy'
     container = 'python:3.9'
 
+    input:
+    path summary_script
+    path report_script
+
     output:
     path "combined_analysis_summary.tsv", emit: summary
     path "compass_report.html", emit: report
@@ -14,10 +18,10 @@ process COMBINE_RESULTS {
     pip install pandas openpyxl > /dev/null 2>&1
 
     # Generate TSV summary
-    generate_compass_summary.py --outdir ${params.outdir} --output combined_analysis_summary.tsv
+    python ${summary_script} --outdir ${params.outdir} --output combined_analysis_summary.tsv
 
     # Generate comprehensive HTML report with optional metadata enrichment
-    generate_report_v3.py ${params.outdir} -o compass_report.html ${metadata_arg}
+    python ${report_script} ${params.outdir} -o compass_report.html ${metadata_arg}
 
     echo '"COMBINE_RESULTS": {"version": "1.1.0"}' > versions.yml
     """

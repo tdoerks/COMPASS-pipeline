@@ -24,6 +24,9 @@ cd /fastscratch/tylerdoe/COMPASS-pipeline
 # Load Nextflow
 module load Nextflow
 
+# Set unique Nextflow home to avoid cache conflicts with other runs
+export NXF_HOME=/fastscratch/tylerdoe/.nextflow_2023
+
 # Run pipeline for Kansas 2023 NARMS data
 # Automatically processes all three organisms:
 #   - Campylobacter (PRJNA292664)

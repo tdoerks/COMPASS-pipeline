@@ -119,6 +119,7 @@ def enrich_diamond_with_metadata(diamond_data, metadata_dict):
                 hit['meta_environment'] = meta.get('environment', '')
                 hit['meta_quality'] = meta.get('checkv_quality', '')
                 hit['meta_completeness'] = meta.get('completeness', '')
+                hit['meta_lineage'] = meta.get('lineage', '')
                 hit['meta_matched'] = 'Yes'
             else:
                 hit['meta_matched'] = 'No'
@@ -300,25 +301,34 @@ def create_cross_reference_table(data):
     return summary
 
 def analyze_phage_diversity(diamond_data):
-    """Analyze phage diversity using DIAMOND identifications"""
+    """Analyze phage diversity using DIAMOND identifications with metadata enrichment"""
     phage_ids = Counter()
 
     for sample, diamond_hits in diamond_data.items():
         for hit in diamond_hits:
-            # Get the subject (phage ID) from DIAMOND results
-            subject = hit.get('subject', hit.get('sseqid', 'Unknown'))
+            # Priority 1: Use phage lineage from metadata (best identification)
+            lineage = hit.get('meta_lineage', '')
+            if lineage and lineage != 'NA' and str(lineage).strip():
+                # Extract phage family from lineage (e.g., "Caudoviricetes;Siphoviridae" -> "Siphoviridae")
+                lineage_parts = str(lineage).split(';')
+                phage_name = lineage_parts[-1] if lineage_parts else lineage
+                phage_ids[phage_name.strip()] += 1
+                continue
 
-            # Clean up the subject ID to make it more readable
-            # Extract organism name from accessions like "195.SAMN05942178.CP017873"
+            # Priority 2: Use host genus (e.g., "Salmonella prophage")
+            host_genus = hit.get('meta_host_genus', '')
+            if host_genus and host_genus != 'NA' and str(host_genus).strip():
+                phage_ids[f"{host_genus} prophage"] += 1
+                continue
+
+            # Priority 3: Fall back to subject ID
+            subject = hit.get('subject', hit.get('sseqid', 'Unknown'))
             if subject and subject != 'Unknown':
-                # Try to simplify long accessions
+                # Clean up the subject ID to make it more readable
                 if '.' in subject and subject.count('.') >= 2:
                     # Format like "195.SAMN05942178.CP017873" -> "CP017873"
                     parts = subject.split('.')
                     subject = parts[-1] if parts[-1] else subject
-                elif subject.startswith('NZ_'):
-                    # Keep NZ_ accessions as-is but they're still cleaner than full BioSample
-                    pass
 
                 phage_ids[subject] += 1
 

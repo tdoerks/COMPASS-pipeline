@@ -349,6 +349,47 @@ def analyze_mlst_distribution(mlst_data):
 
     return st_counts if st_counts else Counter({'No MLST data': 1})
 
+def analyze_sistr_distribution(sistr_data):
+    """Analyze Salmonella serotype distribution from SISTR"""
+    serovar_counts = Counter()
+
+    for sample, sistr_results in sistr_data.items():
+        if sistr_results:
+            # Get serovar from first result
+            serovar = sistr_results[0].get('serovar', sistr_results[0].get('Serovar', 'Unknown'))
+            if serovar and serovar != '-' and serovar != 'Unknown':
+                serovar_counts[serovar] += 1
+            else:
+                serovar_counts['Unknown serovar'] += 1
+
+    return serovar_counts if serovar_counts else Counter({'No SISTR data': 1})
+
+def analyze_plasmid_distribution(mobsuite_data):
+    """Analyze plasmid mobility groups from MOB-suite"""
+    mob_types = Counter()
+
+    for sample, mob_results in mobsuite_data.items():
+        for plasmid in mob_results:
+            # Get mobility type
+            mob_type = plasmid.get('primary_cluster_id', plasmid.get('mob_type', 'Unknown'))
+            if mob_type and mob_type != '-' and mob_type != 'Unknown':
+                mob_types[mob_type] += 1
+            else:
+                mob_types['Unknown mobility'] += 1
+
+    return mob_types if mob_types else Counter({'No plasmid data': 1})
+
+def analyze_abricate_database_comparison(abricate_data):
+    """Compare AMR hits across different ABRicate databases"""
+    db_hits = Counter()
+
+    for sample, databases in abricate_data.items():
+        for db_name, hits in databases.items():
+            if hits:
+                db_hits[db_name.upper()] += len(hits)
+
+    return db_hits if db_hits else Counter({'No ABRicate data': 1})
+
 def create_pie_chart_data(counter_data, title="Distribution"):
     """Convert Counter to format for pie chart"""
     labels = list(counter_data.keys())[:10]  # Top 10
@@ -375,11 +416,11 @@ def table_html(data_list, max_rows=50):
 
 def generate_html(data, results_dir, output_file):
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
+
     all_samples = set()
     for key in ['amr', 'phage', 'mlst', 'sistr', 'mobsuite']:
         all_samples.update(data[key].keys())
-    
+
     # Create cross-reference summary
     cross_ref = create_cross_reference_table(data)
 
@@ -389,7 +430,7 @@ def generate_html(data, results_dir, output_file):
     # Analyze phage diversity using DIAMOND identifications
     phage_diversity = analyze_phage_diversity(data['diamond'])
     phage_chart_data = create_pie_chart_data(phage_diversity, "Phage Identification Distribution")
-    
+
     # Count AMR classes
     amr_classes = Counter()
     for sample, amr_list in data['amr'].items():
@@ -399,8 +440,27 @@ def generate_html(data, results_dir, output_file):
                 amr_classes[amr_class] += 1
     amr_chart_data = create_pie_chart_data(amr_classes, "AMR Gene Classes")
 
+    # Analyze MLST distribution
+    mlst_distribution = analyze_mlst_distribution(data['mlst'])
+    mlst_chart_data = create_pie_chart_data(mlst_distribution, "MLST Sequence Types")
+
+    # Analyze SISTR serotypes
+    sistr_distribution = analyze_sistr_distribution(data['sistr'])
+    sistr_chart_data = create_pie_chart_data(sistr_distribution, "Salmonella Serotypes")
+
+    # Analyze plasmid types
+    plasmid_distribution = analyze_plasmid_distribution(data['mobsuite'])
+    plasmid_chart_data = create_pie_chart_data(plasmid_distribution, "Plasmid Mobility Groups")
+
+    # Compare ABRicate databases
+    abricate_comparison = analyze_abricate_database_comparison(data['abricate'])
+    abricate_chart_data = create_pie_chart_data(abricate_comparison, "AMR Database Comparison")
+
     # Count samples with both AMR and phage
     both_count = sum(1 for s in cross_ref if s['AMR_Genes'] > 0 and s['Phages'] > 0)
+
+    # Count total plasmids
+    total_plasmids = sum(s['Plasmids'] for s in cross_ref)
     
     html = f'''<!DOCTYPE html>
 <html><head>
@@ -408,71 +468,110 @@ def generate_html(data, results_dir, output_file):
 <meta charset="UTF-8">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-body {{font-family: Arial, sans-serif; max-width: 1400px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);}}
+body {{font-family: Arial, sans-serif; max-width: 1600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding-top: 80px;}}
 .container {{background: white; border-radius: 10px; padding: 30px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);}}
-h1 {{color: #2c3e50; border-bottom: 4px solid #3498db; padding-bottom: 15px;}}
-h2 {{color: #34495e; margin-top: 40px; border-left: 5px solid #3498db; padding: 10px 15px; background: #ecf0f1; border-radius: 5px;}}
-.summary-grid {{display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0;}}
-.summary-card {{background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);}}
-.summary-card h3 {{margin: 0 0 10px 0; font-size: 1.1em; border: none; color: white;}}
-.summary-card .number {{font-size: 2.5em; font-weight: bold; margin: 10px 0;}}
-.data-table {{width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 0.9em; box-shadow: 0 2px 8px rgba(0,0,0,0.1);}}
-.data-table thead tr {{background: #3498db; color: white; text-align: left;}}
-.data-table th, .data-table td {{padding: 12px 15px; border: 1px solid #ddd;}}
+h1 {{color: #2c3e50; border-bottom: 4px solid #3498db; padding-bottom: 15px; margin-top: 0;}}
+h2 {{color: #34495e; margin-top: 40px; border-left: 5px solid #3498db; padding: 10px 15px; background: #ecf0f1; border-radius: 5px; cursor: pointer; user-select: none;}}
+h2:hover {{background: #d5dbdb;}}
+h2::before {{content: "▼ "; font-size: 0.8em; color: #3498db;}}
+h2.collapsed::before {{content: "▶ ";}}
+.summary-grid {{display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin: 20px 0;}}
+.summary-card {{background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center;}}
+.summary-card h3 {{margin: 0 0 10px 0; font-size: 0.95em; border: none; color: white; font-weight: normal;}}
+.summary-card .number {{font-size: 2.2em; font-weight: bold; margin: 10px 0;}}
+.data-table {{width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 0.85em; box-shadow: 0 2px 8px rgba(0,0,0,0.1);}}
+.data-table thead tr {{background: #3498db; color: white; text-align: left; position: sticky; top: 60px; z-index: 10;}}
+.data-table th, .data-table td {{padding: 10px 12px; border: 1px solid #ddd;}}
 .data-table tbody tr:nth-of-type(even) {{background: #f8f9fa;}}
 .data-table tbody tr:hover {{background: #e3f2fd;}}
 .section {{background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #3498db;}}
-.chart-container {{max-width: 500px; margin: 20px auto;}}
-.chart-grid {{display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 30px; margin: 20px 0;}}
-nav {{background: #34495e; padding: 15px; border-radius: 8px; margin-bottom: 30px;}}
-nav a {{color: white; text-decoration: none; padding: 8px 15px; margin: 0 5px; border-radius: 5px; display: inline-block;}}
+.section-content {{max-height: none; overflow: hidden; transition: max-height 0.3s ease-out;}}
+.section-content.collapsed {{max-height: 0; padding: 0; margin: 0;}}
+.chart-container {{max-width: 450px; margin: 20px auto;}}
+.chart-grid {{display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 25px; margin: 20px 0;}}
+nav {{background: #34495e; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.3); max-width: 1600px; margin: 0 auto;}}
+nav a {{color: white; text-decoration: none; padding: 8px 12px; margin: 0 3px; border-radius: 5px; display: inline-block; font-size: 0.9em;}}
 nav a:hover {{background: #3498db;}}
-.badge {{display: inline-block; padding: 5px 10px; border-radius: 15px; font-size: 0.85em; font-weight: bold; margin: 2px;}}
+.badge {{display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; margin: 2px;}}
 .badge-warning {{background: #f39c12; color: white;}}
 .badge-info {{background: #3498db; color: white;}}
 .badge-success {{background: #2ecc71; color: white;}}
 .badge-danger {{background: #e74c3c; color: white;}}
 .highlight-both {{background: #fff3cd !important; border-left: 4px solid #f39c12;}}
+.collapsible {{cursor: pointer; padding: 15px; background: #ecf0f1; border: none; width: 100%; text-align: left; outline: none; border-radius: 5px; margin: 5px 0; font-weight: bold; transition: 0.2s;}}
+.collapsible:hover {{background: #d5dbdb;}}
+.collapsible::before {{content: "▼ "; color: #3498db; font-size: 0.9em;}}
+.collapsible.collapsed::before {{content: "▶ ";}}
+.sample-details {{max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; background: white; padding: 0 15px; border-radius: 0 0 5px 5px;}}
+.sample-details.expanded {{max-height: 10000px; padding: 15px; border: 1px solid #ddd; border-top: none;}}
+#searchBox {{width: 100%; padding: 10px; margin: 10px 0; border: 2px solid #3498db; border-radius: 5px; font-size: 1em;}}
+.download-btn {{background: #2ecc71; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 0.9em; margin: 5px;}}
+.download-btn:hover {{background: #27ae60;}}
+.back-to-top {{position: fixed; bottom: 20px; right: 20px; background: #3498db; color: white; border: none; padding: 15px 20px; border-radius: 50px; cursor: pointer; font-size: 1em; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: none;}}
+.back-to-top:hover {{background: #2980b9;}}
 </style>
 </head>
 <body>
+<nav id="navbar">
+<a href="#overview">📊 Overview</a>
+<a href="#assembly-qc">🔬 Assembly QC</a>
+<a href="#cross-ref">📋 Sample Summary</a>
+<a href="#amr">🦠 AMRFinder</a>
+<a href="#abricate">🔍 ABRicate</a>
+<a href="#phage">🧬 Phages</a>
+<a href="#phage-id">🔬 Phage ID</a>
+<a href="#typing">🧪 Typing</a>
+<a href="#plasmids">🧩 Plasmids</a>
+<a href="#about">ℹ️ About</a>
+</nav>
+<button class="back-to-top" onclick="window.scrollTo({{top: 0, behavior: 'smooth'}})">↑ Top</button>
 <div class="container">
 <h1>🧬 COMPASS Pipeline Report</h1>
-<p><strong>Generated:</strong> {timestamp} | <strong>Samples:</strong> {len(all_samples)}</p>
-
-<nav>
-<a href="#overview">Overview</a>
-<a href="#assembly-qc">Assembly QC</a>
-<a href="#cross-ref">Sample Summary</a>
-<a href="#amr">AMR (AMRFinder)</a>
-<a href="#abricate">AMR (ABRicate)</a>
-<a href="#phage">Phage Detection</a>
-<a href="#phage-id">Phage ID</a>
-<a href="#typing">Typing</a>
-<a href="#plasmids">Plasmids</a>
-<a href="#about">About</a>
-</nav>
+<p><strong>Generated:</strong> {timestamp} | <strong>Samples Analyzed:</strong> {len(all_samples)}</p>
 
 <div id="overview" class="section">
 <h2>📊 Overview</h2>
 <div class="summary-grid">
-<div class="summary-card"><h3>🔬 Samples</h3><div class="number">{len(all_samples)}</div></div>
-<div class="summary-card"><h3>🦠 AMR Results</h3><div class="number">{len(data["amr"])}</div></div>
-<div class="summary-card"><h3>🧬 Phages</h3><div class="number">{len(data["phage"])}</div></div>
-<div class="summary-card"><h3>⚠️ Both AMR+Phage</h3><div class="number">{both_count}</div></div>
-<div class="summary-card"><h3>📊 Typed</h3><div class="number">{len(data["mlst"])}</div></div>
+<div class="summary-card"><h3>🔬 Total Samples</h3><div class="number">{len(all_samples)}</div></div>
+<div class="summary-card"><h3>🦠 AMR Detected</h3><div class="number">{len(data["amr"])}</div></div>
+<div class="summary-card"><h3>🧬 Phages Found</h3><div class="number">{len(data["phage"])}</div></div>
+<div class="summary-card"><h3>⚠️ AMR + Phage</h3><div class="number">{both_count}</div></div>
+<div class="summary-card"><h3>🧩 Plasmids</h3><div class="number">{total_plasmids}</div></div>
+<div class="summary-card"><h3>🧪 MLST Typed</h3><div class="number">{len(data["mlst"])}</div></div>
 </div>
 
+<h3 style="margin-top: 30px; text-align: center; color: #34495e;">Distribution Analysis</h3>
 <div class="chart-grid">
 <div class="chart-container">
-<h3>Phage Identification Distribution</h3>
-<p style="font-size: 0.9em; color: #7f8c8d;"><em>Based on DIAMOND prophage database matches</em></p>
+<h4 style="text-align: center;">AMR Gene Classes</h4>
+<canvas id="amrChart"></canvas>
+</div>
+
+<div class="chart-container">
+<h4 style="text-align: center;">Phage Families/Types</h4>
+<p style="font-size: 0.85em; color: #7f8c8d; text-align: center;"><em>Based on DIAMOND + metadata</em></p>
 <canvas id="phageChart"></canvas>
 </div>
 
 <div class="chart-container">
-<h3>AMR Gene Classes</h3>
-<canvas id="amrChart"></canvas>
+<h4 style="text-align: center;">MLST Sequence Types</h4>
+<canvas id="mlstChart"></canvas>
+</div>
+
+<div class="chart-container">
+<h4 style="text-align: center;">Salmonella Serotypes</h4>
+<canvas id="sistrChart"></canvas>
+</div>
+
+<div class="chart-container">
+<h4 style="text-align: center;">Plasmid Mobility Groups</h4>
+<canvas id="plasmidChart"></canvas>
+</div>
+
+<div class="chart-container">
+<h4 style="text-align: center;">AMR Database Comparison</h4>
+<p style="font-size: 0.85em; color: #7f8c8d; text-align: center;"><em>Total hits per database</em></p>
+<canvas id="abricateChart"></canvas>
 </div>
 </div>
 </div>
@@ -637,8 +736,38 @@ nav a:hover {{background: #3498db;}}
 </div>
 
 <script>
+// Chart data
 const phageData = {phage_chart_data};
 const amrData = {amr_chart_data};
+const mlstData = {mlst_chart_data};
+const sistrData = {sistr_chart_data};
+const plasmidData = {plasmid_chart_data};
+const abricateData = {abricate_chart_data};
+
+// Chart options
+const chartOptions = {{
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {{
+        legend: {{
+            position: 'bottom',
+            labels: {{fontSize: 11}}
+        }}
+    }}
+}};
+
+// Create all charts
+new Chart(document.getElementById('amrChart'), {{
+    type: 'pie',
+    data: {{
+        labels: amrData.labels,
+        datasets: [{{
+            data: amrData.values,
+            backgroundColor: ['#e74c3c','#f39c12','#e67e22','#c0392b','#d35400','#f1c40f','#e85d75','#ff6b81','#fd9644','#fa8231']
+        }}]
+    }},
+    options: chartOptions
+}});
 
 new Chart(document.getElementById('phageChart'), {{
     type: 'pie',
@@ -649,19 +778,91 @@ new Chart(document.getElementById('phageChart'), {{
             backgroundColor: ['#3498db','#e74c3c','#2ecc71','#f39c12','#9b59b6','#1abc9c','#34495e','#e67e22','#95a5a6','#d35400']
         }}]
     }},
-    options: {{responsive: true, plugins: {{legend: {{position: 'bottom'}}}}}}
+    options: chartOptions
 }});
 
-new Chart(document.getElementById('amrChart'), {{
+new Chart(document.getElementById('mlstChart'), {{
     type: 'pie',
     data: {{
-        labels: amrData.labels,
+        labels: mlstData.labels,
         datasets: [{{
-            data: amrData.values,
-            backgroundColor: ['#e74c3c','#f39c12','#e67e22','#c0392b','#d35400','#f1c40f','#e85d75','#ff6b81','#fd9644','#fa8231']
+            data: mlstData.values,
+            backgroundColor: ['#2ecc71','#3498db','#9b59b6','#e67e22','#1abc9c','#f39c12','#e74c3c','#34495e','#95a5a6','#d35400']
         }}]
     }},
-    options: {{responsive: true, plugins: {{legend: {{position: 'bottom'}}}}}}
+    options: chartOptions
+}});
+
+new Chart(document.getElementById('sistrChart'), {{
+    type: 'pie',
+    data: {{
+        labels: sistrData.labels,
+        datasets: [{{
+            data: sistrData.values,
+            backgroundColor: ['#9b59b6','#3498db','#2ecc71','#f39c12','#e74c3c','#1abc9c','#e67e22','#34495e','#95a5a6','#d35400']
+        }}]
+    }},
+    options: chartOptions
+}});
+
+new Chart(document.getElementById('plasmidChart'), {{
+    type: 'pie',
+    data: {{
+        labels: plasmidData.labels,
+        datasets: [{{
+            data: plasmidData.values,
+            backgroundColor: ['#1abc9c','#2ecc71','#3498db','#9b59b6','#f39c12','#e74c3c','#e67e22','#34495e','#95a5a6','#d35400']
+        }}]
+    }},
+    options: chartOptions
+}});
+
+new Chart(document.getElementById('abricateChart'), {{
+    type: 'bar',
+    data: {{
+        labels: abricateData.labels,
+        datasets: [{{
+            label: 'Total Hits',
+            data: abricateData.values,
+            backgroundColor: ['#3498db','#2ecc71','#9b59b6','#f39c12']
+        }}]
+    }},
+    options: {{
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {{
+            legend: {{display: false}}
+        }},
+        scales: {{
+            y: {{beginAtZero: true, title: {{display: true, text: 'Number of Hits'}}}}
+        }}
+    }}
+}});
+
+// Show back-to-top button on scroll
+window.onscroll = function() {{
+    const btn = document.querySelector('.back-to-top');
+    if (document.body.scrollTop > 300 || document.documentElement.scrollTop > 300) {{
+        btn.style.display = 'block';
+    }} else {{
+        btn.style.display = 'none';
+    }}
+}};
+
+// Section collapse/expand functionality
+document.querySelectorAll('h2').forEach(header => {{
+    header.addEventListener('click', function() {{
+        this.classList.toggle('collapsed');
+        const section = this.parentElement;
+        const content = Array.from(section.children).filter(el => el.tagName !== 'H2');
+        content.forEach(el => {{
+            if (this.classList.contains('collapsed')) {{
+                el.style.display = 'none';
+            }} else {{
+                el.style.display = '';
+            }}
+        }});
+    }});
 }});
 </script>
 </div>

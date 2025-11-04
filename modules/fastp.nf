@@ -3,6 +3,8 @@ process FASTP {
     publishDir "${params.outdir}/fastp", mode: 'copy', pattern: "*.{json,html}"
     publishDir "${params.outdir}/trimmed_fastq", mode: 'copy', pattern: "*_trimmed*.fastq.gz"
     container = 'quay.io/biocontainers/fastp:0.23.4--hadf994f_3'
+    errorStrategy = 'ignore'
+    maxRetries = 2
 
     input:
     tuple val(sample_id), path(reads)

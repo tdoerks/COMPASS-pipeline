@@ -574,11 +574,12 @@ def generate_html_dashboard(data, results_dir, output_file):
     overall = data['overall']
 
     # Prepare data for charts
-    # Temporal trend
+    # Temporal trend - two percentage lines
     years = sorted(data['temporal'].keys())
-    temporal_samples = [data['temporal'][y]['samples'] for y in years]
-    temporal_pct = [(data['temporal'][y]['amr_on_prophage'] / data['temporal'][y]['total_amr'] * 100)
-                    if data['temporal'][y]['total_amr'] > 0 else 0 for y in years]
+    temporal_pct_samples = [(data['temporal'][y]['samples_with_colocation'] / data['temporal'][y]['samples'] * 100)
+                            if data['temporal'][y]['samples'] > 0 else 0 for y in years]
+    temporal_pct_genes = [(data['temporal'][y]['amr_on_prophage'] / data['temporal'][y]['total_amr'] * 100)
+                          if data['temporal'][y]['total_amr'] > 0 else 0 for y in years]
 
     # Species comparison
     species_names = sorted(data['species'].keys())
@@ -828,7 +829,7 @@ def generate_html_dashboard(data, results_dir, output_file):
         </div>
 
         <div class="section">
-            <h2>📅 Temporal Trends</h2>
+            <h2>📅 AMR-Prophage Co-location by Year</h2>
             <div class="chart-wrapper">
                 <canvas id="temporalChart"></canvas>
             </div>
@@ -946,7 +947,7 @@ def generate_html_dashboard(data, results_dir, output_file):
     </div>
 
     <script>
-        // Temporal trend chart
+        // Temporal trend chart - AMR-Prophage Co-location by Year
         const temporalCtx = document.getElementById('temporalChart').getContext('2d');
         new Chart(temporalCtx, {{
             type: 'line',
@@ -954,22 +955,26 @@ def generate_html_dashboard(data, results_dir, output_file):
                 labels: {json.dumps(years)},
                 datasets: [
                     {{
-                        label: 'Number of Samples',
-                        data: {json.dumps(temporal_samples)},
+                        label: '% Samples with Prophage-AMR',
+                        data: {json.dumps(temporal_pct_samples)},
                         borderColor: '#667eea',
                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                        yAxisID: 'y',
+                        borderWidth: 3,
                         tension: 0.4,
-                        fill: true
+                        fill: true,
+                        pointRadius: 5,
+                        pointHoverRadius: 7
                     }},
                     {{
-                        label: '% AMR on Prophages',
-                        data: {json.dumps(temporal_pct)},
+                        label: '% AMR Genes on Prophages',
+                        data: {json.dumps(temporal_pct_genes)},
                         borderColor: '#f56565',
                         backgroundColor: 'rgba(245, 101, 101, 0.1)',
-                        yAxisID: 'y1',
+                        borderWidth: 3,
                         tension: 0.4,
-                        fill: true
+                        fill: true,
+                        pointRadius: 5,
+                        pointHoverRadius: 7
                     }}
                 ]
             }},
@@ -983,31 +988,25 @@ def generate_html_dashboard(data, results_dir, output_file):
                 plugins: {{
                     legend: {{
                         position: 'top',
+                    }},
+                    title: {{
+                        display: false
                     }}
                 }},
                 scales: {{
                     y: {{
-                        type: 'linear',
-                        display: true,
-                        position: 'left',
+                        beginAtZero: true,
+                        max: 100,
                         title: {{
                             display: true,
-                            text: 'Number of Samples'
+                            text: 'Percentage (%)'
+                        }},
+                        ticks: {{
+                            callback: function(value) {{
+                                return value + '%';
+                            }}
                         }}
-                    }},
-                    y1: {{
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        title: {{
-                            display: true,
-                            text: '% AMR on Prophages'
-                        }},
-                        grid: {{
-                            drawOnChartArea: false,
-                        }},
-                        max: 100
-                    }},
+                    }}
                 }}
             }}
         }});

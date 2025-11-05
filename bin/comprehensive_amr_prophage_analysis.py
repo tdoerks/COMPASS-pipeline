@@ -204,9 +204,10 @@ def categorize_source(source_text, sample_name=''):
     if sample_name:
         # Extract product code pattern (e.g., GB, CB, GT, PC, CL, CG, CH)
         # Pattern: digits followed by 2 capital letters followed by digits
-        match = re.search(r'\d([A-Z]{2})\d', sample_name)
-        if match:
-            product_code = match.group(1)
+        # Use findall to get all matches, then take the second one (first is state code)
+        matches = re.findall(r'\d([A-Z]{2})\d', sample_name)
+        if len(matches) >= 2:
+            product_code = matches[1]  # Second match is the product code
 
             if product_code == 'GB':
                 return 'Ground Beef'

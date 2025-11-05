@@ -301,9 +301,12 @@ def run_comprehensive_analysis(results_dir):
 
     source_data = defaultdict(lambda: {
         'samples': 0,
+        'samples_with_amr': 0,
+        'samples_with_prophage': 0,
         'samples_with_colocation': 0,
         'total_amr': 0,
         'amr_on_prophage': 0,
+        'mdr_islands': 0,
         'top_genes_on_prophage': Counter()
     })
 
@@ -349,6 +352,7 @@ def run_comprehensive_analysis(results_dir):
             overall_stats['samples_with_prophage'] += 1
             if organism != 'Unknown':
                 species_data[organism]['samples_with_prophage'] += 1
+            source_data[source_category]['samples_with_prophage'] += 1
 
         if organism != 'Unknown':
             species_data[organism]['samples'] += 1
@@ -372,6 +376,8 @@ def run_comprehensive_analysis(results_dir):
                     contig_length = get_contig_length(contig)
                     combo = tuple(sorted(drug_classes))
                     drug_class_combinations[combo] += 1
+
+                    source_data[source_category]['mdr_islands'] += 1
 
                     mdr_islands.append({
                         'sample': sample_id,
@@ -436,6 +442,7 @@ def run_comprehensive_analysis(results_dir):
             overall_stats['samples_with_amr'] += 1
             if organism != 'Unknown':
                 species_data[organism]['samples_with_amr'] += 1
+            source_data[source_category]['samples_with_amr'] += 1
 
         if has_colocation:
             overall_stats['samples_with_colocation'] += 1
@@ -618,14 +625,18 @@ def print_comprehensive_report(data, results_dir):
     print("="*85)
 
     print(f"\n🏥 AMR-Prophage by Isolation Source:")
-    print(f"  {'Source':<20} {'Samples':<10} {'AMR Total':<12} {'On Prophage':<15} {'% on Prophage'}")
-    print("  " + "-"*70)
+    print(f"  {'Source':<20} {'N':<6} {'%AMR':<7} {'%Co-loc':<9} {'Avg AMR':<9} {'MDR':<5} {'% AMR on Phage'}")
+    print("  " + "-"*85)
 
     for source in sorted(data['source'].keys()):
         src_data = data['source'][source]
-        pct = (src_data['amr_on_prophage'] / src_data['total_amr'] * 100) if src_data['total_amr'] > 0 else 0
-        print(f"  {source:<20} {src_data['samples']:<10} {src_data['total_amr']:<12} "
-              f"{src_data['amr_on_prophage']:<15} {pct:.1f}%")
+        pct_amr = (src_data['samples_with_amr'] / src_data['samples'] * 100) if src_data['samples'] > 0 else 0
+        pct_coloc = (src_data['samples_with_colocation'] / src_data['samples'] * 100) if src_data['samples'] > 0 else 0
+        avg_amr = (src_data['total_amr'] / src_data['samples']) if src_data['samples'] > 0 else 0
+        pct_amr_prophage = (src_data['amr_on_prophage'] / src_data['total_amr'] * 100) if src_data['total_amr'] > 0 else 0
+
+        print(f"  {source:<20} {src_data['samples']:<6} {pct_amr:<6.1f}% {pct_coloc:<8.1f}% "
+              f"{avg_amr:<8.1f} {src_data['mdr_islands']:<5} {pct_amr_prophage:.1f}%")
 
     print("\n" + "="*85)
     print("✅ Analysis complete!")
@@ -943,8 +954,11 @@ def generate_html_dashboard(data, results_dir, output_file):
                     <thead>
                         <tr>
                             <th>Source</th>
-                            <th>Samples</th>
-                            <th>% with Co-location</th>
+                            <th>N</th>
+                            <th>% w/AMR</th>
+                            <th>% Co-loc</th>
+                            <th>Avg AMR/Sample</th>
+                            <th>MDR Islands</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -952,12 +966,17 @@ def generate_html_dashboard(data, results_dir, output_file):
 
     for source in sorted(data['source'].keys()):
         src_data = data['source'][source]
-        pct = (src_data['samples_with_colocation'] / src_data['samples'] * 100) if src_data['samples'] > 0 else 0
+        pct_amr = (src_data['samples_with_amr'] / src_data['samples'] * 100) if src_data['samples'] > 0 else 0
+        pct_coloc = (src_data['samples_with_colocation'] / src_data['samples'] * 100) if src_data['samples'] > 0 else 0
+        avg_amr = (src_data['total_amr'] / src_data['samples']) if src_data['samples'] > 0 else 0
         html_content += f"""
                         <tr>
                             <td><strong>{source}</strong></td>
                             <td>{src_data['samples']}</td>
-                            <td><span class="highlight">{pct:.1f}%</span></td>
+                            <td>{pct_amr:.1f}%</td>
+                            <td><span class="highlight">{pct_coloc:.1f}%</span></td>
+                            <td>{avg_amr:.1f}</td>
+                            <td><span class="badge badge-warning">{src_data['mdr_islands']}</span></td>
                         </tr>
 """
 
@@ -1295,9 +1314,12 @@ def merge_analysis_data(all_data_list):
         }),
         'source': defaultdict(lambda: {
             'samples': 0,
+            'samples_with_amr': 0,
+            'samples_with_prophage': 0,
             'samples_with_colocation': 0,
             'total_amr': 0,
             'amr_on_prophage': 0,
+            'mdr_islands': 0,
             'top_genes_on_prophage': Counter()
         }),
         'prophage_functions': Counter()
@@ -1336,7 +1358,7 @@ def merge_analysis_data(all_data_list):
 
         # Merge source data
         for source, src_data in data['source'].items():
-            for key in ['samples', 'samples_with_colocation', 'total_amr', 'amr_on_prophage']:
+            for key in ['samples', 'samples_with_amr', 'samples_with_prophage', 'samples_with_colocation', 'total_amr', 'amr_on_prophage', 'mdr_islands']:
                 merged['source'][source][key] += src_data[key]
             merged['source'][source]['top_genes_on_prophage'].update(src_data['top_genes_on_prophage'])
 

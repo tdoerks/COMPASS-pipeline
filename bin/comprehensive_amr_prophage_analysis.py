@@ -1048,40 +1048,201 @@ def generate_html_dashboard(data, results_dir, output_file):
 # MAIN
 # ============================================================================
 
+def find_year_directories(base_dir):
+    """Find all results directories matching year patterns (2021-2025)"""
+    import re
+    base_dir = Path(base_dir)
+    year_dirs = []
+
+    if base_dir.is_dir():
+        for item in base_dir.iterdir():
+            if item.is_dir():
+                # Check if directory name contains a year between 2021-2025
+                match = re.search(r'(2021|2022|2023|2024|2025)', item.name)
+                if match:
+                    # Verify it has the expected structure
+                    if (item / "amrfinder").exists() and (item / "vibrant").exists():
+                        year_dirs.append(item)
+
+    return year_dirs
+
+def merge_analysis_data(all_data_list):
+    """Merge data from multiple directories into one combined dataset"""
+    from collections import defaultdict, Counter
+
+    merged = {
+        'overall': {
+            'total_samples': 0,
+            'samples_with_amr': 0,
+            'samples_with_prophage': 0,
+            'samples_with_colocation': 0,
+            'total_amr_genes': 0,
+            'amr_on_prophage': 0
+        },
+        'colocation': {
+            'amr_gene_locations': Counter(),
+            'amr_classes_on_prophages': Counter(),
+            'st_distribution': Counter(),
+            'st_with_colocation': Counter(),
+            'colocated_samples': []
+        },
+        'mdr_islands': [],
+        'drug_class_combinations': Counter(),
+        'species': defaultdict(lambda: {
+            'samples': 0,
+            'samples_with_amr': 0,
+            'samples_with_prophage': 0,
+            'samples_with_colocation': 0,
+            'total_amr_genes': 0,
+            'amr_on_prophage': 0,
+            'amr_genes': Counter(),
+            'amr_classes': Counter(),
+            'amr_genes_on_prophage': Counter(),
+            'amr_classes_on_prophage': Counter()
+        }),
+        'temporal': defaultdict(lambda: {
+            'samples': 0,
+            'samples_with_colocation': 0,
+            'total_amr': 0,
+            'amr_on_prophage': 0,
+            'top_genes_on_prophage': Counter()
+        }),
+        'source': defaultdict(lambda: {
+            'samples': 0,
+            'samples_with_colocation': 0,
+            'total_amr': 0,
+            'amr_on_prophage': 0,
+            'top_genes_on_prophage': Counter()
+        })
+    }
+
+    for data in all_data_list:
+        # Merge overall stats
+        for key in merged['overall']:
+            merged['overall'][key] += data['overall'][key]
+
+        # Merge colocation data
+        merged['colocation']['amr_gene_locations'].update(data['colocation']['amr_gene_locations'])
+        merged['colocation']['amr_classes_on_prophages'].update(data['colocation']['amr_classes_on_prophages'])
+        merged['colocation']['st_distribution'].update(data['colocation']['st_distribution'])
+        merged['colocation']['st_with_colocation'].update(data['colocation']['st_with_colocation'])
+        merged['colocation']['colocated_samples'].extend(data['colocation']['colocated_samples'])
+
+        # Merge MDR islands
+        merged['mdr_islands'].extend(data['mdr_islands'])
+        merged['drug_class_combinations'].update(data['drug_class_combinations'])
+
+        # Merge species data
+        for organism, sp_data in data['species'].items():
+            for key in ['samples', 'samples_with_amr', 'samples_with_prophage', 'samples_with_colocation', 'total_amr_genes', 'amr_on_prophage']:
+                merged['species'][organism][key] += sp_data[key]
+            merged['species'][organism]['amr_genes'].update(sp_data['amr_genes'])
+            merged['species'][organism]['amr_classes'].update(sp_data['amr_classes'])
+            merged['species'][organism]['amr_genes_on_prophage'].update(sp_data['amr_genes_on_prophage'])
+            merged['species'][organism]['amr_classes_on_prophage'].update(sp_data['amr_classes_on_prophage'])
+
+        # Merge temporal data
+        for year, temp_data in data['temporal'].items():
+            for key in ['samples', 'samples_with_colocation', 'total_amr', 'amr_on_prophage']:
+                merged['temporal'][year][key] += temp_data[key]
+            merged['temporal'][year]['top_genes_on_prophage'].update(temp_data['top_genes_on_prophage'])
+
+        # Merge source data
+        for source, src_data in data['source'].items():
+            for key in ['samples', 'samples_with_colocation', 'total_amr', 'amr_on_prophage']:
+                merged['source'][source][key] += src_data[key]
+            merged['source'][source]['top_genes_on_prophage'].update(src_data['top_genes_on_prophage'])
+
+    return merged
+
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 comprehensive_amr_prophage_analysis.py <results_dir> [output_html]")
-        print("\nExample:")
+        print("Usage: python3 comprehensive_amr_prophage_analysis.py <results_dir_or_parent> [output_html]")
+        print("\nExamples:")
+        print("  # Single year:")
         print("  python3 comprehensive_amr_prophage_analysis.py /homes/tylerdoe/compass_kansas_results/results_kansas_2024")
-        print("  python3 comprehensive_amr_prophage_analysis.py results_kansas_2024 dashboard.html")
+        print()
+        print("  # All years (auto-detect 2021-2025 subdirectories):")
+        print("  python3 comprehensive_amr_prophage_analysis.py /homes/tylerdoe/compass_kansas_results")
         sys.exit(1)
 
-    results_dir = Path(sys.argv[1])
+    results_path = Path(sys.argv[1])
     output_html = Path(sys.argv[2]) if len(sys.argv) > 2 else Path.home() / "comprehensive_amr_prophage_dashboard.html"
 
-    if not results_dir.exists():
-        print(f"❌ Error: Results directory not found: {results_dir}")
+    if not results_path.exists():
+        print(f"❌ Error: Path not found: {results_path}")
         sys.exit(1)
 
-    print(f"\n🔬 Running comprehensive AMR-prophage analysis...")
-    print(f"   Results directory: {results_dir}")
+    # Check if this is a single results directory or a parent containing multiple years
+    is_single_dir = (results_path / "amrfinder").exists() and (results_path / "vibrant").exists()
 
-    # Run analysis
-    data = run_comprehensive_analysis(results_dir)
+    if is_single_dir:
+        # Single directory mode
+        print(f"\n🔬 Running comprehensive AMR-prophage analysis...")
+        print(f"   Results directory: {results_path}")
 
-    if data['overall']['total_samples'] == 0:
-        print("❌ No samples found!")
-        sys.exit(1)
+        data = run_comprehensive_analysis(results_path)
 
-    # Print terminal report
-    print_comprehensive_report(data, results_dir)
+        if data['overall']['total_samples'] == 0:
+            print("❌ No samples found!")
+            sys.exit(1)
 
-    # Generate HTML dashboard
-    print(f"\n📊 Generating HTML dashboard...")
-    generate_html_dashboard(data, results_dir, output_html)
+        print_comprehensive_report(data, results_path)
 
-    print(f"\n✅ HTML dashboard created: {output_html}")
-    print(f"   Open in browser: file://{output_html.absolute()}\n")
+        print(f"\n📊 Generating HTML dashboard...")
+        generate_html_dashboard(data, results_path, output_html)
+
+        print(f"\n✅ HTML dashboard created: {output_html}")
+        print(f"   Open in browser: file://{output_html.absolute()}\n")
+
+    else:
+        # Multi-directory mode - search for year directories
+        print(f"\n🔍 Searching for year directories in: {results_path}")
+        year_dirs = find_year_directories(results_path)
+
+        if not year_dirs:
+            print("❌ No year directories found and not a valid single results directory!")
+            print("   Looking for subdirectories with 'amrfinder' and 'vibrant' folders")
+            sys.exit(1)
+
+        print(f"\n✅ Found {len(year_dirs)} year directories:")
+        for d in sorted(year_dirs):
+            print(f"   - {d.name}")
+
+        print(f"\n🔬 Processing all directories...")
+
+        all_data = []
+        for directory in sorted(year_dirs):
+            print(f"\n   Processing {directory.name}...")
+            try:
+                data = run_comprehensive_analysis(directory)
+                if data['overall']['total_samples'] > 0:
+                    all_data.append(data)
+                    print(f"   ✅ {directory.name}: {data['overall']['total_samples']} samples, "
+                          f"{data['overall']['total_amr_genes']} AMR genes, "
+                          f"{len(data['mdr_islands'])} MDR islands")
+                else:
+                    print(f"   ⚠️  {directory.name}: No samples found")
+            except Exception as e:
+                print(f"   ❌ {directory.name}: Error - {e}")
+
+        if not all_data:
+            print("\n❌ No data collected from any directory!")
+            sys.exit(1)
+
+        # Merge all data
+        print(f"\n🔄 Merging data from {len(all_data)} directories...")
+        merged_data = merge_analysis_data(all_data)
+
+        # Print combined report
+        print_comprehensive_report(merged_data, f"{results_path} (2021-2025)")
+
+        # Generate HTML dashboard
+        print(f"\n📊 Generating HTML dashboard...")
+        generate_html_dashboard(merged_data, f"{results_path} (All Years)", output_html)
+
+        print(f"\n✅ HTML dashboard created: {output_html}")
+        print(f"   Open in browser: file://{output_html.absolute()}\n")
 
 if __name__ == "__main__":
     main()

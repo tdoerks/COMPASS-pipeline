@@ -1183,14 +1183,25 @@ def generate_html_dashboard(data, results_dir, output_file):
         // Prophage functional diversity chart
         const prophageFunctionsCtx = document.getElementById('prophageFunctionsChart').getContext('2d');
         new Chart(prophageFunctionsCtx, {{
-            type: 'bar',
+            type: 'pie',
             data: {{
                 labels: {json.dumps(function_categories)},
                 datasets: [{{
-                    label: 'Functional Category Count',
                     data: {json.dumps(function_counts)},
-                    backgroundColor: 'rgba(72, 187, 120, 0.8)',
-                    borderColor: 'rgba(72, 187, 120, 1)',
+                    backgroundColor: [
+                        'rgba(102, 126, 234, 0.8)',
+                        'rgba(245, 101, 101, 0.8)',
+                        'rgba(72, 187, 120, 0.8)',
+                        'rgba(246, 173, 85, 0.8)',
+                        'rgba(237, 100, 166, 0.8)',
+                        'rgba(155, 81, 224, 0.8)',
+                        'rgba(52, 211, 153, 0.8)',
+                        'rgba(251, 146, 60, 0.8)',
+                        'rgba(96, 165, 250, 0.8)',
+                        'rgba(251, 191, 36, 0.8)',
+                        'rgba(147, 197, 253, 0.8)',
+                    ],
+                    borderColor: 'white',
                     borderWidth: 2
                 }}]
             }},
@@ -1199,26 +1210,14 @@ def generate_html_dashboard(data, results_dir, output_file):
                 maintainAspectRatio: false,
                 plugins: {{
                     legend: {{
-                        display: false
+                        position: 'right',
+                        labels: {{
+                            boxWidth: 15,
+                            padding: 10
+                        }}
                     }},
                     title: {{
                         display: false
-                    }}
-                }},
-                scales: {{
-                    y: {{
-                        beginAtZero: true,
-                        title: {{
-                            display: true,
-                            text: 'Number of Genes'
-                        }}
-                    }},
-                    x: {{
-                        ticks: {{
-                            autoSkip: false,
-                            maxRotation: 45,
-                            minRotation: 45
-                        }}
                     }}
                 }}
             }}

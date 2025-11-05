@@ -29,11 +29,25 @@ def parse_metadata(metadata_file):
         reader = csv.DictReader(f)
         for row in reader:
             sample_id = row['Run']
-            organism_map[sample_id] = row.get('Organism', 'Unknown')
+
+            # Handle both 'organism' and 'Organism' column names
+            organism = row.get('organism', row.get('Organism', 'Unknown'))
+
+            # Handle both 'Year' and 'Collection_Date'
+            year = row.get('Year', '')
+            if not year and 'Collection_Date' in row:
+                year = row['Collection_Date'][:4] if row['Collection_Date'] else 'Unknown'
+            if not year:
+                year = 'Unknown'
+
+            # Handle various source column names
+            source = row.get('Isolation_source', row.get('source', 'Unknown'))
+
+            organism_map[sample_id] = organism
             metadata[sample_id] = {
-                'organism': row.get('Organism', 'Unknown'),
-                'year': row.get('Collection_Date', '')[:4] if row.get('Collection_Date') else 'Unknown',
-                'source': row.get('Isolation_source', 'Unknown'),
+                'organism': organism,
+                'year': year,
+                'source': source,
                 'state': row.get('geo_loc_name_state_province', 'Unknown'),
                 'bioproject': row.get('BioProject', '')
             }

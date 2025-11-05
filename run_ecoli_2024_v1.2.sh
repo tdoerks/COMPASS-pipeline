@@ -10,6 +10,7 @@
 
 echo "=========================================="
 echo "COMPASS Pipeline v1.2-dev - E. coli 2024"
+echo "ALL US STATES - Year 2024 only"
 echo "With: BUSCO + Fixed versions.yml race condition"
 echo "=========================================="
 echo "Job ID: $SLURM_JOB_ID"
@@ -34,9 +35,11 @@ export NXF_HOME=/fastscratch/tylerdoe/.nextflow_ecoli_2024
 # Run pipeline for all E. coli 2024 NARMS data with v1.2 features
 # - BUSCO enabled for assembly quality assessment
 # - Fixed versions.yml race condition
+# - ALL US states (filter_state null overrides KS default)
 nextflow run main.nf \
     -profile beocat \
     --input_mode metadata \
+    --filter_state null \
     --filter_organism "Escherichia" \
     --filter_year_start 2024 \
     --filter_year_end 2024 \

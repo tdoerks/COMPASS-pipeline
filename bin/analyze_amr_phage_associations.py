@@ -15,13 +15,21 @@ def parse_amr_genes(amr_file):
         return genes
 
     with open(amr_file) as f:
+        header = next(f, None)  # Skip header
+        if not header:
+            return genes
+
         for line in f:
             if line.startswith('#'):
                 continue
             parts = line.strip().split('\t')
-            if len(parts) >= 7 and parts[5] == 'AMR':  # Element type is AMR
-                gene_symbol = parts[6]  # Gene symbol column
-                genes.append(gene_symbol)
+            if len(parts) >= 9:
+                element_type = parts[8]  # Element type column (0-indexed, so column 9)
+                gene_symbol = parts[5]   # Gene symbol column (0-indexed, so column 6)
+
+                # Only include AMR genes, not virulence or stress
+                if element_type == 'AMR' and gene_symbol != 'NA':
+                    genes.append(gene_symbol)
     return genes
 
 def parse_prophage_hits(diamond_file):

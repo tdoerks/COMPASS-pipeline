@@ -42,12 +42,14 @@ def parse_metadata(metadata_file):
 
             # Handle various source column names
             source = row.get('Isolation_source', row.get('source', 'Unknown'))
+            sample_name = row.get('SampleName', '')
 
             organism_map[sample_id] = organism
             metadata[sample_id] = {
                 'organism': organism,
                 'year': year,
                 'source': source,
+                'sample_name': sample_name,
                 'state': row.get('geo_loc_name_state_province', 'Unknown'),
                 'bioproject': row.get('BioProject', '')
             }
@@ -126,8 +128,46 @@ def get_contig_length(contig_name):
         pass
     return None
 
-def categorize_source(source_text):
-    """Categorize isolation source into broad categories"""
+def categorize_source(source_text, sample_name=''):
+    """Categorize isolation source into broad categories
+
+    NARMS sample naming convention from SampleName column:
+    [Year][State][Number][ProductCode][Number]-[Organism]
+
+    Product codes:
+    - GB = Ground Beef
+    - CB = Chicken/Poultry (Chicken Breast, legs, etc.)
+    - GT = Ground Turkey
+    - PC = Pork Products
+    - CL = Chicken Liver
+    - CG = Chicken Gizzards
+    - CH = Chicken Hearts
+    """
+    import re
+
+    # First try to extract product code from SampleName
+    if sample_name:
+        # Extract product code pattern (e.g., GB, CB, GT, PC, CL, CG, CH)
+        match = re.search(r'[0-9]([A-Z]{2})[0-9]', sample_name)
+        if match:
+            product_code = match.group(1)
+
+            if product_code == 'GB':
+                return 'Ground Beef'
+            elif product_code == 'CB':
+                return 'Chicken/Poultry'
+            elif product_code == 'GT':
+                return 'Ground Turkey'
+            elif product_code == 'PC':
+                return 'Pork Products'
+            elif product_code == 'CL':
+                return 'Chicken Liver'
+            elif product_code == 'CG':
+                return 'Chicken Gizzards'
+            elif product_code == 'CH':
+                return 'Chicken Hearts'
+
+    # Fallback to text-based categorization
     source_lower = source_text.lower()
 
     if any(term in source_lower for term in ['clinical', 'patient', 'blood', 'urine', 'fecal', 'feces', 'stool']):
@@ -219,7 +259,8 @@ def run_comprehensive_analysis(results_dir):
         organism = meta.get('organism', 'Unknown')
         year = meta.get('year', 'Unknown')
         source_raw = meta.get('source', 'Unknown')
-        source_category = categorize_source(source_raw)
+        sample_name = meta.get('sample_name', '')
+        source_category = categorize_source(source_raw, sample_name)
 
         overall_stats['total_samples'] += 1
 

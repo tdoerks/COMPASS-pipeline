@@ -148,7 +148,8 @@ def categorize_source(source_text, sample_name=''):
     # First try to extract product code from SampleName
     if sample_name:
         # Extract product code pattern (e.g., GB, CB, GT, PC, CL, CG, CH)
-        match = re.search(r'[0-9]([A-Z]{2})[0-9]', sample_name)
+        # Pattern: digits followed by 2 capital letters followed by digits
+        match = re.search(r'\d([A-Z]{2})\d', sample_name)
         if match:
             product_code = match.group(1)
 

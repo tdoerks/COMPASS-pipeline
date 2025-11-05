@@ -117,6 +117,61 @@ def parse_mlst(mlst_file):
 
     return None
 
+def parse_prophage_functions(vibrant_annotations_file):
+    """Extract prophage gene functional annotations"""
+    functions = []
+    if not Path(vibrant_annotations_file).exists():
+        return functions
+
+    with open(vibrant_annotations_file) as f:
+        header = next(f, None)
+        if not header:
+            return functions
+
+        for line in f:
+            parts = line.strip().split('\t')
+            if len(parts) < 5:
+                continue
+
+            ko_name = parts[4] if len(parts) > 4 else ""
+            pfam_name = parts[9] if len(parts) > 9 else ""
+            vog_name = parts[14] if len(parts) > 14 else ""
+
+            function_category = categorize_prophage_function(ko_name, pfam_name, vog_name)
+            if function_category:
+                functions.append(function_category)
+
+    return functions
+
+def categorize_prophage_function(ko_name, pfam_name, vog_name):
+    """Categorize prophage genes into functional classes"""
+    combined = f"{ko_name} {pfam_name} {vog_name}".lower()
+
+    if any(term in combined for term in ['integrase', 'recombinase', 'transposase']):
+        return 'Integrase/Recombinase'
+    elif any(term in combined for term in ['terminase', 'portal']):
+        return 'DNA_Packaging'
+    elif any(term in combined for term in ['tail', 'baseplate', 'fiber']):
+        return 'Tail_Assembly'
+    elif any(term in combined for term in ['capsid', 'head', 'coat']):
+        return 'Head/Capsid'
+    elif any(term in combined for term in ['lyso', 'lysis', 'holin', 'spanin', 'endopeptidase']):
+        return 'Lysis'
+    elif any(term in combined for term in ['replication', 'primase', 'helicase', 'polymerase']):
+        return 'DNA_Replication'
+    elif any(term in combined for term in ['repressor', 'regulator', 'antitermination']):
+        return 'Regulation'
+    elif any(term in combined for term in ['recombinase', 'excisionase']):
+        return 'Recombination'
+    elif any(term in combined for term in ['antirepressor', 'anti-repressor']):
+        return 'Antirepressor'
+    elif any(term in combined for term in ['methylase', 'methyltransferase']):
+        return 'DNA_Modification'
+    elif any(term in combined for term in ['endonuclease', 'nuclease']):
+        return 'Nuclease'
+    else:
+        return None
+
 def get_contig_length(contig_name):
     """Extract contig length from name (format: NODE_X_length_12345_cov_Y)"""
     try:

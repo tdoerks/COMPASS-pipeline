@@ -1,6 +1,6 @@
 process MOBSUITE_RECON {
     tag "$sample_id"
-    publishDir "${params.outdir}/mobsuite", mode: 'copy'
+    publishDir "${params.outdir}/mobsuite", mode: 'copy', pattern: "${sample_id}_mobsuite"
     container = 'quay.io/biocontainers/mob_suite:3.1.9--pyhdfd78af_0'
 
     input:

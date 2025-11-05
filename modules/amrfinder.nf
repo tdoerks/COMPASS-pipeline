@@ -32,7 +32,7 @@ process DOWNLOAD_AMRFINDER_DB {
 
 process AMRFINDER {
     tag "$meta.id"
-    publishDir "${params.outdir}/amrfinder", mode: 'copy'
+    publishDir "${params.outdir}/amrfinder", mode: 'copy', pattern: "${meta.id}_*.tsv"
     container = 'quay.io/biocontainers/ncbi-amrfinderplus:3.12.8--h283d18e_0'
     
     input:

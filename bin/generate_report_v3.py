@@ -236,9 +236,51 @@ def collect_all_results(results_dir, prophage_metadata=None):
             sample = d.name.replace('_quast', '')
             report_file = d / 'report.tsv'
             if report_file.exists():
-                quast_data = read_tsv(report_file)
-                if quast_data:
-                    data['quast'][sample] = quast_data[0]  # QUAST has single row per assembly
+                # QUAST format: two-column TSV (metric name, value)
+                quast_dict = {}
+                try:
+                    with open(report_file) as f:
+                        for line in f:
+                            parts = line.strip().split('\t')
+                            if len(parts) >= 2:
+                                quast_dict[parts[0]] = parts[1]
+                    if quast_dict:
+                        data['quast'][sample] = quast_dict
+                except Exception as e:
+                    print(f"Warning: Could not parse QUAST for {sample}: {e}")
+
+    # BUSCO assembly quality
+    busco_dir = results_dir / 'busco'
+    if busco_dir.exists():
+        for d in busco_dir.glob('*_busco'):
+            sample = d.name.replace('_busco', '')
+            summary_files = list(d.glob('short_summary.*.txt'))
+            if summary_files:
+                try:
+                    busco_data = {}
+                    with open(summary_files[0]) as f:
+                        for line in f:
+                            line = line.strip()
+                            # Parse the results line: C:87.1%[S:87.1%,D:0.0%],F:6.5%,M:6.4%,n:124
+                            if line.startswith('C:'):
+                                busco_data['summary'] = line
+                                # Extract percentages
+                                import re
+                                match = re.match(r'C:(\d+\.?\d*)%\[S:(\d+\.?\d*)%,D:(\d+\.?\d*)%\],F:(\d+\.?\d*)%,M:(\d+\.?\d*)%', line)
+                                if match:
+                                    busco_data['complete'] = match.group(1)
+                                    busco_data['single_copy'] = match.group(2)
+                                    busco_data['duplicated'] = match.group(3)
+                                    busco_data['fragmented'] = match.group(4)
+                                    busco_data['missing'] = match.group(5)
+                            elif line.startswith('Complete BUSCOs'):
+                                busco_data['complete_count'] = line.split()[0]
+                            elif 'Total BUSCO groups' in line:
+                                busco_data['total_buscos'] = line.split()[0]
+                    if busco_data:
+                        data['busco'][sample] = busco_data
+                except Exception as e:
+                    print(f"Warning: Could not parse BUSCO for {sample}: {e}")
 
     return data
 
@@ -258,6 +300,35 @@ def create_assembly_quality_table(quast_data):
             'N50 (bp)': q.get('N50', '-'),
             'L50': q.get('L50', '-'),
             'GC (%)': q.get('GC (%)', '-'),
+        })
+
+    return summary
+
+def create_busco_quality_table(busco_data):
+    """Create BUSCO quality summary table"""
+    if not busco_data:
+        return []
+
+    summary = []
+    for sample in sorted(busco_data.keys()):
+        b = busco_data[sample]
+        complete = float(b.get('complete', 0))
+        # Quality assessment
+        if complete >= 95:
+            quality = '🟢 High'
+        elif complete >= 80:
+            quality = '🟡 Medium'
+        else:
+            quality = '🔴 Low'
+
+        summary.append({
+            'Sample': sample,
+            'Complete (%)': b.get('complete', '-'),
+            'Single-copy (%)': b.get('single_copy', '-'),
+            'Duplicated (%)': b.get('duplicated', '-'),
+            'Fragmented (%)': b.get('fragmented', '-'),
+            'Missing (%)': b.get('missing', '-'),
+            'Quality': quality
         })
 
     return summary
@@ -427,6 +498,9 @@ def generate_html(data, results_dir, output_file):
     # Create assembly quality summary
     assembly_qc = create_assembly_quality_table(data['quast'])
 
+    # Create BUSCO quality summary
+    busco_qc = create_busco_quality_table(data['busco'])
+
     # Analyze phage diversity using DIAMOND identifications
     phage_diversity = analyze_phage_diversity(data['diamond'])
     phage_chart_data = create_pie_chart_data(phage_diversity, "Phage Identification Distribution")
@@ -578,6 +652,8 @@ nav a:hover {{background: #3498db;}}
 
 <div id="assembly-qc" class="section">
 <h2>🔬 Assembly Quality Metrics</h2>
+
+<h3>QUAST Assembly Statistics</h3>
 <p>Summary of assembly statistics from QUAST. Key metrics to assess assembly quality:</p>
 <ul>
 <li><strong>N50:</strong> 50% of the assembly is in contigs this size or larger (higher is better)</li>
@@ -585,6 +661,16 @@ nav a:hover {{background: #3498db;}}
 <li><strong># Contigs:</strong> Fewer contigs indicates a more contiguous assembly</li>
 </ul>
 {table_html(assembly_qc, max_rows=1000)}
+
+<h3 style="margin-top: 30px;">BUSCO Completeness Assessment</h3>
+<p>Assembly completeness based on conserved single-copy orthologs (bacteria_odb10 lineage):</p>
+<ul>
+<li><strong>🟢 High (≥95% complete):</strong> Excellent assembly quality</li>
+<li><strong>🟡 Medium (80-94% complete):</strong> Good assembly, may have minor gaps</li>
+<li><strong>🔴 Low (&lt;80% complete):</strong> Potentially incomplete or contaminated assembly</li>
+<li><strong>Duplicated:</strong> High duplication may indicate contamination or assembly issues</li>
+</ul>
+{table_html(busco_qc, max_rows=1000)}
 </div>
 
 <div id="cross-ref" class="section">

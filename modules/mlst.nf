@@ -1,6 +1,6 @@
 process MLST {
     tag "$sample_id"
-    publishDir "${params.outdir}/mlst", mode: 'copy'
+    publishDir "${params.outdir}/mlst", mode: 'copy', pattern: "${sample_id}_mlst.tsv"
     container = 'quay.io/biocontainers/mlst:2.23.0--hdfd78af_1'
 
     input:

@@ -1,6 +1,6 @@
 process SISTR {
     tag "$sample_id ($organism)"
-    publishDir "${params.outdir}/sistr", mode: 'copy'
+    publishDir "${params.outdir}/sistr", mode: 'copy', pattern: "${sample_id}_sistr*"
     container = 'quay.io/biocontainers/sistr_cmd:1.1.1--pyh864c0ab_2'
 
     input:

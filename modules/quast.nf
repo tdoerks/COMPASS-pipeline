@@ -1,6 +1,6 @@
 process QUAST {
     tag "$sample_id"
-    publishDir "${params.outdir}/quast", mode: 'copy'
+    publishDir "${params.outdir}/quast", mode: 'copy', pattern: "${sample_id}_quast"
     container = 'quay.io/biocontainers/quast:5.2.0--py39pl5321h2add14b_1'
 
     input:

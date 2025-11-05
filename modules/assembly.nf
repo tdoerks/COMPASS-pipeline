@@ -1,6 +1,6 @@
 process ASSEMBLE_SPADES {
     tag "$sample_id"
-    publishDir "${params.outdir}/assemblies", mode: 'copy'
+    publishDir "${params.outdir}/assemblies", mode: 'copy', pattern: "${sample_id}_scaffolds.fasta"
     container = 'quay.io/biocontainers/spades:3.15.5--h95f258a_1'
     
     input:

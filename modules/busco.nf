@@ -1,6 +1,6 @@
 process BUSCO {
     tag "$sample_id"
-    publishDir "${params.outdir}/busco", mode: 'copy'
+    publishDir "${params.outdir}/busco", mode: 'copy', pattern: "${sample_id}_busco"
     container = 'quay.io/biocontainers/busco:5.7.1--pyhdfd78af_0'
 
     input:

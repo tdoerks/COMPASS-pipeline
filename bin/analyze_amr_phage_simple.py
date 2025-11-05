@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 from pathlib import Path
 
 def count_amr_genes(amr_file):
@@ -26,9 +27,22 @@ def count_phages(phage_file):
                 count += 1
     return count
 
-# Analyze 2024 data
-amr_dir = Path("results_kansas_2024/amrfinder")
-vibrant_dir = Path("results_kansas_2024/vibrant")
+# Get results directory from command line or use default
+if len(sys.argv) > 1:
+    results_dir = Path(sys.argv[1])
+else:
+    results_dir = Path("/homes/tylerdoe/compass_kansas_results/results_kansas_2024")
+
+amr_dir = results_dir / "amrfinder"
+vibrant_dir = results_dir / "vibrant"
+
+# Verify directories exist
+if not amr_dir.exists():
+    print(f"❌ Error: AMR directory not found: {amr_dir}")
+    sys.exit(1)
+if not vibrant_dir.exists():
+    print(f"❌ Error: VIBRANT directory not found: {vibrant_dir}")
+    sys.exit(1)
 
 samples_both = []
 samples_amr_only = []
@@ -48,7 +62,8 @@ for amr_file in amr_dir.glob("*_amr.tsv"):
         samples_phage_only.append((sample_id, phage_count))
 
 print("\n" + "="*60)
-print("Kansas 2024 AMR-Phage Correlation Analysis")
+print(f"Kansas AMR-Phage Correlation Analysis")
+print(f"Results directory: {results_dir}")
 print("="*60)
 print(f"\nTotal samples: {len(list(amr_dir.glob('*_amr.tsv')))}")
 print(f"Samples with AMR: {len(samples_both) + len(samples_amr_only)}")

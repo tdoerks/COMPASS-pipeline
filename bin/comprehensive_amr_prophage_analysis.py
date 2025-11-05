@@ -306,6 +306,9 @@ def run_comprehensive_analysis(results_dir):
         'top_genes_on_prophage': Counter()
     })
 
+    # Prophage functional diversity
+    prophage_functions = Counter()
+
     # Process all samples
     for amr_file in sorted(amr_dir.glob("*_amr.tsv")):
         sample_id = amr_file.stem.replace('_amr', '')
@@ -326,6 +329,12 @@ def run_comprehensive_analysis(results_dir):
         prophage_contigs = parse_prophage_contigs(vibrant_phages_file)
         mlst_file = mlst_dir / f"{sample_id}_mlst.tsv"
         st = parse_mlst(mlst_file)
+
+        # Parse prophage functional annotations
+        vibrant_sample_dir = vibrant_dir / f"{sample_id}_vibrant"
+        vibrant_annotations = vibrant_sample_dir / f"VIBRANT_{sample_id}_scaffolds" / f"VIBRANT_results_{sample_id}_scaffolds" / f"VIBRANT_annotations_{sample_id}_scaffolds.tsv"
+        sample_prophage_functions = parse_prophage_functions(vibrant_annotations)
+        prophage_functions.update(sample_prophage_functions)
 
         if st:
             colocation_data['st_distribution'][st] += 1
@@ -454,7 +463,8 @@ def run_comprehensive_analysis(results_dir):
         'drug_class_combinations': drug_class_combinations,
         'species': species_data,
         'temporal': temporal_data,
-        'source': source_data
+        'source': source_data,
+        'prophage_functions': prophage_functions
     }
 
 # ============================================================================
@@ -677,6 +687,10 @@ def generate_html_dashboard(data, results_dir, output_file):
     mdr_organisms = sorted(mdr_by_organism.keys())
     mdr_counts = [mdr_by_organism[org] for org in mdr_organisms]
 
+    # Prophage functional diversity
+    function_categories = sorted(data['prophage_functions'].keys())
+    function_counts = [data['prophage_functions'][cat] for cat in function_categories]
+
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -888,6 +902,13 @@ def generate_html_dashboard(data, results_dir, output_file):
             <h2>📅 AMR-Prophage Co-location by Year</h2>
             <div class="chart-wrapper">
                 <canvas id="temporalChart"></canvas>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🦠 Prophage Functional Diversity</h2>
+            <div class="chart-wrapper">
+                <canvas id="prophageFunctionsChart"></canvas>
             </div>
         </div>
 
@@ -1157,6 +1178,50 @@ def generate_html_dashboard(data, results_dir, output_file):
                 }}
             }}
         }});
+
+        // Prophage functional diversity chart
+        const prophageFunctionsCtx = document.getElementById('prophageFunctionsChart').getContext('2d');
+        new Chart(prophageFunctionsCtx, {{
+            type: 'bar',
+            data: {{
+                labels: {json.dumps(function_categories)},
+                datasets: [{{
+                    label: 'Functional Category Count',
+                    data: {json.dumps(function_counts)},
+                    backgroundColor: 'rgba(72, 187, 120, 0.8)',
+                    borderColor: 'rgba(72, 187, 120, 1)',
+                    borderWidth: 2
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }},
+                    title: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Genes'
+                        }}
+                    }},
+                    x: {{
+                        ticks: {{
+                            autoSkip: false,
+                            maxRotation: 45,
+                            minRotation: 45
+                        }}
+                    }}
+                }}
+            }}
+        }});
     </script>
 </body>
 </html>
@@ -1234,7 +1299,8 @@ def merge_analysis_data(all_data_list):
             'total_amr': 0,
             'amr_on_prophage': 0,
             'top_genes_on_prophage': Counter()
-        })
+        }),
+        'prophage_functions': Counter()
     }
 
     for data in all_data_list:
@@ -1273,6 +1339,9 @@ def merge_analysis_data(all_data_list):
             for key in ['samples', 'samples_with_colocation', 'total_amr', 'amr_on_prophage']:
                 merged['source'][source][key] += src_data[key]
             merged['source'][source]['top_genes_on_prophage'].update(src_data['top_genes_on_prophage'])
+
+        # Merge prophage functions
+        merged['prophage_functions'].update(data['prophage_functions'])
 
     return merged
 

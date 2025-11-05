@@ -68,7 +68,7 @@ def analyze_associations(results_dir):
     # Parse all samples
     for amr_file in amr_dir.glob("*_amr.tsv"):
         sample_id = amr_file.stem.replace('_amr', '')
-        prophage_file = prophage_dir / f"{sample_id}_prophage.tsv"
+        prophage_file = prophage_dir / f"{sample_id}_diamond_results.tsv"
 
         amr_genes = parse_amr_genes(amr_file)
         prophages = parse_prophage_hits(prophage_file)

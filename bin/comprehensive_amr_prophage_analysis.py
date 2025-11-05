@@ -546,6 +546,17 @@ def generate_html_dashboard(data, results_dir, output_file):
     top_genes = [g[0] for g in gene_prophage_counts[:15]]
     top_gene_counts = [g[1] for g in gene_prophage_counts[:15]]
 
+    # Gene data for table (prophage vs non-prophage)
+    gene_data = []
+    for gene in genes:
+        prophage_count = data['colocation']['amr_gene_locations'].get(f"{gene}_prophage", 0)
+        other_count = data['colocation']['amr_gene_locations'].get(f"{gene}_other", 0)
+        total = prophage_count + other_count
+        if total > 0:
+            pct = (prophage_count / total) * 100
+            gene_data.append((gene, prophage_count, other_count, pct))
+    gene_data.sort(key=lambda x: x[1], reverse=True)
+
     # MDR islands by organism
     mdr_by_organism = defaultdict(int)
     for island in data['mdr_islands']:

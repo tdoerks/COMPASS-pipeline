@@ -30,10 +30,11 @@ module load Nextflow
 export NXF_HOME=/fastscratch/tylerdoe/.nextflow_ecoli_all_2024
 
 # Run pipeline for ALL E. coli 2024 NARMS data
-# Note: No filter_state parameter = processes ALL states
+# Note: Set filter_state to null to process ALL states
 nextflow run main.nf \
     -profile beocat \
     --input_mode metadata \
+    --filter_state null \
     --filter_year_start 2024 \
     --filter_year_end 2024 \
     --skip_busco true \

@@ -29,12 +29,6 @@ module load Nextflow
 export NXF_HOME=/fastscratch/tylerdoe/.nextflow_2020
 
 # Run pipeline for Kansas 2020 NARMS data
-# Automatically processes all three organisms:
-#   - Campylobacter (PRJNA292664)
-#   - Salmonella (PRJNA292661)
-#   - E. coli (PRJNA292663)
-# Filters for KS state code in sample names
-# Uses separate work directory (work_2020) to avoid conflicts with other runs
 nextflow run main.nf \
     -profile beocat \
     --input_mode metadata \
@@ -58,16 +52,6 @@ if [ $EXIT_CODE -eq 0 ]; then
     echo "✅ Pipeline completed successfully!"
     echo ""
     echo "Results location: /fastscratch/tylerdoe/results_kansas_2020"
-    echo ""
-    echo "Next steps:"
-    echo "1. Copy results to homes (if needed):"
-    echo "   cp -r /fastscratch/tylerdoe/results_kansas_2020 /homes/tylerdoe/compass_kansas_results/"
-    echo ""
-    echo "2. Generate report:"
-    echo "   ./bin/generate_report_v3.py /fastscratch/tylerdoe/results_kansas_2020 -o compass_report_ks_2020.html"
-    echo ""
-    echo "3. Download report:"
-    echo "   scp tylerdoe@beocat.ksu.edu:/fastscratch/tylerdoe/compass_report_ks_2020.html C:\\Users\\tdoerks\\Downloads\\"
 else
     echo "❌ Pipeline failed with exit code $EXIT_CODE"
     echo "Check logs: /fastscratch/tylerdoe/slurm-${SLURM_JOB_ID}.out and .nextflow.log"

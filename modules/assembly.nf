@@ -3,7 +3,8 @@ process ASSEMBLE_SPADES {
     publishDir "${params.outdir}/assemblies", mode: 'copy', pattern: "${sample_id}_scaffolds.fasta"
     publishDir "${params.outdir}/assemblies/failed", mode: 'copy', pattern: "*.failed.log"
     container = 'quay.io/biocontainers/spades:3.15.5--h95f258a_1'
-    errorStrategy 'ignore'  // Continue pipeline even if this sample fails
+    errorStrategy { task.attempt <= 1 ? params.assembly_error_strategy : 'ignore' }
+    maxRetries 1
 
     input:
     tuple val(sample_id), path(reads)

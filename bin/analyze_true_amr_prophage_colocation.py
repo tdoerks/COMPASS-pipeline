@@ -513,33 +513,160 @@ def export_detailed_csv(detailed_results, output_file):
 
 
 # ============================================================================
+# MULTI-YEAR SUPPORT
+# ============================================================================
+
+def find_year_directories(parent_dir):
+    """
+    Find all subdirectories that look like year-based results directories
+
+    Looks for directories with 'amrfinder' and 'vibrant' subdirectories
+    Returns list of Path objects
+    """
+    parent_dir = Path(parent_dir)
+    year_dirs = []
+
+    if not parent_dir.is_dir():
+        return []
+
+    for item in sorted(parent_dir.iterdir()):
+        if item.is_dir():
+            # Check if this directory has the expected structure
+            if (item / "amrfinder").exists() and (item / "vibrant").exists():
+                year_dirs.append(item)
+
+    return year_dirs
+
+
+def merge_stats(all_stats):
+    """Merge statistics from multiple directories"""
+    merged = {
+        'total_samples': 0,
+        'samples_with_amr': 0,
+        'samples_with_prophage': 0,
+        'total_amr_genes': 0,
+        'total_prophage_regions': 0,
+        'colocation_categories': Counter(),
+        'genes_by_category': defaultdict(Counter),
+        'classes_by_category': defaultdict(Counter),
+        'organism_colocation': defaultdict(lambda: Counter()),
+        'year_colocation': defaultdict(lambda: Counter())
+    }
+
+    for stats in all_stats:
+        # Merge simple counts
+        for key in ['total_samples', 'samples_with_amr', 'samples_with_prophage',
+                    'total_amr_genes', 'total_prophage_regions']:
+            merged[key] += stats[key]
+
+        # Merge counters
+        merged['colocation_categories'].update(stats['colocation_categories'])
+
+        # Merge nested counters
+        for category in stats['genes_by_category']:
+            merged['genes_by_category'][category].update(stats['genes_by_category'][category])
+
+        for category in stats['classes_by_category']:
+            merged['classes_by_category'][category].update(stats['classes_by_category'][category])
+
+        for organism in stats['organism_colocation']:
+            merged['organism_colocation'][organism].update(stats['organism_colocation'][organism])
+
+        for year in stats['year_colocation']:
+            merged['year_colocation'][year].update(stats['year_colocation'][year])
+
+    return merged
+
+
+# ============================================================================
 # MAIN
 # ============================================================================
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 analyze_true_amr_prophage_colocation.py <results_dir> [output_csv]")
-        print("\nExample:")
-        print("  python3 analyze_true_amr_prophage_colocation.py /fastscratch/tylerdoe/results_kansas_2021_2025 kansas_true_colocation.csv")
+        print("Usage: python3 analyze_true_amr_prophage_colocation.py <results_dir_or_parent> [output_csv]")
+        print("\nExamples:")
+        print("  # Single year:")
+        print("  python3 analyze_true_amr_prophage_colocation.py results_kansas_2021 kansas_2021_colocation.csv")
+        print()
+        print("  # All years (auto-detect subdirectories with results):")
+        print("  python3 analyze_true_amr_prophage_colocation.py ~/compass_kansas_results kansas_all_years_colocation.csv")
         sys.exit(1)
 
-    results_dir = Path(sys.argv[1])
+    results_path = Path(sys.argv[1])
     output_csv = Path(sys.argv[2]) if len(sys.argv) > 2 else Path.home() / "true_amr_prophage_colocation.csv"
 
-    if not results_dir.exists():
-        print(f"❌ Error: Results directory not found: {results_dir}")
+    if not results_path.exists():
+        print(f"❌ Error: Path not found: {results_path}")
         sys.exit(1)
 
-    # Run analysis
-    stats, detailed_results = run_true_colocation_analysis(results_dir)
+    # Check if this is a single results directory or parent with multiple subdirectories
+    is_single_dir = (results_path / "amrfinder").exists() and (results_path / "vibrant").exists()
 
-    # Print report
-    print_colocation_report(stats, detailed_results)
+    if is_single_dir:
+        # Single directory mode
+        print(f"\n🔬 Running true co-location analysis on single directory...")
+        print(f"   Directory: {results_path}")
 
-    # Export CSV
-    export_detailed_csv(detailed_results, output_csv)
+        stats, detailed_results = run_true_colocation_analysis(results_path)
 
-    print(f"✅ Analysis complete!\n")
+        if stats['total_samples'] == 0:
+            print("❌ No samples found!")
+            sys.exit(1)
+
+        print_colocation_report(stats, detailed_results)
+        export_detailed_csv(detailed_results, output_csv)
+        print(f"✅ Analysis complete!\n")
+
+    else:
+        # Multi-directory mode - search for year directories
+        print(f"\n🔍 Searching for results directories in: {results_path}")
+        year_dirs = find_year_directories(results_path)
+
+        if not year_dirs:
+            print("❌ No results directories found and not a valid single results directory!")
+            print("   Looking for subdirectories with 'amrfinder' and 'vibrant' folders")
+            sys.exit(1)
+
+        print(f"\n✅ Found {len(year_dirs)} results directories:")
+        for d in year_dirs:
+            print(f"   - {d.name}")
+
+        print(f"\n🔬 Processing all directories...")
+
+        all_stats = []
+        all_detailed_results = []
+
+        for directory in year_dirs:
+            print(f"\n   📁 Processing {directory.name}...")
+            try:
+                stats, detailed_results = run_true_colocation_analysis(directory)
+                if stats['total_samples'] > 0:
+                    all_stats.append(stats)
+                    all_detailed_results.extend(detailed_results)
+                    print(f"   ✅ {directory.name}: {stats['total_samples']} samples, "
+                          f"{stats['total_amr_genes']} AMR genes, "
+                          f"{stats['total_prophage_regions']} prophage regions")
+                else:
+                    print(f"   ⚠️  {directory.name}: No samples found")
+            except Exception as e:
+                print(f"   ❌ {directory.name}: Error - {e}")
+
+        if not all_stats:
+            print("\n❌ No data collected from any directory!")
+            sys.exit(1)
+
+        # Merge all statistics
+        print(f"\n🔄 Merging data from {len(all_stats)} directories...")
+        merged_stats = merge_stats(all_stats)
+
+        # Print combined report
+        print_colocation_report(merged_stats, all_detailed_results)
+
+        # Export combined CSV
+        export_detailed_csv(all_detailed_results, output_csv)
+
+        print(f"✅ Multi-year analysis complete!\n")
 
 
 if __name__ == "__main__":

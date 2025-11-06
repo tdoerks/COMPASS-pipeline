@@ -118,10 +118,16 @@ workflow COMPLETE_PIPELINE {
     ch_versions = ch_versions.mix(MOBILE_ELEMENTS.out.versions)
 
     // Combine all results - runs after all analyses complete
-    // Uses published results from params.outdir
     COMBINE_RESULTS(
-        file("${projectDir}/bin/generate_compass_summary.py"),
-        file("${projectDir}/bin/generate_report_v3.py")
+        AMR_ANALYSIS.out.results.map { it[1] }.collect(),
+        PHAGE_ANALYSIS.out.vibrant_results.map { it[1] }.collect(),
+        PHAGE_ANALYSIS.out.diamond_results.map { it[1] }.collect(),
+        Channel.empty().collect().ifEmpty([]),  // abricate_summary
+        ch_quast_report.collect().ifEmpty([]),  // quast_reports
+        ch_busco_summary.collect().ifEmpty([]), // busco_summaries
+        TYPING.out.mlst_results.map { it[1] }.collect(),     // mlst_results
+        TYPING.out.sistr_results.map { it[1] }.collect(),    // sistr_results
+        ch_metadata.ifEmpty(file('NO_FILE'))    // metadata
     )
     ch_versions = ch_versions.mix(COMBINE_RESULTS.out.versions)
 

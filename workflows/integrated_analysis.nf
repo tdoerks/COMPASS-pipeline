@@ -27,17 +27,10 @@ workflow AMR_PHAGE_ANALYSIS {
     CHECKV(VIBRANT.out.phages, DOWNLOAD_CHECKV_DB.out.db)
     PHANOTATE(VIBRANT.out.phages)
 
-    // Combine all results (pass empty channels for missing inputs)
+    // Combine all results using summary and report scripts
     COMBINE_RESULTS(
-        AMRFINDER.out.results.map { it[1] }.collect(),
-        VIBRANT.out.results.map { it[1] }.collect(),
-        DIAMOND_PROPHAGE.out.results.map { it[1] }.collect(),
-        Channel.empty().collect().ifEmpty([]),  // abricate_summary
-        Channel.empty().collect().ifEmpty([]),  // quast_reports
-        Channel.empty().collect().ifEmpty([]),  // busco_summaries
-        Channel.empty().collect().ifEmpty([]),  // mlst_results
-        Channel.empty().collect().ifEmpty([]),  // sistr_results
-        file('NO_FILE')                         // metadata
+        file("${projectDir}/bin/generate_summary.py"),
+        file("${projectDir}/bin/generate_report_v3.py")
     )
 
     // Collect versions

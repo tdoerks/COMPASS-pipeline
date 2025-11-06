@@ -40,16 +40,21 @@ process ASSEMBLE_SPADES {
             --only-assembler
     fi
 
-    # Check if assembly succeeded
-    if [ -f ${sample_id}_spades/scaffolds.fasta ]; then
-        # Assembly succeeded
+    # Check if assembly succeeded - use scaffolds if available, contigs as fallback
+    if [ -f ${sample_id}_spades/scaffolds.fasta ] && [ -s ${sample_id}_spades/scaffolds.fasta ]; then
+        # Scaffolds generated successfully
+        echo "✅ Assembly succeeded for ${sample_id} - using scaffolds.fasta"
         cp ${sample_id}_spades/scaffolds.fasta ${sample_id}_scaffolds.fasta
         echo '"ASSEMBLE_SPADES": {"spades": "3.15.5"}' > versions.yml
-        echo "✅ Assembly succeeded for ${sample_id}"
+    elif [ -f ${sample_id}_spades/contigs.fasta ] && [ -s ${sample_id}_spades/contigs.fasta ]; then
+        # Only contigs generated (common when insert size cannot be estimated)
+        echo "⚠️  Scaffolds not generated for ${sample_id}, using contigs.fasta instead"
+        cp ${sample_id}_spades/contigs.fasta ${sample_id}_scaffolds.fasta
+        echo '"ASSEMBLE_SPADES": {"spades": "3.15.5"}' > versions.yml
     else
-        # Assembly failed - log it and exit with error so errorStrategy 'ignore' kicks in
-        echo "⚠️  Assembly failed for ${sample_id}" | tee ${sample_id}.failed.log
-        echo "SPAdes did not produce scaffolds.fasta" | tee -a ${sample_id}.failed.log
+        # Assembly completely failed - log it and exit with error
+        echo "❌ Assembly failed for ${sample_id}" | tee ${sample_id}.failed.log
+        echo "SPAdes did not produce scaffolds.fasta or contigs.fasta" | tee -a ${sample_id}.failed.log
         echo "Check ${sample_id}_spades/spades.log and warnings.log for details" | tee -a ${sample_id}.failed.log
 
         # Copy SPAdes log to failed log

@@ -139,7 +139,6 @@ workflow COMPLETE_PIPELINE {
         ch_multiqc = ch_multiqc
             .mix(ch_qc_outputs.fastqc_html.collect().ifEmpty([]))
             .mix(ch_qc_outputs.fastp_json.collect().ifEmpty([]))
-            .mix(ch_qc_outputs.read_qc_metrics.collect().ifEmpty([]))
     }
 
     // Always include assembly QC (BUSCO and QUAST)
@@ -166,7 +165,5 @@ workflow COMPLETE_PIPELINE {
     mobsuite_results = MOBILE_ELEMENTS.out.mobsuite_results
     plasmids = MOBILE_ELEMENTS.out.plasmids
     multiqc_report = ch_multiqc_report
-    read_qc_summary = input_mode != 'fasta' ? ch_qc_outputs.read_qc_summary : Channel.empty()
-    read_qc_html = input_mode != 'fasta' ? ch_qc_outputs.read_qc_html : Channel.empty()
     versions = ch_versions.unique()
 }

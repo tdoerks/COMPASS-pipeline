@@ -22,17 +22,17 @@ def find_year_dirs(base_path):
     """Find all year result directories."""
     base_dir = Path(base_path)
 
-    # Check for year directories (2021, 2022, etc.)
+    # Check for directories with amrfinder and vibrant subdirs
     year_dirs = []
     for d in base_dir.iterdir():
         if d.is_dir():
-            # Check if directory name contains a year
-            if any(year in d.name for year in ['2021', '2022', '2023', '2024', '2025']):
+            # Check if has amrfinder and vibrant directories
+            if (d / 'amrfinder').exists() and (d / 'vibrant').exists():
                 year_dirs.append(d)
 
     if not year_dirs:
         # Maybe the base_dir itself contains the results
-        if (base_dir / 'amr_combined.tsv').exists():
+        if (base_dir / 'amrfinder').exists() and (base_dir / 'vibrant').exists():
             year_dirs = [base_dir]
 
     return sorted(year_dirs)
@@ -42,17 +42,44 @@ def load_all_amr_genes(year_dirs):
     all_genes = []
 
     for year_dir in year_dirs:
-        amr_file = year_dir / 'amr_combined.tsv'
-        if not amr_file.exists():
-            print(f"  ⚠️  No AMR file in {year_dir.name}")
+        amr_dir = year_dir / 'amrfinder'
+        if not amr_dir.exists():
+            print(f"  ⚠️  No amrfinder directory in {year_dir.name}")
             continue
 
         print(f"  Loading AMR from {year_dir.name}...")
-        with open(amr_file) as f:
-            reader = csv.DictReader(f, delimiter='\t')
-            for row in reader:
-                row['year_dir'] = year_dir.name
-                all_genes.append(row)
+
+        # Read individual AMRFinder result files
+        for amr_file in amr_dir.glob("*_amr.tsv"):
+            sample_id = amr_file.stem.replace('_amr', '')
+
+            with open(amr_file) as f:
+                header = next(f, None)
+                if not header:
+                    continue
+
+                for line in f:
+                    if line.startswith('#'):
+                        continue
+
+                    parts = line.strip().split('\t')
+                    if len(parts) < 11:
+                        continue
+
+                    # Only keep AMR genes (element_type == 'AMR')
+                    if parts[8] == 'AMR':
+                        gene_data = {
+                            'sample_id': sample_id,
+                            'contig': parts[1],
+                            'start': parts[2],
+                            'end': parts[3],
+                            'gene': parts[5],
+                            'Gene symbol': parts[5],  # Alias for compatibility
+                            'class': parts[10],
+                            'organism': parts[7] if len(parts) > 7 else 'Unknown',
+                            'year_dir': year_dir.name
+                        }
+                        all_genes.append(gene_data)
 
     return all_genes
 
@@ -61,17 +88,39 @@ def load_all_prophages(year_dirs):
     all_prophages = defaultdict(list)
 
     for year_dir in year_dirs:
-        vibrant_file = year_dir / 'vibrant_combined.tsv'
-        if not vibrant_file.exists():
-            print(f"  ⚠️  No VIBRANT file in {year_dir.name}")
+        vibrant_dir = year_dir / 'vibrant'
+        if not vibrant_dir.exists():
+            print(f"  ⚠️  No vibrant directory in {year_dir.name}")
             continue
 
         print(f"  Loading prophages from {year_dir.name}...")
-        with open(vibrant_file) as f:
-            reader = csv.DictReader(f, delimiter='\t')
-            for row in reader:
-                sample_id = row['sample_id']
-                all_prophages[sample_id].append(row)
+
+        # Read from VIBRANT phage FASTA files
+        for sample_dir in vibrant_dir.glob("*_vibrant"):
+            sample_id = sample_dir.name.replace('_vibrant', '')
+            phage_fasta = vibrant_dir / f"{sample_id}_phages.fna"
+
+            if phage_fasta.exists():
+                with open(phage_fasta) as f:
+                    for line in f:
+                        if line.startswith('>'):
+                            header = line.strip()[1:].split()[0]
+                            # Parse contig name from header
+                            # Format: contig_X_fragment_Y_Z
+                            contig_parts = header.split('_')
+                            try:
+                                fragment_idx = contig_parts.index('fragment')
+                                contig = '_'.join(contig_parts[:fragment_idx])
+                            except ValueError:
+                                contig = header
+
+                            all_prophages[sample_id].append({
+                                'scaffold': contig,
+                                'contig_id': contig,
+                                'quality': 'unknown',  # Would need to parse from VIBRANT output
+                                'type': 'prophage',
+                                'fragment': header
+                            })
 
     return all_prophages
 

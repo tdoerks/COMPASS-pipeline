@@ -395,6 +395,109 @@ def parse_vibrant_results(results_dir: Path):
 
     return stats
 
+def parse_mlst_results(results_dir: Path):
+    """
+    Parse MLST typing results.
+
+    Returns dict with:
+    - total_samples
+    - sequence_types
+    - top_sts (top 10)
+    - novel_sts
+    """
+    stats = {
+        'total_samples': 0,
+        'sequence_types': Counter(),
+        'novel_sts': 0
+    }
+
+    mlst_file = results_dir / 'mlst_combined.tsv'
+    if mlst_file.exists():
+        with open(mlst_file) as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            for row in reader:
+                stats['total_samples'] += 1
+
+                st = row.get('ST', row.get('sequence_type', 'Unknown'))
+                stats['sequence_types'][st] += 1
+
+                # Count novel STs
+                if st.startswith('ST-') or st == 'novel' or st == 'new':
+                    stats['novel_sts'] += 1
+
+    stats['top_sts'] = stats['sequence_types'].most_common(10)
+
+    return stats
+
+def parse_sistr_results(results_dir: Path):
+    """
+    Parse SISTR serotyping results (Salmonella).
+
+    Returns dict with:
+    - total_samples
+    - serotypes
+    - top_serotypes (top 10)
+    """
+    stats = {
+        'total_samples': 0,
+        'serotypes': Counter()
+    }
+
+    sistr_file = results_dir / 'sistr_combined.tsv'
+    if sistr_file.exists():
+        with open(sistr_file) as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            for row in reader:
+                stats['total_samples'] += 1
+
+                serotype = row.get('serovar', row.get('serotype', 'Unknown'))
+                stats['serotypes'][serotype] += 1
+
+    stats['top_serotypes'] = stats['serotypes'].most_common(10)
+
+    return stats
+
+def parse_mobsuite_results(results_dir: Path):
+    """
+    Parse MOB-suite plasmid detection results.
+
+    Returns dict with:
+    - total_plasmids
+    - samples_with_plasmids
+    - inc_types
+    - avg_plasmids_per_sample
+    """
+    stats = {
+        'total_plasmids': 0,
+        'samples_with_plasmids': set(),
+        'inc_types': Counter(),
+        'plasmids_per_sample': Counter()
+    }
+
+    mobsuite_file = results_dir / 'mobsuite_combined.tsv'
+    if mobsuite_file.exists():
+        with open(mobsuite_file) as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            for row in reader:
+                stats['total_plasmids'] += 1
+
+                sample_id = row.get('sample_id', '')
+                inc_type = row.get('primary_cluster_id', row.get('rep_type', 'Unknown'))
+
+                stats['samples_with_plasmids'].add(sample_id)
+                stats['inc_types'][inc_type] += 1
+                stats['plasmids_per_sample'][sample_id] += 1
+
+    stats['num_samples_with_plasmids'] = len(stats['samples_with_plasmids'])
+    if stats['num_samples_with_plasmids'] > 0:
+        stats['avg_plasmids_per_sample'] = stats['total_plasmids'] / stats['num_samples_with_plasmids']
+    else:
+        stats['avg_plasmids_per_sample'] = 0
+
+    stats['top_inc_types'] = stats['inc_types'].most_common(10)
+
+    return stats
+
 def generate_html_report(all_stats: dict, output_path: Path):
     """Generate comprehensive HTML report."""
 
@@ -741,6 +844,101 @@ def generate_html_report(all_stats: dict, output_path: Path):
     </div>
 """
 
+    # 9. MLST Section
+    mlst = all_stats.get('mlst', {})
+    if mlst.get('total_samples', 0) > 0:
+        html += f"""
+    <div class="section">
+        <h2>🔬 Step 9: MLST - Multi-Locus Sequence Typing</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Samples Typed</div>
+                <div class="stat-value">{mlst.get('total_samples', 0):,}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Unique Sequence Types</div>
+                <div class="stat-value">{len(mlst.get('sequence_types', {})):,}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Novel STs</div>
+                <div class="stat-value">{mlst.get('novel_sts', 0):,}</div>
+            </div>
+        </div>
+
+        <h3>Top 10 Sequence Types</h3>
+        <table>
+            <tr><th>Sequence Type</th><th>Count</th></tr>
+"""
+        for st, count in mlst.get('top_sts', []):
+            html += f"            <tr><td><span class='badge badge-info'>{st}</span></td><td>{count:,}</td></tr>\n"
+
+        html += """
+        </table>
+    </div>
+"""
+
+    # 10. SISTR Section
+    sistr = all_stats.get('sistr', {})
+    if sistr.get('total_samples', 0) > 0:
+        html += f"""
+    <div class="section">
+        <h2>🦠 Step 10: SISTR - Salmonella Serotyping</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Samples Serotyped</div>
+                <div class="stat-value">{sistr.get('total_samples', 0):,}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Unique Serotypes</div>
+                <div class="stat-value">{len(sistr.get('serotypes', {})):,}</div>
+            </div>
+        </div>
+
+        <h3>Top 10 Serotypes</h3>
+        <table>
+            <tr><th>Serotype</th><th>Count</th></tr>
+"""
+        for serotype, count in sistr.get('top_serotypes', []):
+            html += f"            <tr><td><span class='badge badge-success'>{serotype}</span></td><td>{count:,}</td></tr>\n"
+
+        html += """
+        </table>
+    </div>
+"""
+
+    # 11. MOB-suite Section
+    mobsuite = all_stats.get('mobsuite', {})
+    if mobsuite.get('total_plasmids', 0) > 0:
+        html += f"""
+    <div class="section">
+        <h2>🧩 Step 11: MOB-suite - Plasmid Detection</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Plasmids</div>
+                <div class="stat-value">{mobsuite.get('total_plasmids', 0):,}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Samples with Plasmids</div>
+                <div class="stat-value">{mobsuite.get('num_samples_with_plasmids', 0):,}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg Plasmids per Sample</div>
+                <div class="stat-value">{mobsuite.get('avg_plasmids_per_sample', 0):.1f}</div>
+            </div>
+        </div>
+
+        <h3>Top 10 Inc Types</h3>
+        <table>
+            <tr><th>Inc Type</th><th>Count</th></tr>
+"""
+        for inc_type, count in mobsuite.get('top_inc_types', []):
+            html += f"            <tr><td><span class='badge badge-warning'>{inc_type}</span></td><td>{count:,}</td></tr>\n"
+
+        html += """
+        </table>
+    </div>
+"""
+
     # Footer
     html += """
     <div class="section">
@@ -752,10 +950,13 @@ def generate_html_report(all_stats: dict, output_path: Path):
             <li>SRA download of sequencing reads</li>
             <li>FastQC quality assessment</li>
             <li>fastp read trimming and filtering</li>
-            <li>SPAdes genome assembly</li>
+            <li>SPAdes genome assembly (with QUAST statistics)</li>
             <li>BUSCO completeness assessment</li>
             <li>AMRFinder resistance gene detection</li>
             <li>VIBRANT prophage identification</li>
+            <li>MLST sequence typing (if applicable)</li>
+            <li>SISTR serotyping for Salmonella (if applicable)</li>
+            <li>MOB-suite plasmid detection (if applicable)</li>
         </ol>
     </div>
 
@@ -809,8 +1010,17 @@ def main():
     print("[8/9] Parsing AMRFinder results...")
     all_stats['amr'] = parse_amr_results(results_dir)
 
-    print("[9/9] Parsing VIBRANT results...")
+    print("[9/12] Parsing VIBRANT results...")
     all_stats['vibrant'] = parse_vibrant_results(results_dir)
+
+    print("[10/12] Parsing MLST results...")
+    all_stats['mlst'] = parse_mlst_results(results_dir)
+
+    print("[11/12] Parsing SISTR results...")
+    all_stats['sistr'] = parse_sistr_results(results_dir)
+
+    print("[12/12] Parsing MOB-suite results...")
+    all_stats['mobsuite'] = parse_mobsuite_results(results_dir)
 
     print("\nGenerating HTML report...")
     output_file = results_dir / "pipeline_execution_report.html"

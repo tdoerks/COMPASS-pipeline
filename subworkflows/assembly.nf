@@ -5,8 +5,6 @@
 
 include { FASTQC } from '../modules/fastqc'
 include { FASTP } from '../modules/fastp'
-include { READ_QC } from '../modules/read_qc'
-include { READ_QC_SUMMARY } from '../modules/read_qc_summary'
 include { ASSEMBLE_SPADES } from '../modules/assembly'
 include { BUSCO } from '../modules/busco'
 include { QUAST } from '../modules/quast'
@@ -23,35 +21,8 @@ workflow ASSEMBLY {
     // Quality trim reads with fastp
     FASTP(reads)
 
-    // Quality filter trimmed reads based on fastp output
-    // This creates a channel with: [sample_id, trimmed_reads, fastp_json]
-    ch_reads_for_qc = FASTP.out.reads.join(FASTP.out.json.map { json -> [json.baseName.replaceAll(/_fastp$/, ''), json] })
-
-    if (!params.skip_read_qc) {
-        READ_QC(ch_reads_for_qc)
-        ch_reads_pass = READ_QC.out.reads_pass
-        ch_read_qc_metrics = READ_QC.out.qc_metrics
-        ch_read_qc_failed = READ_QC.out.qc_failed
-        ch_read_qc_versions = READ_QC.out.versions
-
-        // Generate Read QC summary report
-        READ_QC_SUMMARY(ch_read_qc_metrics.collect())
-        ch_read_qc_summary = READ_QC_SUMMARY.out.summary
-        ch_read_qc_csv = READ_QC_SUMMARY.out.csv
-        ch_read_qc_html = READ_QC_SUMMARY.out.html
-    } else {
-        // Skip Read QC - use all trimmed reads
-        ch_reads_pass = FASTP.out.reads
-        ch_read_qc_metrics = Channel.empty()
-        ch_read_qc_failed = Channel.empty()
-        ch_read_qc_summary = Channel.empty()
-        ch_read_qc_csv = Channel.empty()
-        ch_read_qc_html = Channel.empty()
-        ch_read_qc_versions = Channel.empty()
-    }
-
-    // Assemble genomes using reads that passed QC
-    ASSEMBLE_SPADES(ch_reads_pass)
+    // Assemble genomes using trimmed reads
+    ASSEMBLE_SPADES(FASTP.out.reads)
 
     // Quality assessment of assemblies with BUSCO (optional)
     if (!params.skip_busco) {
@@ -93,14 +64,10 @@ workflow ASSEMBLY {
     fastqc_zip = FASTQC.out.zip  // channel: path(zip)
     fastp_json = FASTP.out.json  // channel: path(json)
     fastp_html = FASTP.out.html  // channel: path(html)
-    read_qc_metrics = ch_read_qc_metrics  // channel: path(json) or empty
-    read_qc_summary = ch_read_qc_summary  // channel: path(txt) or empty
-    read_qc_csv = ch_read_qc_csv  // channel: path(csv) or empty
-    read_qc_html = ch_read_qc_html  // channel: path(html) or empty
     busco_results = ch_busco_results  // channel: path(busco_dir) or empty
     busco_summary = ch_busco_summary  // channel: path(summary.txt) or empty
     quast_results = QUAST.out.results  // channel: [sample_id, dir]
     quast_report = QUAST.out.report  // channel: path(report.tsv)
     quast_dirs = QUAST.out.results_dir  // channel: path(dir) for MultiQC
-    versions = FASTQC.out.versions.mix(FASTP.out.versions).mix(ch_read_qc_versions).mix(ASSEMBLE_SPADES.out.versions).mix(ch_busco_versions).mix(QUAST.out.versions)
+    versions = FASTQC.out.versions.mix(FASTP.out.versions).mix(ASSEMBLE_SPADES.out.versions).mix(ch_busco_versions).mix(QUAST.out.versions)
 }

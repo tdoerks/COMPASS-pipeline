@@ -120,6 +120,61 @@ def load_vibrant_data(results_dir):
     return vibrant_data
 
 
+def extract_source_from_sample_name(sample_name):
+    """
+    Extract source type from NARMS sample name format
+
+    Format: YYKSXXTTNN where:
+    - YY = year
+    - KS = state
+    - XX = sample number
+    - TT = source type (GT, CB, GB, PK, etc.)
+    - NN = sample sequence
+
+    Common source codes:
+    - GT = Ground Turkey
+    - CB = Chicken Breast
+    - GB = Ground Beef
+    - PK = Pork
+    - CC = Cecal Contents
+    - SW = Swine
+    - etc.
+    """
+    if not sample_name or len(sample_name) < 8:
+        return 'Unknown'
+
+    # Try to extract 2-letter code (usually positions 6-8)
+    # Format is typically like: 25KS08GT06
+    try:
+        # Remove year prefix (first 2 digits)
+        without_year = sample_name[2:]
+        # Remove state code (KS)
+        without_state = without_year[2:]
+        # Remove sample number (next 2 digits)
+        without_num = without_state[2:]
+        # Extract source code (next 2 letters)
+        source_code = without_num[:2]
+
+        # Map to full names
+        source_map = {
+            'GT': 'Ground Turkey',
+            'CB': 'Chicken Breast',
+            'GB': 'Ground Beef',
+            'PK': 'Pork',
+            'CC': 'Cecal Contents',
+            'SW': 'Swine',
+            'CT': 'Cattle',
+            'CK': 'Chicken',
+            'TK': 'Turkey',
+            'PT': 'Poultry',
+            'BF': 'Beef',
+        }
+
+        return source_map.get(source_code.upper(), f'Other ({source_code})')
+    except:
+        return 'Unknown'
+
+
 def load_metadata(results_dir):
     """Load sample metadata"""
     metadata_file = Path(results_dir) / "filtered_samples" / "filtered_samples.csv"
@@ -137,10 +192,15 @@ def load_metadata(results_dir):
             if not year and 'Collection_Date' in row:
                 year = row['Collection_Date'][:4] if row['Collection_Date'] else 'Unknown'
 
+            # Extract source from sample name
+            sample_name = row.get('SampleName', row.get('Sample Name', ''))
+            source = extract_source_from_sample_name(sample_name)
+
             metadata[sample_id] = {
                 'organism': organism,
                 'year': year,
-                'source': row.get('Isolation_source', 'Unknown')
+                'source': source,
+                'sample_name': sample_name
             }
 
     return metadata

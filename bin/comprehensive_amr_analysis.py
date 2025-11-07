@@ -491,39 +491,134 @@ def save_results(results, output_dir):
 # MAIN
 # ============================================================================
 
+def find_year_directories(parent_dir):
+    """Find all subdirectories with results (amrfinder + vibrant)"""
+    parent_dir = Path(parent_dir)
+    year_dirs = []
+
+    if not parent_dir.is_dir():
+        return []
+
+    for item in sorted(parent_dir.iterdir()):
+        if item.is_dir():
+            if (item / "amrfinder").exists() and (item / "vibrant").exists():
+                year_dirs.append(item)
+
+    return year_dirs
+
+
+def merge_data(all_data_sets):
+    """Merge data from multiple year directories"""
+    merged = {
+        'metadata': {},
+        'amr': {'samples': {}, 'all_amr_genes': [], 'all_mobile_elements': []},
+        'vibrant': {},
+        'mobsuite': {}
+    }
+
+    for data in all_data_sets:
+        # Merge metadata
+        merged['metadata'].update(data['metadata'])
+
+        # Merge AMR data
+        merged['amr']['samples'].update(data['amr']['samples'])
+        merged['amr']['all_amr_genes'].extend(data['amr']['all_amr_genes'])
+        merged['amr']['all_mobile_elements'].extend(data['amr']['all_mobile_elements'])
+
+        # Merge vibrant
+        merged['vibrant'].update(data['vibrant'])
+
+        # Merge mobsuite
+        merged['mobsuite'].update(data['mobsuite'])
+
+    return merged
+
+
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 comprehensive_amr_analysis.py <results_dir> [output_dir]")
+        print("Usage: python3 comprehensive_amr_analysis.py <results_dir_or_parent> [output_dir]")
         print("\nExamples:")
+        print("  # Single year:")
         print("  python3 comprehensive_amr_analysis.py results_kansas_2022")
-        print("  python3 comprehensive_amr_analysis.py ~/compass_kansas_results/results_kansas_2022 output/")
+        print()
+        print("  # All years (auto-detect subdirectories):")
+        print("  python3 comprehensive_amr_analysis.py ~/compass_kansas_results")
         sys.exit(1)
 
-    results_dir = Path(sys.argv[1])
-    output_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else results_dir / "comprehensive_analysis"
+    results_path = Path(sys.argv[1])
+    output_dir = Path(sys.argv[2]) if len(sys.argv) > 2 else results_path / "comprehensive_analysis"
 
-    if not results_dir.exists():
-        print(f"❌ Error: Directory not found: {results_dir}")
+    if not results_path.exists():
+        print(f"❌ Error: Path not found: {results_path}")
         sys.exit(1)
 
-    print("\n🔬 COMPREHENSIVE AMR-PHAGE-MOBILE ELEMENT ANALYSIS")
-    print("="*80)
-    print(f"Results directory: {results_dir}")
-    print(f"Output directory: {output_dir}")
-    print("="*80)
+    # Check if single directory or parent with multiple year directories
+    is_single_dir = (results_path / "amrfinder").exists() and (results_path / "vibrant").exists()
 
-    # Load all data
-    data = load_all_data(results_dir)
+    if is_single_dir:
+        # Single directory mode
+        print("\n🔬 COMPREHENSIVE AMR-PHAGE-MOBILE ELEMENT ANALYSIS")
+        print("="*80)
+        print(f"Results directory: {results_path}")
+        print(f"Output directory: {output_dir}")
+        print("="*80)
 
-    # Run comprehensive analysis
-    results = run_comprehensive_analysis(data)
+        data = load_all_data(results_path)
+        results = run_comprehensive_analysis(data)
+        save_results(results, output_dir)
 
-    # Save results
-    save_results(results, output_dir)
+        print("\n" + "="*80)
+        print("✅ Comprehensive analysis complete!")
+        print("="*80 + "\n")
 
-    print("\n" + "="*80)
-    print("✅ Comprehensive analysis complete!")
-    print("="*80 + "\n")
+    else:
+        # Multi-directory mode
+        print("\n🔍 Searching for results directories in: {results_path}")
+        year_dirs = find_year_directories(results_path)
+
+        if not year_dirs:
+            print("❌ No results directories found!")
+            print("   Looking for subdirectories with 'amrfinder' and 'vibrant' folders")
+            sys.exit(1)
+
+        print(f"\n✅ Found {len(year_dirs)} results directories:")
+        for d in year_dirs:
+            print(f"   - {d.name}")
+
+        print("\n🔬 COMPREHENSIVE AMR-PHAGE-MOBILE ELEMENT ANALYSIS (MULTI-YEAR)")
+        print("="*80)
+        print(f"Parent directory: {results_path}")
+        print(f"Processing {len(year_dirs)} year directories")
+        print(f"Output directory: {output_dir}")
+        print("="*80)
+
+        # Load data from all directories
+        all_data_sets = []
+        for directory in year_dirs:
+            print(f"\n📁 Loading data from {directory.name}...")
+            try:
+                data = load_all_data(directory)
+                all_data_sets.append(data)
+            except Exception as e:
+                print(f"   ❌ Error loading {directory.name}: {e}")
+
+        if not all_data_sets:
+            print("\n❌ No data loaded from any directory!")
+            sys.exit(1)
+
+        # Merge all data
+        print(f"\n🔄 Merging data from {len(all_data_sets)} directories...")
+        merged_data = merge_data(all_data_sets)
+
+        # Run comprehensive analysis on merged data
+        results = run_comprehensive_analysis(merged_data)
+
+        # Save results
+        save_results(results, output_dir)
+
+        print("\n" + "="*80)
+        print(f"✅ Multi-year comprehensive analysis complete! ({len(year_dirs)} years)")
+        print("="*80 + "\n")
 
 
 if __name__ == "__main__":

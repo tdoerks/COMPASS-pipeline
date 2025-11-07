@@ -370,15 +370,16 @@ def analyze_amr_profiles(amr_data, vibrant_data, metadata):
 
 def analyze_temporal_patterns(amr_data, vibrant_data, metadata):
     """
-    Look for temporal and organism-specific patterns
+    Look for temporal, organism-specific, and source-specific patterns
     """
     print("\n" + "="*80)
-    print("ANALYSIS 4: TEMPORAL & ORGANISM PATTERNS")
+    print("ANALYSIS 4: TEMPORAL, ORGANISM & SOURCE PATTERNS")
     print("="*80)
 
-    # Organize by organism and year
+    # Organize by organism, year, and source
     by_organism = defaultdict(lambda: {'phage_pos': 0, 'phage_neg': 0, 'total_amr': 0})
     by_year = defaultdict(lambda: {'phage_pos': 0, 'phage_neg': 0, 'total_amr': 0})
+    by_source = defaultdict(lambda: {'phage_pos': 0, 'phage_neg': 0, 'total_amr': 0, 'samples': set()})
 
     all_samples = set(amr_data.keys()) | set(vibrant_data.keys())
 
@@ -386,6 +387,7 @@ def analyze_temporal_patterns(amr_data, vibrant_data, metadata):
         meta = metadata.get(sample_id, {})
         organism = meta.get('organism', 'Unknown')
         year = meta.get('year', 'Unknown')
+        source = meta.get('source', 'Unknown')
 
         has_phage = sample_id in vibrant_data
         has_amr = sample_id in amr_data
@@ -394,12 +396,16 @@ def analyze_temporal_patterns(amr_data, vibrant_data, metadata):
         if has_phage:
             by_organism[organism]['phage_pos'] += 1
             by_year[year]['phage_pos'] += 1
+            by_source[source]['phage_pos'] += 1
         else:
             by_organism[organism]['phage_neg'] += 1
             by_year[year]['phage_neg'] += 1
+            by_source[source]['phage_neg'] += 1
 
         by_organism[organism]['total_amr'] += amr_count
         by_year[year]['total_amr'] += amr_count
+        by_source[source]['total_amr'] += amr_count
+        by_source[source]['samples'].add(sample_id)
 
     print(f"\n🦠 Prophage Prevalence by Organism:")
     print(f"  {'Organism':<20} {'Phage+':<10} {'Phage-':<10} {'% Phage+':<12} {'Avg AMR/Sample'}")
@@ -423,9 +429,58 @@ def analyze_temporal_patterns(amr_data, vibrant_data, metadata):
         avg_amr = data['total_amr'] / total if total > 0 else 0
         print(f"  {year:<10} {data['phage_pos']:<10} {data['phage_neg']:<10} {pct_phage:>6.1f}%      {avg_amr:>6.1f}")
 
+    print(f"\n🔬 Prophage Prevalence by Isolation Source:")
+    print(f"  {'Source':<40} {'Total':<8} {'Phage+':<10} {'Phage-':<10} {'% Phage+':<12} {'Avg AMR'}")
+    print("  " + "-"*100)
+
+    # Sort by total samples (most common sources first)
+    sorted_sources = sorted(by_source.items(),
+                           key=lambda x: len(x[1]['samples']),
+                           reverse=True)
+
+    for source, data in sorted_sources:
+        total = data['phage_pos'] + data['phage_neg']
+        if total < 3:  # Skip sources with very few samples
+            continue
+        pct_phage = data['phage_pos'] / total * 100 if total > 0 else 0
+        avg_amr = data['total_amr'] / total if total > 0 else 0
+
+        # Shorten very long source names
+        source_display = source[:40] if len(source) <= 40 else source[:37] + "..."
+        print(f"  {source_display:<40} {total:<8} {data['phage_pos']:<10} {data['phage_neg']:<10} {pct_phage:>6.1f}%      {avg_amr:>6.1f}")
+
+    # Highlight interesting patterns
+    print(f"\n💡 Key Observations:")
+
+    # Find sources with highest prophage prevalence (min 10 samples)
+    high_phage_sources = [(src, data) for src, data in by_source.items()
+                          if (data['phage_pos'] + data['phage_neg']) >= 10]
+    if high_phage_sources:
+        high_phage_sources.sort(key=lambda x: x[1]['phage_pos'] / (x[1]['phage_pos'] + x[1]['phage_neg']),
+                               reverse=True)
+        if high_phage_sources:
+            top_src, top_data = high_phage_sources[0]
+            top_total = top_data['phage_pos'] + top_data['phage_neg']
+            top_pct = top_data['phage_pos'] / top_total * 100
+            print(f"  • Highest prophage prevalence: {top_src[:50]} ({top_pct:.1f}%, n={top_total})")
+
+    # Find sources with highest AMR burden
+    high_amr_sources = [(src, data) for src, data in by_source.items()
+                        if (data['phage_pos'] + data['phage_neg']) >= 10]
+    if high_amr_sources:
+        high_amr_sources.sort(key=lambda x: x[1]['total_amr'] / (x[1]['phage_pos'] + x[1]['phage_neg']),
+                             reverse=True)
+        if high_amr_sources:
+            top_src, top_data = high_amr_sources[0]
+            top_total = top_data['phage_pos'] + top_data['phage_neg']
+            top_avg = top_data['total_amr'] / top_total
+            print(f"  • Highest AMR burden: {top_src[:50]} ({top_avg:.1f} genes/sample, n={top_total})")
+
     return {
         'by_organism': dict(by_organism),
-        'by_year': dict(by_year)
+        'by_year': dict(by_year),
+        'by_source': {k: {key: val for key, val in v.items() if key != 'samples'}
+                     for k, v in by_source.items()}
     }
 
 

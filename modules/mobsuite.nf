@@ -18,13 +18,24 @@ process MOBSUITE_RECON {
     mob_recon \\
         --infile ${assembly} \\
         --outdir ${sample_id}_mobsuite \\
-        --num_threads ${task.cpus} \\
-        --run_typer || {
-            echo "MOB-suite failed for ${sample_id}, creating empty output"
-            mkdir -p ${sample_id}_mobsuite
-            echo -e "sample_id\\tnum_plasmids\\tplasmid_types" > ${sample_id}_mobsuite/mobtyper_results.txt
-            echo -e "${sample_id}\\t0\\t-" >> ${sample_id}_mobsuite/mobtyper_results.txt
-        }
+        --num_threads ${task.cpus}
+
+    # Run MOB-typer on reconstructed plasmids if any were found
+    if ls ${sample_id}_mobsuite/plasmid_*.fasta 1> /dev/null 2>&1; then
+        # Plasmids found, run mob_typer on each
+        for plasmid in ${sample_id}_mobsuite/plasmid_*.fasta; do
+            mob_typer --infile \$plasmid --out_file \${plasmid%.fasta}_typing.txt --num_threads ${task.cpus} || true
+        done
+
+        # Create summary mobtyper_results.txt
+        num_plasmids=\$(ls ${sample_id}_mobsuite/plasmid_*.fasta 2>/dev/null | wc -l)
+        echo -e "sample_id\\tnum_plasmids\\tplasmid_types" > ${sample_id}_mobsuite/mobtyper_results.txt
+        echo -e "${sample_id}\\t\${num_plasmids}\\tSee individual typing files" >> ${sample_id}_mobsuite/mobtyper_results.txt
+    else
+        # No plasmids found
+        echo -e "sample_id\\tnum_plasmids\\tplasmid_types" > ${sample_id}_mobsuite/mobtyper_results.txt
+        echo -e "${sample_id}\\t0\\t-" >> ${sample_id}_mobsuite/mobtyper_results.txt
+    fi
 
     echo '"MOBSUITE_RECON": {"mob_suite": "3.1.9"}' > versions.yml
     """

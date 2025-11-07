@@ -307,7 +307,7 @@ def run_mobile_element_analysis(results_dir):
     """
     results_dir = Path(results_dir)
     amr_dir = results_dir / "amrfinder"
-    mobsuite_dir = results_dir / "mobsuite_results"
+    mobsuite_dir = results_dir / "mobsuite"
     metadata_file = results_dir / "filtered_samples" / "filtered_samples.csv"
 
     # Load metadata

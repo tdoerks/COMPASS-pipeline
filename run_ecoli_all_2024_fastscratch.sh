@@ -35,6 +35,7 @@ nextflow run main.nf \
     -profile beocat \
     --input_mode metadata \
     --filter_state null \
+    --filter_organism "Escherichia" \
     --filter_year_start 2024 \
     --filter_year_end 2024 \
     --skip_busco true \

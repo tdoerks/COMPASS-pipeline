@@ -3,7 +3,8 @@
 # Analyze preliminary E. coli 2024 results
 # Run this on Beocat while pipeline continues in background
 
-RESULTS_DIR="/fastscratch/tylerdoe/results_ecoli_2024_preliminary"
+# Allow custom results directory via command line
+RESULTS_DIR="${1:-/fastscratch/tylerdoe/ecoli_2024_analysis}"
 PIPELINE_DIR="$HOME/pipelines/COMPASS-pipeline"
 
 echo "=========================================="

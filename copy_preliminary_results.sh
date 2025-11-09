@@ -3,8 +3,9 @@
 # Copy preliminary E. coli 2024 results to analysis folder
 # This preserves current progress while pipeline continues running
 
-SOURCE="/fastscratch/tylerdoe/results_ecoli_all_2024"
-DEST="/fastscratch/tylerdoe/results_ecoli_2024_preliminary"
+# Allow custom source/dest via command line
+SOURCE="${1:-/fastscratch/tylerdoe/results_ecoli_all_2024}"
+DEST="${2:-/fastscratch/tylerdoe/ecoli_2024_analysis}"
 
 echo "=========================================="
 echo "Copying preliminary E. coli 2024 results"
@@ -57,6 +58,7 @@ echo ""
 echo "Location: $DEST"
 echo ""
 echo "Next steps:"
-echo "  1. Run analysis scripts on preliminary data"
+echo "  1. Run analysis scripts on preliminary data:"
+echo "     bash analyze_ecoli_2024_preliminary.sh $DEST"
 echo "  2. Pipeline continues running in background"
 echo "  3. Re-run analyses on final complete dataset later"

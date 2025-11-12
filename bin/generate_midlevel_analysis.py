@@ -52,7 +52,7 @@ def analyze_temporal_trends(data):
     for row in data:
         year = row['year']
         category = row['category']
-        sample = row['sample_id']
+        sample = row['sample']  # Fixed: column is 'sample' not 'sample_id'
         gene = row['amr_gene']
 
         yearly_data[year][category] += 1
@@ -100,7 +100,7 @@ def analyze_food_types(data):
             food_source = 'Unknown'
 
         category = row['category']
-        sample = row['sample_id']
+        sample = row['sample']  # Fixed: column is 'sample' not 'sample_id'
         gene = row['amr_gene']
 
         food_data[food_source][category] += 1

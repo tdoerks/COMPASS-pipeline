@@ -31,19 +31,17 @@ def extract_source_from_sample_name(sample_name):
 
     Common source codes:
     - GT = Ground Turkey
-    - CB = Chicken Breast
+    - CB = Chicken
     - GB = Ground Beef
-    - PK = Pork
+    - PC = Pork
+    - CL = Chicken Liver
+    - CG = Chicken Gizzard
+    - CH = Chicken Heart
     - CC = Cecal Contents
     - SW = Swine
     - CT = Cattle
-    - CK = Chicken
     - TK = Turkey
-    - PT = Poultry
     - BF = Beef
-    - CL = Chicken Leg
-    - CG = Chicken Ground
-    - PC = Pork Chop
     """
     if not sample_name or len(sample_name) < 8:
         return 'Unknown'
@@ -63,19 +61,17 @@ def extract_source_from_sample_name(sample_name):
         # Map to full names
         source_map = {
             'GT': 'Ground Turkey',
-            'CB': 'Chicken Breast',
+            'CB': 'Chicken',
             'GB': 'Ground Beef',
-            'PK': 'Pork',
+            'PC': 'Pork',
+            'CL': 'Chicken Liver',
+            'CG': 'Chicken Gizzard',
+            'CH': 'Chicken Heart',
             'CC': 'Cecal Contents',
             'SW': 'Swine',
             'CT': 'Cattle',
-            'CK': 'Chicken',
             'TK': 'Turkey',
-            'PT': 'Poultry',
             'BF': 'Beef',
-            'CL': 'Chicken Leg',
-            'CG': 'Chicken Ground',
-            'PC': 'Pork Chop',
         }
 
         return source_map.get(source_code.upper(), f'Other ({source_code})')

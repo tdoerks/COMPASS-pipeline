@@ -16,6 +16,109 @@ from collections import defaultdict, Counter
 from datetime import datetime
 import os
 import sys
+from pathlib import Path
+
+def extract_source_from_sample_name(sample_name):
+    """
+    Extract food source from Kansas sample name format.
+
+    Format: YYKSXXTTNN-XX
+    - YY = year (e.g., 21, 22, 23)
+    - KS = Kansas state code
+    - XX = sample number
+    - TT = source type (GT, CB, GB, PK, etc.)
+    - NN = sample sequence
+
+    Common source codes:
+    - GT = Ground Turkey
+    - CB = Chicken Breast
+    - GB = Ground Beef
+    - PK = Pork
+    - CC = Cecal Contents
+    - SW = Swine
+    - CT = Cattle
+    - CK = Chicken
+    - TK = Turkey
+    - PT = Poultry
+    - BF = Beef
+    - CL = Chicken Leg
+    - CG = Chicken Ground
+    - PC = Pork Chop
+    """
+    if not sample_name or len(sample_name) < 8:
+        return 'Unknown'
+
+    # Try to extract 2-letter code (usually positions 6-8)
+    # Format is typically like: 21KS02CB01-EC or 25KS08GT06
+    try:
+        # Remove year prefix (first 2 digits)
+        without_year = sample_name[2:]
+        # Remove state code (KS)
+        without_state = without_year[2:]
+        # Remove sample number (next 2 digits)
+        without_num = without_state[2:]
+        # Extract source code (next 2 letters)
+        source_code = without_num[:2]
+
+        # Map to full names
+        source_map = {
+            'GT': 'Ground Turkey',
+            'CB': 'Chicken Breast',
+            'GB': 'Ground Beef',
+            'PK': 'Pork',
+            'CC': 'Cecal Contents',
+            'SW': 'Swine',
+            'CT': 'Cattle',
+            'CK': 'Chicken',
+            'TK': 'Turkey',
+            'PT': 'Poultry',
+            'BF': 'Beef',
+            'CL': 'Chicken Leg',
+            'CG': 'Chicken Ground',
+            'PC': 'Pork Chop',
+        }
+
+        return source_map.get(source_code.upper(), f'Other ({source_code})')
+    except:
+        return 'Unknown'
+
+
+def load_metadata_files(base_dir):
+    """Load metadata from all year directories to map SRR IDs to sample names and food sources"""
+    print("Loading metadata from year directories...")
+
+    metadata = {}
+    base_path = Path(base_dir)
+
+    # Load metadata from each year: 2021-2025
+    for year in [2021, 2022, 2023, 2024, 2025]:
+        metadata_file = base_path / f"results_kansas_{year}" / "filtered_samples" / "filtered_samples.csv"
+
+        if not metadata_file.exists():
+            print(f"  Warning: {metadata_file} not found, skipping")
+            continue
+
+        print(f"  Loading {year} metadata...")
+        with open(metadata_file) as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                srr_id = row['Run']
+                sample_name = row.get('SampleName', '')
+                organism = row.get('organism', 'Unknown')
+
+                # Extract food source from sample name
+                food_source = extract_source_from_sample_name(sample_name)
+
+                metadata[srr_id] = {
+                    'sample_name': sample_name,
+                    'food_source': food_source,
+                    'organism': organism,
+                    'year': str(year)
+                }
+
+    print(f"  Loaded metadata for {len(metadata)} samples")
+    return metadata
+
 
 def load_colocation_data(csv_file):
     """Load the true co-location CSV data"""
@@ -85,8 +188,8 @@ def analyze_temporal_trends(data):
 
     return temporal_stats
 
-def analyze_food_types(data):
-    """Analyze patterns by food source type"""
+def analyze_food_types(data, metadata):
+    """Analyze patterns by food source type using metadata mapping"""
     print("\nAnalyzing food type patterns...")
 
     # Group by food source and category
@@ -95,17 +198,19 @@ def analyze_food_types(data):
     food_samples = defaultdict(set)
 
     for row in data:
-        food_source = row.get('food_source', 'Unknown')
-        if food_source == '' or food_source is None:
-            food_source = 'Unknown'
-
+        srr_id = row['sample']
         category = row['category']
-        sample = row['sample']  # Fixed: column is 'sample' not 'sample_id'
         gene = row['amr_gene']
+
+        # Get food source from metadata
+        if srr_id in metadata:
+            food_source = metadata[srr_id]['food_source']
+        else:
+            food_source = 'Unknown'
 
         food_data[food_source][category] += 1
         food_genes[food_source].add(gene)
-        food_samples[food_source].add(sample)
+        food_samples[food_source].add(srr_id)
 
     # Calculate statistics per food type
     food_stats = {}
@@ -152,20 +257,23 @@ def analyze_drug_classes_temporal(data):
 
     return yearly_classes, yearly_class_proximal
 
-def analyze_top_genes_food_source(data):
-    """Find top AMR genes by food source"""
+def analyze_top_genes_food_source(data, metadata):
+    """Find top AMR genes by food source using metadata mapping"""
     print("\nAnalyzing top genes by food source...")
 
     food_gene_counts = defaultdict(lambda: Counter())
     food_gene_proximal = defaultdict(lambda: Counter())
 
     for row in data:
-        food_source = row.get('food_source', 'Unknown')
-        if food_source == '' or food_source is None:
-            food_source = 'Unknown'
-
+        srr_id = row['sample']
         gene = row['amr_gene']
         category = row['category']
+
+        # Get food source from metadata
+        if srr_id in metadata:
+            food_source = metadata[srr_id]['food_source']
+        else:
+            food_source = 'Unknown'
 
         food_gene_counts[food_source][gene] += 1
 
@@ -803,11 +911,15 @@ def main():
     colocation_csv = os.path.expanduser('~/compass_kansas_results/publication_analysis/tables/kansas_ALL_years_amr_phage_colocation.csv')
     comprehensive_json = os.path.expanduser('~/compass_kansas_results/publication_analysis/raw_data/comprehensive_analysis.json')
     output_html = os.path.expanduser('~/compass_kansas_results/publication_analysis/reports/KANSAS_MIDLEVEL_ANALYSIS.html')
+    base_dir = os.path.expanduser('~/compass_kansas_results')
 
     print("=" * 70)
     print("Kansas E. coli - Mid-Level Analysis Generator")
     print("Temporal Trends | Food Source Patterns | Drug Class Analysis")
     print("=" * 70)
+
+    # Load metadata from year directories (for SRR ID -> food source mapping)
+    metadata = load_metadata_files(base_dir)
 
     # Load data
     colocation_data = load_colocation_data(colocation_csv)
@@ -815,9 +927,9 @@ def main():
 
     # Perform analyses
     temporal_stats = analyze_temporal_trends(colocation_data)
-    food_stats = analyze_food_types(colocation_data)
+    food_stats = analyze_food_types(colocation_data, metadata)
     yearly_classes, yearly_class_proximal = analyze_drug_classes_temporal(colocation_data)
-    food_gene_counts, food_gene_proximal = analyze_top_genes_food_source(colocation_data)
+    food_gene_counts, food_gene_proximal = analyze_top_genes_food_source(colocation_data, metadata)
 
     # Generate report
     generate_html_report(

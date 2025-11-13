@@ -13,6 +13,7 @@ Date: 2025-01-13
 """
 
 import re
+import csv
 from pathlib import Path
 from collections import defaultdict, Counter
 from typing import Dict, List, Tuple, Set
@@ -40,24 +41,6 @@ def extract_source_from_sample_name(sample_name: str) -> str:
         return source_map.get(product_code, f'Other ({product_code})')
     return 'Unknown'
 
-def parse_mlst_file(mlst_file: Path) -> Dict[str, str]:
-    """Parse MLST file to get ST for each sample"""
-    st_map = {}
-    try:
-        with open(mlst_file, 'r') as f:
-            for line in f:
-                if line.startswith('#') or not line.strip():
-                    continue
-                parts = line.strip().split('\t')
-                if len(parts) >= 3:
-                    sample_id = parts[0]
-                    scheme = parts[1]
-                    st = parts[2]
-                    if scheme == 'ecoli' and st != '-':
-                        st_map[sample_id] = st
-    except FileNotFoundError:
-        pass
-    return st_map
 
 def extract_prophage_family(subject_name: str) -> str:
     """Extract prophage family from DIAMOND subject name"""
@@ -141,22 +124,6 @@ def parse_amr_data(amr_file: Path) -> Dict[str, List[str]]:
         pass
     return amr_data
 
-def load_metadata(metadata_file: Path) -> Dict[str, Dict]:
-    """Load sample metadata"""
-    metadata = {}
-    try:
-        with open(metadata_file, 'r') as f:
-            header = next(f).strip().split('\t')
-            for line in f:
-                parts = line.strip().split('\t')
-                if len(parts) >= len(header):
-                    sample_data = dict(zip(header, parts))
-                    sample_id = sample_data.get('Run', '')
-                    if sample_id:
-                        metadata[sample_id] = sample_data
-    except FileNotFoundError:
-        pass
-    return metadata
 
 def identify_high_risk_sts(st_data: Dict[str, Dict]) -> Set[str]:
     """Identify high-risk STs based on sample count and AMR profile"""
@@ -176,10 +143,10 @@ def identify_high_risk_sts(st_data: Dict[str, Dict]) -> Set[str]:
 
     return high_risk
 
-def analyze_st_prophage_specificity(results_dir: Path, metadata_file: Path):
-    """Main analysis function"""
+def analyze_st_prophage_specificity_from_dirs(base_dir: Path, all_sts: Dict, metadata: Dict):
+    """Main analysis function - processes data from year-based directories"""
 
-    print("🔬 Analyzing ST-Prophage Specificity...")
+    print("\n🔬 Analyzing ST-Prophage Specificity...")
     print("=" * 70)
 
     # Data structures
@@ -197,39 +164,38 @@ def analyze_st_prophage_specificity(results_dir: Path, metadata_file: Path):
     prophage_st_matrix = defaultdict(lambda: Counter())  # prophage -> {st: count}
     st_prophage_food = defaultdict(lambda: defaultdict(lambda: Counter()))  # st -> prophage -> {food: count}
 
-    # Load metadata
-    metadata = load_metadata(metadata_file)
-
-    # Process MLST data
-    mlst_dir = results_dir / "mlst"
-    all_sts = {}
-
-    if mlst_dir.exists():
-        for mlst_file in mlst_dir.glob("*.tsv"):
-            st_map = parse_mlst_file(mlst_file)
-            all_sts.update(st_map)
-
-    print(f"📊 Found MLST data for {len(all_sts)} samples")
+    print(f"📊 Processing {len(all_sts)} samples with MLST data")
 
     # Process each sample with ST data
     samples_processed = 0
     for sample_id, st in all_sts.items():
+        # Get metadata
+        sample_meta = metadata.get(sample_id, {})
+        food_source = extract_source_from_sample_name(sample_meta.get('sample_name', ''))
+        year = sample_meta.get('year', 'Unknown')
+
+        # Find which year directory this sample is in
+        year_dir = None
+        for yr in [2021, 2022, 2023, 2024, 2025]:
+            test_dir = base_dir / f"results_kansas_{yr}"
+            if (test_dir / "mlst" / f"{sample_id}_mlst.tsv").exists():
+                year_dir = test_dir
+                break
+
+        if not year_dir:
+            continue
+
         # Get prophage data from DIAMOND
-        diamond_file = results_dir / "diamond_prophage" / f"{sample_id}_diamond_results.tsv"
+        diamond_file = year_dir / "diamond_prophage" / f"{sample_id}_diamond_results.tsv"
         prophage_families = parse_diamond_prophage_hits(diamond_file)
 
         # Get VIBRANT prophages
-        vibrant_dir = results_dir / "vibrant" / f"VIBRANT_{sample_id}"
+        vibrant_dir = year_dir / "vibrant" / f"VIBRANT_{sample_id}"
         vibrant_prophages = parse_vibrant_results(vibrant_dir, sample_id)
 
         # Get AMR data
-        amr_file = results_dir / "amrfinder" / f"{sample_id}_amrfinder.tsv"
+        amr_file = year_dir / "amrfinder" / f"{sample_id}_amrfinder.tsv"
         amr_data = parse_amr_data(amr_file)
-
-        # Get metadata
-        sample_meta = metadata.get(sample_id, {})
-        food_source = extract_source_from_sample_name(sample_meta.get('Sample Name', ''))
-        year = sample_meta.get('year', 'Unknown')
 
         # Update ST data
         st_data[st]['n_samples'] += 1
@@ -261,7 +227,10 @@ def analyze_st_prophage_specificity(results_dir: Path, metadata_file: Path):
     print(f"⚠️  Identified {len(high_risk_sts)} high-risk STs")
 
     # Generate HTML report
-    output_file = results_dir / "st_prophage_specificity.html"
+    output_dir = base_dir / 'publication_analysis' / 'reports'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_file = output_dir / "KANSAS_ST_PROPHAGE_SPECIFICITY.html"
+
     generate_html_report(
         output_file,
         st_prophage_matrix,
@@ -852,20 +821,100 @@ def generate_html_report(
     with open(output_file, 'w') as f:
         f.write(html_content)
 
+def load_metadata_files(base_dir):
+    """Load metadata from all year directories"""
+    print("Loading metadata from year directories...")
+
+    metadata = {}
+    base_path = Path(base_dir)
+
+    for year in [2021, 2022, 2023, 2024, 2025]:
+        metadata_file = base_path / f"results_kansas_{year}" / "filtered_samples" / "filtered_samples.csv"
+
+        if not metadata_file.exists():
+            continue
+
+        print(f"  Loading {year} metadata...")
+        with open(metadata_file) as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                srr_id = row['Run']
+                sample_name = row.get('SampleName', '')
+                organism = row.get('organism', 'Unknown')
+
+                metadata[srr_id] = {
+                    'sample_name': sample_name,
+                    'organism': organism,
+                    'year': str(year)
+                }
+
+    print(f"  Loaded metadata for {len(metadata)} samples")
+    return metadata
+
+def load_mlst_data_from_dirs(base_dir):
+    """Load MLST data from year directories"""
+    print("Loading MLST data from year directories...")
+
+    mlst_data = {}
+    base_path = Path(base_dir)
+
+    for year in [2021, 2022, 2023, 2024, 2025]:
+        mlst_dir = base_path / f"results_kansas_{year}" / "mlst"
+
+        if not mlst_dir.exists():
+            continue
+
+        print(f"  Loading {year} MLST data...")
+        count = 0
+
+        for mlst_file in mlst_dir.glob("*_mlst.tsv"):
+            sample_id = mlst_file.stem.replace('_mlst', '')
+
+            with open(mlst_file) as f:
+                line = f.readline().strip()
+                if not line:
+                    continue
+
+                parts = line.split('\t')
+                if len(parts) < 3:
+                    continue
+
+                st = parts[2]
+
+                if st and st != '-' and st != 'ST':
+                    mlst_data[sample_id] = st
+                    count += 1
+
+        print(f"    Found {count} samples with MLST data")
+
+    print(f"  Total samples with MLST: {len(mlst_data)}")
+    return mlst_data
+
 def main():
     """Main entry point"""
-    # Define paths
-    results_dir = Path.home() / "NARMS_COMPASS_analysis_results"
-    metadata_file = Path.home() / "NARMS_metadata.txt"
+    # Define paths - update to match actual Beocat structure
+    base_dir = Path.home() / 'compass_kansas_results'
+    output_dir = base_dir / 'publication_analysis' / 'reports'
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     print("\n" + "=" * 70)
     print("🧬 ST-PROPHAGE SPECIFICITY ANALYSIS")
     print("=" * 70)
-    print(f"\n📂 Results directory: {results_dir}")
-    print(f"📄 Metadata file: {metadata_file}")
+    print(f"\n📂 Base directory: {base_dir}")
 
-    # Run analysis
-    output_file = analyze_st_prophage_specificity(results_dir, metadata_file)
+    # Load metadata from year directories
+    metadata = load_metadata_files(base_dir)
+
+    # Load MLST data from year directories
+    all_sts = load_mlst_data_from_dirs(base_dir)
+
+    if not all_sts:
+        print("\n❌ Error: No MLST data found!")
+        print("   Check that MLST files exist in results_kansas_YYYY/mlst/")
+        return
+
+    # Run analysis with year-based directory structure
+    output_file = analyze_st_prophage_specificity_from_dirs(base_dir, all_sts, metadata)
 
     print("\n" + "=" * 70)
     print("✅ Analysis complete!")

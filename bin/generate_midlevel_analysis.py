@@ -22,61 +22,48 @@ def extract_source_from_sample_name(sample_name):
     """
     Extract food source from Kansas sample name format.
 
-    Format: YYKSXXTTNN-XX
-    - YY = year (e.g., 21, 22, 23)
-    - KS = Kansas state code
-    - XX = sample number
-    - TT = source type (GT, CB, GB, PK, etc.)
-    - NN = sample sequence
+    NARMS sample naming convention:
+    [Year][State][Number][ProductCode][Number]-[Organism]
 
-    Common source codes:
-    - GT = Ground Turkey
-    - CB = Chicken
+    Product codes:
     - GB = Ground Beef
-    - PC = Pork
+    - CB = Chicken/Poultry (Chicken Breast, legs, etc.)
+    - GT = Ground Turkey
+    - PC = Pork Products
     - CL = Chicken Liver
-    - CG = Chicken Gizzard
-    - CH = Chicken Heart
-    - CC = Cecal Contents
-    - SW = Swine
-    - CT = Cattle
+    - CG = Chicken Gizzards
+    - CH = Chicken Hearts
     - TK = Turkey
     - BF = Beef
     """
-    if not sample_name or len(sample_name) < 8:
+    import re
+
+    if not sample_name:
         return 'Unknown'
 
-    # Try to extract 2-letter code (usually positions 6-8)
-    # Format is typically like: 21KS02CB01-EC or 25KS08GT06
-    try:
-        # Remove year prefix (first 2 digits)
-        without_year = sample_name[2:]
-        # Remove state code (KS)
-        without_state = without_year[2:]
-        # Remove sample number (next 2 digits)
-        without_num = without_state[2:]
-        # Extract source code (next 2 letters)
-        source_code = without_num[:2]
+    # Extract product code pattern (e.g., GB, CB, GT, PC, CL, CG, CH)
+    # Pattern: digits followed by 2 capital letters followed by digits
+    # Use findall to get all matches, then take the second one (first is state code)
+    matches = re.findall(r'\d([A-Z]{2})\d', sample_name)
+    if len(matches) >= 2:
+        product_code = matches[1]  # Second match is the product code
 
         # Map to full names
         source_map = {
-            'GT': 'Ground Turkey',
-            'CB': 'Chicken',
             'GB': 'Ground Beef',
-            'PC': 'Pork',
+            'CB': 'Chicken/Poultry',
+            'GT': 'Ground Turkey',
+            'PC': 'Pork Products',
             'CL': 'Chicken Liver',
-            'CG': 'Chicken Gizzard',
-            'CH': 'Chicken Heart',
-            'CC': 'Cecal Contents',
-            'SW': 'Swine',
-            'CT': 'Cattle',
+            'CG': 'Chicken Gizzards',
+            'CH': 'Chicken Hearts',
             'TK': 'Turkey',
             'BF': 'Beef',
         }
 
-        return source_map.get(source_code.upper(), f'Other ({source_code})')
-    except:
-        return 'Unknown'
+        return source_map.get(product_code, f'Other ({product_code})')
+
+    return 'Unknown'
 
 
 def load_metadata_files(base_dir):

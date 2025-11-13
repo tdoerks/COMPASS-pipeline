@@ -550,6 +550,68 @@ def generate_html_report(output_file, analysis_data, patterns, metadata):
                 </table>
             </section>
 
+            <section id="species">
+                <h2>🦠 Species-Specific Patterns</h2>
+
+                <div class="info-box">
+                    <h4>🧬 E. coli vs Salmonella vs Campylobacter</h4>
+                    <p>Comparing AMR-prophage patterns across different organisms in food sources</p>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Food Source</th>
+                            <th>AMR Class</th>
+                            <th>E. coli</th>
+                            <th>Salmonella</th>
+                            <th>Campylobacter</th>
+                            <th>Other</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+"""
+
+    food_amr_organism = analysis_data['food_amr_organism']
+
+    # Get top food-AMR combinations to display
+    food_amr_totals = []
+    for food in food_amr_organism:
+        for amr_class in food_amr_organism[food]:
+            total = sum(food_amr_organism[food][amr_class].values())
+            if total >= 5:  # Minimum threshold
+                food_amr_totals.append((food, amr_class, total))
+
+    food_amr_totals.sort(key=lambda x: x[2], reverse=True)
+
+    for food, amr_class, total in food_amr_totals[:20]:
+        organisms = food_amr_organism[food][amr_class]
+
+        ecoli_count = organisms.get('Escherichia', 0) + organisms.get('Escherichia coli', 0)
+        salmonella_count = organisms.get('Salmonella', 0) + organisms.get('Salmonella enterica', 0)
+        campylo_count = organisms.get('Campylobacter', 0) + organisms.get('Campylobacter jejuni', 0)
+
+        # Count other organisms
+        known_organisms = {'Escherichia', 'Escherichia coli', 'Salmonella', 'Salmonella enterica',
+                          'Campylobacter', 'Campylobacter jejuni'}
+        other_count = sum(count for org, count in organisms.items() if org not in known_organisms)
+
+        html += f"""
+                        <tr>
+                            <td><strong>{food}</strong></td>
+                            <td>{amr_class}</td>
+                            <td>{ecoli_count if ecoli_count > 0 else '-'}</td>
+                            <td>{salmonella_count if salmonella_count > 0 else '-'}</td>
+                            <td>{campylo_count if campylo_count > 0 else '-'}</td>
+                            <td>{other_count if other_count > 0 else '-'}</td>
+                        </tr>
+"""
+
+    html += """
+                    </tbody>
+                </table>
+            </section>
+
             <section id="temporal">
                 <h2>📅 Temporal Trends by Food Source</h2>
 

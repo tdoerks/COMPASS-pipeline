@@ -425,7 +425,7 @@ def save_csv(results, output_file):
 
 def main():
     # Paths
-    vibrant_dir = os.path.expanduser('~/compass_kansas_results/results_kansas_*/vibrant')
+    base_dir = os.path.expanduser('~/compass_kansas_results')
     output_html = os.path.expanduser('~/compass_kansas_results/publication_analysis/reports/PROPHAGE_COMPLETENESS_ASSESSMENT.html')
     output_csv = os.path.expanduser('~/compass_kansas_results/publication_analysis/tables/prophage_completeness.csv')
 
@@ -433,19 +433,28 @@ def main():
     print("Prophage Genome Completeness Assessment")
     print("=" * 70)
 
-    # Analyze VIBRANT output
-    results = analyze_vibrant_output(vibrant_dir)
+    # Find all VIBRANT directories for each year
+    all_results = []
+    base_path = Path(base_dir)
 
-    if not results:
-        print("\n⚠️  No prophages found. Check VIBRANT output directory.")
+    for year_dir in base_path.glob('results_kansas_*'):
+        vibrant_dir = year_dir / 'vibrant'
+        if vibrant_dir.exists():
+            print(f"\nAnalyzing {year_dir.name}...")
+            results = analyze_vibrant_output(str(vibrant_dir))
+            all_results.extend(results)
+
+    if not all_results:
+        print("\n⚠️  No prophages found. Check VIBRANT output directories.")
+        print(f"   Searched in: {base_dir}/results_kansas_*/vibrant")
         return
 
     # Calculate summary stats
-    summary = generate_summary_stats(results)
+    summary = generate_summary_stats(all_results)
 
     # Generate reports
-    generate_html_report(results, summary, output_html)
-    save_csv(results, output_csv)
+    generate_html_report(all_results, summary, output_html)
+    save_csv(all_results, output_csv)
 
     print("\n" + "=" * 70)
     print("✅ Analysis complete!")

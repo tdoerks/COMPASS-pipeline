@@ -23,8 +23,6 @@ from collections import defaultdict, Counter
 from pathlib import Path
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
-from scipy.stats import shannon_entropy
-from sklearn.decomposition import PCA
 from sklearn.manifold import MDS
 import matplotlib.pyplot as plt
 import seaborn as sns

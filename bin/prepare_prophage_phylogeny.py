@@ -139,7 +139,13 @@ def generate_metadata_file(sequences, complete_prophages, sample_metadata, outpu
 
         for seq in sequences:
             # Extract sample ID from sequence ID
-            sample_id = seq.id.split('_')[0]
+            # Format: SRR30276930_vibrant_NODE_48_length_28980...
+            # Need to get "SRR30276930_vibrant" part
+            parts = seq.id.split('_')
+            if len(parts) >= 2:
+                sample_id = f"{parts[0]}_{parts[1]}"  # SRR30276930_vibrant
+            else:
+                sample_id = parts[0]
 
             # Find corresponding prophage data
             prophage_data = None
@@ -151,8 +157,10 @@ def generate_metadata_file(sequences, complete_prophages, sample_metadata, outpu
             if not prophage_data:
                 continue
 
-            year = sample_metadata.get(sample_id, {}).get('year', 'Unknown')
-            organism = sample_metadata.get(sample_id, {}).get('organism', 'Unknown')
+            # Get metadata - need to strip "_vibrant" suffix for lookup
+            srr_id = sample_id.replace('_vibrant', '')
+            year = sample_metadata.get(srr_id, {}).get('year', 'Unknown')
+            organism = sample_metadata.get(srr_id, {}).get('organism', 'Unknown')
 
             writer.writerow([
                 seq.id,

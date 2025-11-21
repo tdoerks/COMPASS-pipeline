@@ -12,32 +12,54 @@ process BUSCO {
     path "versions.yml", emit: versions
 
     script:
-    def lineage = params.busco_lineage ?: 'bacteria_odb10'
     def mode = params.busco_mode ?: 'genome'
     def download_path = params.busco_download_path ?: '/tmp/busco_downloads'
-    """
-    # Auto-download lineage dataset if not present
-    if [ ! -d "${download_path}/lineages/${lineage}" ]; then
-        echo "BUSCO lineage ${lineage} not found. Downloading..."
+    def auto_lineage = params.busco_auto_lineage ?: false
+    def lineage = params.busco_lineage ?: 'bacteria_odb10'
+
+    if (auto_lineage) {
+        """
+        # Create download directory for lineage datasets
         mkdir -p ${download_path}
-        busco --download ${lineage} --download_path ${download_path}
-    else
-        echo "BUSCO lineage ${lineage} found at ${download_path}/lineages/${lineage}"
-    fi
 
-    # Run BUSCO
-    busco \\
-        -i ${assembly} \\
-        -o ${sample_id}_busco \\
-        -m ${mode} \\
-        -l ${lineage} \\
-        --cpu ${task.cpus} \\
-        --offline \\
-        --download_path ${download_path} \\
-        --force
+        # Run BUSCO with auto-lineage mode for prokaryotes
+        echo "Running BUSCO in auto-lineage mode for prokaryotes..."
+        busco \\
+            -i ${assembly} \\
+            -o ${sample_id}_busco \\
+            -m ${mode} \\
+            --auto-lineage-prok \\
+            --cpu ${task.cpus} \\
+            --download_path ${download_path} \\
+            --force
 
-    echo '"BUSCO": {"busco": "5.7.1"}' > versions.yml
-    """
+        echo '"BUSCO": {"busco": "5.7.1", "mode": "auto-lineage-prok"}' > versions.yml
+        """
+    } else {
+        """
+        # Auto-download lineage dataset if not present
+        if [ ! -d "${download_path}/lineages/${lineage}" ]; then
+            echo "BUSCO lineage ${lineage} not found. Downloading..."
+            mkdir -p ${download_path}
+            busco --download ${lineage} --download_path ${download_path}
+        else
+            echo "BUSCO lineage ${lineage} found at ${download_path}/lineages/${lineage}"
+        fi
+
+        # Run BUSCO with specified lineage
+        busco \\
+            -i ${assembly} \\
+            -o ${sample_id}_busco \\
+            -m ${mode} \\
+            -l ${lineage} \\
+            --cpu ${task.cpus} \\
+            --offline \\
+            --download_path ${download_path} \\
+            --force
+
+        echo '"BUSCO": {"busco": "5.7.1", "lineage": "${lineage}"}' > versions.yml
+        """
+    }
 }
 
 process DOWNLOAD_BUSCO_LINEAGE {

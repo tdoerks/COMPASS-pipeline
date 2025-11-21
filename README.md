@@ -7,6 +7,8 @@ An integrated Nextflow pipeline for comprehensive bacterial genomic analysis com
 ## Overview
 
 COMPASS automates the analysis of bacterial genomes, providing:
+
+**Important:** This pipeline is designed for **Illumina short-read sequencing data** from **pure bacterial isolates only**. Metagenomic, transcriptomic, and long-read data (PacBio, Oxford Nanopore) are not supported.
 - **Quality Control**: FastQC, fastp, BUSCO, QUAST, and MultiQC for comprehensive QC
 - **Assembly Statistics**: Detailed metrics on assembly quality and contiguity
 - **Strain Typing**: MLST for sequence type determination across 100+ species

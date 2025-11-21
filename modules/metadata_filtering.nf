@@ -123,7 +123,17 @@ process FILTER_NARMS_SAMPLES {
                 print(f"  After platform filter ({platform_filter}): {mask.sum()}")
             else:
                 print(f"  WARNING: 'Platform' column not found in metadata - skipping platform filter")
-        
+
+        # Filter by library source (GENOMIC = isolates only, excludes metagenomic/environmental)
+        library_source_filter = "${params.filter_library_source}"
+        if library_source_filter and library_source_filter != "null":
+            if 'LibrarySource' in df.columns:
+                library_source_mask = df['LibrarySource'].astype(str).str.upper() == library_source_filter.upper()
+                mask &= library_source_mask
+                print(f"  After library source filter ({library_source_filter}): {mask.sum()}")
+            else:
+                print(f"  WARNING: 'LibrarySource' column not found in metadata - skipping library source filter")
+
         # Filter by state (in sample name)
         state_filter = "${params.filter_state}"
         if state_filter and state_filter != "null":

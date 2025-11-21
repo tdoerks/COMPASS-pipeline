@@ -129,6 +129,13 @@ Critical channel structure: `[meta, fasta]` where `meta` contains:
 
 **Platform Filtering**: Pipeline now automatically filters for **Illumina short reads only** via `--filter_platform "ILLUMINA"` (default). Long-read platforms (PacBio, Oxford Nanopore) are excluded as the assembly pipeline is optimized for short reads.
 
+**Library Source Filtering**: Pipeline defaults to **GENOMIC** library sources only via `--filter_library_source "GENOMIC"`. This ensures only pure bacterial isolates are processed, automatically excluding:
+- METAGENOMIC - Mixed microbial communities
+- TRANSCRIPTOMIC - RNA sequencing data
+- METATRANSCRIPTOMIC - Community RNA
+- SYNTHETIC - Artificially created sequences
+- Other unsuitable sample types for genome assembly
+
 **Additional Filters**:
 - `--filter_state`: State code (e.g., "KS", "CA") - searches sample names
 - `--filter_year_start` / `--filter_year_end`: Year range filtering

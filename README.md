@@ -160,6 +160,7 @@ SRR12345680
 | `--species` | Species name filter (searches all SRA) | `null` | `Listeria`, `Campylobacter` |
 | `--all_bacterial` | Download all bacterial samples (use with caution!) | `false` | `true` |
 | `--filter_platform` | Sequencing platform filter (Illumina only) | `ILLUMINA` | `ILLUMINA` |
+| `--filter_library_source` | Library source filter (isolates vs metagenomic) | `GENOMIC` | `GENOMIC`, `METAGENOMIC` |
 | `--filter_state` | State code (2-letter) | `null` | `KS`, `CA`, `TX` |
 | `--filter_year_start` | Minimum year | `null` | `2020` |
 | `--filter_year_end` | Maximum year | `null` | `2023` |
@@ -168,6 +169,7 @@ SRR12345680
 
 **Important Notes:**
 - **Platform Filtering**: The pipeline is designed for **Illumina short reads only**. By default, only ILLUMINA platform data is processed. Long-read platforms (PacBio, Oxford Nanopore) are automatically excluded.
+- **Isolate Filtering**: By default, only **GENOMIC** library sources are processed (pure bacterial isolates). This automatically excludes metagenomic, transcriptomic, and environmental samples that are unsuitable for genome assembly. Set `--filter_library_source null` to disable this filter.
 - **BioProject vs Species**: Use `--bioproject` for specific projects, or `--species` to search across all SRA data for a particular organism.
 - **Default Behavior**: If no `--bioproject`, `--species`, or `--all_bacterial` is specified, the pipeline defaults to downloading all three NARMS BioProjects (Campylobacter, Salmonella, E. coli).
 

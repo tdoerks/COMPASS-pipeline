@@ -10,6 +10,7 @@ include { PHAGE_ANALYSIS } from '../subworkflows/phage_analysis'
 include { TYPING } from '../subworkflows/typing'
 include { MOBILE_ELEMENTS } from '../subworkflows/mobile_elements'
 include { COMBINE_RESULTS } from '../modules/combine_results'
+include { COMPASS_SUMMARY } from '../modules/compass_summary'
 include { MULTIQC } from '../modules/multiqc'
 include { BUSCO } from '../modules/busco'
 include { QUAST } from '../modules/quast'
@@ -152,9 +153,24 @@ workflow COMPLETE_PIPELINE {
     ch_versions = ch_versions.mix(MULTIQC.out.versions)
     ch_multiqc_report = MULTIQC.out.report
 
+    // Generate comprehensive COMPASS summary after all analyses complete
+    // Wait for COMBINE_RESULTS and MultiQC to finish before generating summary
+    ch_summary_ready = COMBINE_RESULTS.out.summary
+        .concat(ch_multiqc_report)
+        .collect()
+        .map { 'ready' }
+
+    COMPASS_SUMMARY(
+        ch_metadata.ifEmpty(file('NO_FILE')),
+        ch_summary_ready
+    )
+    ch_versions = ch_versions.mix(COMPASS_SUMMARY.out.versions)
+
     emit:
     summary = COMBINE_RESULTS.out.summary
     report = COMBINE_RESULTS.out.report
+    compass_summary_tsv = COMPASS_SUMMARY.out.tsv
+    compass_summary_html = COMPASS_SUMMARY.out.html
     amr_results = AMR_ANALYSIS.out.results
     phage_results = PHAGE_ANALYSIS.out.vibrant_results
     diamond_results = PHAGE_ANALYSIS.out.diamond_results

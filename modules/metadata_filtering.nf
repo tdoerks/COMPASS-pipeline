@@ -1,30 +1,73 @@
 process DOWNLOAD_NARMS_METADATA {
-    tag "narms_metadata"
+    tag "metadata_download"
     publishDir "${params.outdir}/metadata", mode: 'copy'
     container = 'quay.io/biocontainers/entrez-direct:16.2--he881be0_1'
-    
+
     output:
     path "*.csv", emit: metadata
     path "versions.yml", emit: versions
-    
+
     script:
-    """
-    echo "Downloading NARMS BioProject metadata..."
-    
-    # Campylobacter
-    esearch -db sra -query "PRJNA292664[BioProject]" | \
-    efetch -format runinfo > campylobacter_metadata.csv
-    
-    # Salmonella
-    esearch -db sra -query "PRJNA292661[BioProject]" | \
-    efetch -format runinfo > salmonella_metadata.csv
-    
-    # E. coli
-    esearch -db sra -query "PRJNA292663[BioProject]" | \
-    efetch -format runinfo > ecoli_metadata.csv
-    
-    echo '"DOWNLOAD_NARMS_METADATA": {"entrez-direct": "16.2"}' > versions.yml
-    """
+    def bioproject = params.bioproject
+    def species = params.species
+    def all_bacterial = params.all_bacterial
+
+    // Default NARMS BioProjects if nothing specified
+    def narms_bioprojects = [
+        'PRJNA292664': 'campylobacter',
+        'PRJNA292661': 'salmonella',
+        'PRJNA292663': 'ecoli'
+    ]
+
+    if (bioproject) {
+        // User-specified BioProject(s)
+        def projects = bioproject.split(',').collect { it.trim() }
+        def queries = projects.collect { bp ->
+            def name = bp.replaceAll('PRJNA', 'bp')
+            "esearch -db sra -query \"${bp}[BioProject]\" | efetch -format runinfo > ${name}_metadata.csv"
+        }.join('\n    ')
+
+        """
+        echo "Downloading metadata for BioProject(s): ${bioproject}..."
+        ${queries}
+        echo '"DOWNLOAD_NARMS_METADATA": {"entrez-direct": "16.2"}' > versions.yml
+        """
+    } else if (species) {
+        // Species-based query
+        """
+        echo "Downloading metadata for species: ${species}..."
+        esearch -db sra -query "${species}[Organism] AND bacteria[Filter]" | \
+        efetch -format runinfo > ${species.toLowerCase().replaceAll(' ', '_')}_metadata.csv
+        echo '"DOWNLOAD_NARMS_METADATA": {"entrez-direct": "16.2"}' > versions.yml
+        """
+    } else if (all_bacterial) {
+        // All bacterial samples (use with caution!)
+        """
+        echo "WARNING: Downloading ALL bacterial SRA metadata - this may be very large!"
+        esearch -db sra -query "bacteria[Filter]" | \
+        efetch -format runinfo > all_bacteria_metadata.csv
+        echo '"DOWNLOAD_NARMS_METADATA": {"entrez-direct": "16.2"}' > versions.yml
+        """
+    } else {
+        // Default: NARMS BioProjects
+        """
+        echo "Downloading NARMS BioProject metadata (default)..."
+
+        # Campylobacter
+        esearch -db sra -query "PRJNA292664[BioProject]" | \
+        efetch -format runinfo > campylobacter_metadata.csv
+
+        # Salmonella
+        esearch -db sra -query "PRJNA292661[BioProject]" | \
+        efetch -format runinfo > salmonella_metadata.csv
+
+        # E. coli
+        esearch -db sra -query "PRJNA292663[BioProject]" | \
+        efetch -format runinfo > ecoli_metadata.csv
+
+        echo '"DOWNLOAD_NARMS_METADATA": {"entrez-direct": "16.2"}' > versions.yml
+        """
+    }
 }
 
 process FILTER_NARMS_SAMPLES {
@@ -68,8 +111,18 @@ process FILTER_NARMS_SAMPLES {
             
         df = pd.read_csv(mfile)
         print(f"Processing {pathogen}: {len(df)} samples")
-        
+
         mask = pd.Series([True] * len(df))
+
+        # Filter by platform (Illumina only - pipeline designed for short reads)
+        platform_filter = "${params.filter_platform}"
+        if platform_filter and platform_filter != "null":
+            if 'Platform' in df.columns:
+                platform_mask = df['Platform'].astype(str).str.upper() == platform_filter.upper()
+                mask &= platform_mask
+                print(f"  After platform filter ({platform_filter}): {mask.sum()}")
+            else:
+                print(f"  WARNING: 'Platform' column not found in metadata - skipping platform filter")
         
         # Filter by state (in sample name)
         state_filter = "${params.filter_state}"

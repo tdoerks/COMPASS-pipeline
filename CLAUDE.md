@@ -33,32 +33,58 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Test/Development
 ```bash
-# Test with Kansas 2023 data (small dataset)
-nextflow run main_metadata.nf \
+# Test with Kansas 2024 NARMS data (small dataset) - all three organisms
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292663,PRJNA292661,PRJNA292664" \
     --filter_state "KS" \
-    --filter_year_start 2023 \
-    --filter_year_end 2023 \
+    --filter_year_start 2024 \
+    --filter_year_end 2024 \
     --outdir test_results
 
-# Or use SLURM script
+# Test with Kansas 2024 - E. coli only
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292663" \
+    --filter_state "KS" \
+    --filter_year_start 2024 \
+    --filter_year_end 2024 \
+    --outdir test_ecoli_2024
+
+# Or use SLURM script (update script to use new parameters)
 sbatch test_kansas_pipeline.sh
 ```
 
 ### Production Run
 ```bash
-# Full Kansas 2025 dataset
-sbatch run_kansas_2025.sh
+# Full Kansas 2025 dataset (NARMS - all organisms)
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292663,PRJNA292661,PRJNA292664" \
+    --filter_state "KS" \
+    --filter_year_start 2025 \
+    --filter_year_end 2025 \
+    --outdir kansas_2025_narms
 
-# Custom filtering
-nextflow run main_metadata.nf \
-    --filter_state "CA" \
+# Custom BioProject filtering
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA123456" \
     --filter_year_start 2020 \
     --filter_year_end 2023 \
-    --filter_source "clinical" \
-    --outdir results
+    --outdir custom_project_results
+
+# Species search (non-NARMS)
+nextflow run main.nf \
+    --input_mode metadata \
+    --species "Listeria monocytogenes" \
+    --filter_year_start 2020 \
+    --outdir listeria_analysis
 
 # Limit number of samples (useful for testing or resource constraints)
-nextflow run main_metadata.nf \
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292661" \
     --filter_state "CA" \
     --max_samples 100 \
     --outdir test_limited
@@ -89,14 +115,27 @@ Critical channel structure: `[meta, fasta]` where `meta` contains:
 - `integrated_analysis.nf:21`: Transforms for VIBRANT (requires `[sample_id, fasta]`)
 - `full_pipeline.nf:27-33`: TODO comment indicates organism currently hardcoded
 
-### NARMS BioProjects
+### BioProject and Metadata Filtering
 
-Hardcoded in `modules/metadata_filtering.nf:14-24`:
-- **Campylobacter**: PRJNA292664
-- **Salmonella**: PRJNA292661
-- **E. coli**: PRJNA292663
+**NEW (v1.2-mod)**: Flexible BioProject system supports:
+1. **Default NARMS mode** (no parameters): Downloads all three NARMS BioProjects
+   - **Campylobacter**: PRJNA292664
+   - **Salmonella**: PRJNA292661
+   - **E. coli**: PRJNA292663
 
-Metadata downloaded via entrez-direct, filtered by Python (pandas) on state, year, source. Results limited to first N samples via `params.max_samples` (default: 10,000).
+2. **Custom BioProject(s)**: `--bioproject "PRJNA123456"` or `--bioproject "PRJNA123,PRJNA456"`
+3. **Species search**: `--species "Listeria monocytogenes"` (searches all SRA)
+4. **All bacterial**: `--all_bacterial true` (use with caution - very large!)
+
+**Platform Filtering**: Pipeline now automatically filters for **Illumina short reads only** via `--filter_platform "ILLUMINA"` (default). Long-read platforms (PacBio, Oxford Nanopore) are excluded as the assembly pipeline is optimized for short reads.
+
+**Additional Filters**:
+- `--filter_state`: State code (e.g., "KS", "CA") - searches sample names
+- `--filter_year_start` / `--filter_year_end`: Year range filtering
+- `--filter_source`: Source keyword (e.g., "clinical", "chicken")
+- `--max_samples`: Limit to first N samples (default: 10,000)
+
+Metadata downloaded via entrez-direct, filtered by Python (pandas). See `modules/metadata_filtering.nf` for implementation.
 
 ### Database Requirements
 

@@ -112,6 +112,7 @@ Download and filter NARMS BioProject data automatically:
 ```bash
 nextflow run main.nf \
     --input_mode metadata \
+    --bioproject "PRJNA292661,PRJNA292663,PRJNA292664" \
     --filter_state "KS" \
     --filter_year_start 2020 \
     --outdir results
@@ -121,6 +122,8 @@ nextflow run main.nf \
 - **Campylobacter**: PRJNA292664
 - **Salmonella**: PRJNA292661
 - **E. coli**: PRJNA292663
+
+**Note:** If no `--bioproject` parameter is specified, all three NARMS BioProjects are downloaded by default for backward compatibility.
 
 #### 3. SRA List Mode
 Process samples from a list of SRA accessions:
@@ -153,11 +156,20 @@ SRR12345680
 
 | Parameter | Description | Default | Example |
 |-----------|-------------|---------|---------|
-| `--filter_state` | State code (2-letter) | `KS` | `KS`, `CA`, `TX` |
+| `--bioproject` | BioProject ID(s) - comma-separated | `null` (NARMS defaults) | `PRJNA292661`, `PRJNA123456,PRJNA789012` |
+| `--species` | Species name filter (searches all SRA) | `null` | `Listeria`, `Campylobacter` |
+| `--all_bacterial` | Download all bacterial samples (use with caution!) | `false` | `true` |
+| `--filter_platform` | Sequencing platform filter (Illumina only) | `ILLUMINA` | `ILLUMINA` |
+| `--filter_state` | State code (2-letter) | `null` | `KS`, `CA`, `TX` |
 | `--filter_year_start` | Minimum year | `null` | `2020` |
 | `--filter_year_end` | Maximum year | `null` | `2023` |
 | `--filter_source` | Source keyword | `null` | `chicken`, `clinical` |
 | `--max_samples` | Maximum samples to process | `10000` | `5000`, `50000` |
+
+**Important Notes:**
+- **Platform Filtering**: The pipeline is designed for **Illumina short reads only**. By default, only ILLUMINA platform data is processed. Long-read platforms (PacBio, Oxford Nanopore) are automatically excluded.
+- **BioProject vs Species**: Use `--bioproject` for specific projects, or `--species` to search across all SRA data for a particular organism.
+- **Default Behavior**: If no `--bioproject`, `--species`, or `--all_bacterial` is specified, the pipeline defaults to downloading all three NARMS BioProjects (Campylobacter, Salmonella, E. coli).
 
 ### Database Paths
 
@@ -322,7 +334,98 @@ These complementary tools provide before/after quality assessment for read trimm
 
 ## Usage Examples
 
-### Example 1: Pre-assembled FASTA files (default mode)
+### NARMS-Specific Examples
+
+These examples show how to work with NARMS surveillance data for common use cases:
+
+#### Example 1: Kansas NARMS 2024 - All Three Organisms
+
+Download all NARMS data (E. coli, Salmonella, Campylobacter) from Kansas for 2024:
+
+```bash
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292663,PRJNA292661,PRJNA292664" \
+    --filter_state "KS" \
+    --filter_year_start 2024 \
+    --filter_year_end 2024 \
+    --outdir results_ks_narms_2024
+```
+
+#### Example 2: Kansas NARMS 2024 - E. coli Only
+
+Download only E. coli NARMS samples from Kansas for 2024:
+
+```bash
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292663" \
+    --filter_state "KS" \
+    --filter_year_start 2024 \
+    --filter_year_end 2024 \
+    --outdir results_ks_ecoli_2024
+```
+
+#### Example 3: Kansas NARMS 2024 - Salmonella Only
+
+Download only Salmonella NARMS samples from Kansas for 2024:
+
+```bash
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292661" \
+    --filter_state "KS" \
+    --filter_year_start 2024 \
+    --filter_year_end 2024 \
+    --outdir results_ks_salmonella_2024
+```
+
+#### Example 4: Kansas NARMS 2024 - Campylobacter Only
+
+Download only Campylobacter NARMS samples from Kansas for 2024:
+
+```bash
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292664" \
+    --filter_state "KS" \
+    --filter_year_start 2024 \
+    --filter_year_end 2024 \
+    --outdir results_ks_campy_2024
+```
+
+#### Example 5: California NARMS Salmonella - Clinical Sources
+
+Download NARMS Salmonella from California, filtering for clinical isolates:
+
+```bash
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292661" \
+    --filter_state "CA" \
+    --filter_source "clinical" \
+    --outdir results_ca_salmonella_clinical
+```
+
+#### Example 6: Multi-Year NARMS Analysis
+
+Download Kansas NARMS data across multiple years (2020-2023):
+
+```bash
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292663,PRJNA292661,PRJNA292664" \
+    --filter_state "KS" \
+    --filter_year_start 2020 \
+    --filter_year_end 2023 \
+    --outdir results_ks_narms_2020-2023
+```
+
+### General Usage Examples
+
+#### Example 7: Pre-assembled FASTA files (default mode)
+
+Analyze pre-assembled genomes from a samplesheet:
 
 ```bash
 nextflow run main.nf \
@@ -330,28 +433,32 @@ nextflow run main.nf \
     --outdir my_analysis
 ```
 
-### Example 2: Kansas NARMS samples from 2020-2023 (metadata mode)
+#### Example 8: Search by Species Across All SRA
+
+Download and analyze all Listeria samples from SRA (non-NARMS):
 
 ```bash
 nextflow run main.nf \
     --input_mode metadata \
-    --filter_state "KS" \
+    --species "Listeria monocytogenes" \
     --filter_year_start 2020 \
-    --filter_year_end 2023 \
-    --outdir kansas_2020-2023
+    --outdir results_listeria
 ```
 
-### Example 3: California Salmonella from clinical sources (metadata mode)
+#### Example 9: Custom BioProject
+
+Analyze samples from a custom BioProject:
 
 ```bash
 nextflow run main.nf \
     --input_mode metadata \
-    --filter_state "CA" \
-    --filter_source "clinical" \
-    --outdir california_clinical
+    --bioproject "PRJNA123456" \
+    --outdir results_custom_project
 ```
 
-### Example 4: Process specific SRA accessions (sra_list mode)
+#### Example 10: Process specific SRA accessions (sra_list mode)
+
+Process a specific list of SRA accessions:
 
 ```bash
 nextflow run main.nf \
@@ -395,17 +502,6 @@ COMPASS-pipeline/
     ├── integrated_analysis.nf  # Legacy combined analysis
     ├── full_pipeline.nf        # Legacy full pipeline
     └── metadata_to_results.nf  # Legacy metadata workflow
-```
-
-### Example 4: Limit number of samples
-
-```bash
-# Process only the first 100 samples after filtering
-nextflow run main.nf \
-    --filter_state "CA" \
-    --filter_year_start 2020 \
-    --max_samples 100 \
-    --outdir california_limited
 ```
 
 ## Configuration

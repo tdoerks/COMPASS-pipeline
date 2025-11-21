@@ -149,18 +149,17 @@ Metadata downloaded via entrez-direct, filtered by Python (pandas). See `modules
 Set in `nextflow.config` or via CLI:
 - `--amrfinder_db`: AMRFinder+ database (auto-downloaded if empty)
 - `--prophage_db`: DIAMOND-formatted prophage database (.dmnd file)
-- `--checkv_db`: CheckV database directory
+- `--busco_download_path`: BUSCO lineage datasets directory (auto-downloaded as needed)
 
-Current hardcoded paths in config:
+Current hardcoded path in config:
 ```
 prophage_db = "/homes/tylerdoe/databases/prophage_db.dmnd"
-checkv_db = "/homes/tylerdoe/databases/checkv-db-v1.5"
 ```
 
 ### Container Strategy
 
 All tools use Apptainer/Singularity containers from:
-- quay.io/biocontainers (AMRFinder, entrez-direct, pandas, CheckV, PHANOTATE, sra-tools, SPAdes)
+- quay.io/biocontainers (AMRFinder, entrez-direct, pandas, BUSCO, PHANOTATE, sra-tools, SPAdes)
 - docker://staphb/* (VIBRANT, DIAMOND)
 
 Caching: `$HOME/.apptainer/cache` (set in nextflow.config:88)
@@ -179,10 +178,9 @@ SLURM executor on `batch.q` queue.
 
 ### Active Problems (from TODO.md and ROADMAP.md)
 
-1. **CheckV disabled**: Database path issues in container. Commented out in `integrated_analysis.nf:4,26,41`
-2. **PHANOTATE timeouts**: May need increased time limit in nextflow.config:54
-3. **Hardcoded organism**: `full_pipeline.nf:31` sets organism="Salmonella" instead of reading from metadata
-4. **No error handling**: Pipeline fails if any sample fails; needs individual sample error tolerance
+1. **PHANOTATE timeouts**: May need increased time limit in nextflow.config:54
+2. **Hardcoded organism**: `full_pipeline.nf:31` sets organism="Salmonella" instead of reading from metadata
+3. **No error handling**: Pipeline fails if any sample fails; needs individual sample error tolerance
 
 ### Entrez-direct Perl Warnings
 
@@ -228,10 +226,16 @@ Monitor with: `squeue -u $USER` or check `work/` directory for process logs.
 All results published to `${params.outdir}/`:
 - `metadata/`: Downloaded NARMS runinfo CSVs
 - `filtered_samples/`: Filtered sample lists and SRR accessions
+- `assemblies/`: Assembled contigs (SPAdes)
+- `busco/`: Assembly quality assessment
 - `amrfinder/`: AMR gene detection results (TSV)
-- `vibrant/`: Phage identification results
+- `mlst/`: Strain typing results
+- `sistr/`: Salmonella serotyping (if applicable)
+- `mobsuite/`: Plasmid detection and typing
+- `vibrant/`: Phage identification results (includes quality assessment)
 - `diamond_prophage/`: Prophage database hits (TSV)
 - `phanotate/`: Gene predictions (GFF)
+- `multiqc/`: Comprehensive QC report
 - `summary/`: Combined TSV summary and HTML report
 
 ## Future Enhancements

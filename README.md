@@ -15,8 +15,8 @@ COMPASS automates the analysis of bacterial genomes, providing:
 - **Serotyping**: SISTR for Salmonella serovar prediction
 - **Plasmid Detection**: MOB-suite for identifying and typing mobile genetic elements
 - **AMR Detection**: AMRFinder+ and ABRicate for multi-database resistance screening
-- **Phage Identification**: VIBRANT for prophage detection and lifestyle prediction
-- **Prophage Analysis**: DIAMOND database comparison and CheckV quality assessment
+- **Phage Identification**: VIBRANT for prophage detection and lifestyle prediction (includes quality assessment)
+- **Prophage Analysis**: DIAMOND database comparison for prophage classification
 - **Gene Prediction**: PHANOTATE for ORF calling in phage sequences
 - **Integrated Reporting**: MultiQC aggregation and COMPASS summary TSV with all metrics
 
@@ -51,9 +51,8 @@ COMPASS uses a modular architecture with the following components:
    - Antimicrobial resistance gene detection
 
 4. **Phage Analysis** (`subworkflows/phage_analysis.nf`)
-   - VIBRANT prophage detection
+   - VIBRANT prophage detection (with quality assessment)
    - DIAMOND prophage classification
-   - CheckV quality assessment
    - PHANOTATE gene annotation
 
 5. **Typing** (`subworkflows/typing.nf`)
@@ -181,7 +180,6 @@ SRR12345680
 |-----------|-------------|
 | `--amrfinder_db` | AMRFinder+ database directory |
 | `--prophage_db` | Prophage DIAMOND database (.dmnd) |
-| `--checkv_db` | CheckV database directory |
 | `--busco_download_path` | BUSCO lineage datasets directory |
 
 ### BUSCO Parameters
@@ -229,12 +227,10 @@ results/
 ├── amrfinder/                   # AMR detection results
 │   ├── *_amr.tsv
 │   └── *_mutations.tsv
-├── vibrant/                     # Phage identification
+├── vibrant/                     # Phage identification (includes quality assessment)
 │   └── *_vibrant/
 ├── diamond_prophage/            # Prophage comparisons
 │   └── *_diamond_results.tsv
-├── checkv/                      # Quality assessment
-│   └── *_checkv/
 ├── phanotate/                   # Gene predictions
 │   └── *_phanotate.gff
 ├── multiqc/                     # Comprehensive QC report
@@ -330,9 +326,8 @@ These complementary tools provide before/after quality assessment for read trimm
 | SISTR | 1.1.1 | Salmonella serotyping |
 | MOB-suite | 3.1.9 | Plasmid detection and typing |
 | AMRFinder+ | 3.12.8 | AMR gene detection |
-| VIBRANT | 4.0 | Phage identification |
+| VIBRANT | 4.0 | Phage identification and quality assessment |
 | DIAMOND | 2.0 | Prophage database search |
-| CheckV | 1.0.2 | Phage quality assessment |
 | PHANOTATE | 1.6.7 | Gene prediction |
 | MultiQC | 1.25.1 | Aggregate QC reporting |
 
@@ -540,7 +535,6 @@ If you use COMPASS, please cite the individual tools:
 **Phage Analysis:**
 - **VIBRANT**: [Kieft et al., 2020](https://microbiomejournal.biomedcentral.com/articles/10.1186/s40168-020-00990-y)
 - **DIAMOND**: [Buchfink et al., 2021](https://www.nature.com/articles/s41592-021-01101-x)
-- **CheckV**: [Nayfach et al., 2021](https://www.nature.com/articles/s41587-020-00774-7)
 - **PHANOTATE**: [McNair et al., 2019](https://academic.oup.com/bioinformatics/article/35/22/4537/5480131)
 
 ## License

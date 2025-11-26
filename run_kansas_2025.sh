@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=compass_ks_2025
-#SBATCH --output=slurm-%j.out
-#SBATCH --error=slurm-%j.err
+#SBATCH --output=/homes/tylerdoe/slurm-%j.out
+#SBATCH --error=/homes/tylerdoe/slurm-%j.err
 #SBATCH --time=168:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
@@ -12,12 +12,16 @@ echo "=========================================="
 echo "COMPASS Pipeline - Kansas 2025"
 echo "Organisms: Campylobacter, Salmonella, E. coli"
 echo "State: Kansas only"
-echo "Running from: /fastscratch/tylerdoe/COMPASS-pipeline"
+echo "SLURM logs: /homes/tylerdoe/"
+echo "Pipeline runs from: /fastscratch/tylerdoe/COMPASS-pipeline"
+echo "Results go to: /fastscratch/tylerdoe/results_kansas_2025"
 echo "=========================================="
 echo "Job ID: $SLURM_JOB_ID"
-echo "Working directory: $(pwd)"
 echo "Start time: $(date)"
 echo ""
+
+# Change to fastscratch directory
+cd /fastscratch/tylerdoe/COMPASS-pipeline
 
 # Load Nextflow
 module load Nextflow
@@ -66,7 +70,7 @@ if [ $EXIT_CODE -eq 0 ]; then
     echo "   scp tylerdoe@beocat.ksu.edu:/fastscratch/tylerdoe/compass_report_ks_2025.html C:\\Users\\tdoerks\\Downloads\\"
 else
     echo "❌ Pipeline failed with exit code $EXIT_CODE"
-    echo "Check logs: /fastscratch/tylerdoe/slurm-${SLURM_JOB_ID}.out and .nextflow.log"
+    echo "Check logs: /homes/tylerdoe/slurm-${SLURM_JOB_ID}.out and .nextflow.log"
 fi
 
 exit $EXIT_CODE

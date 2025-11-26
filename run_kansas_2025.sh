@@ -33,6 +33,7 @@ nextflow run main.nf \
     --filter_year_start 2025 \
     --filter_year_end 2025 \
     --skip_busco true \
+    --prophage_db /fastscratch/tylerdoe/databases/prophage_db.dmnd \
     --outdir results_kansas_2025 \
     -w work_2025 \
     -name kansas_2025_${SLURM_JOB_ID} \

@@ -17,6 +17,11 @@ echo "Job ID: $SLURM_JOB_ID"
 echo "Start time: $(date)"
 echo ""
 
+# Change to fastscratch working directory
+cd /fastscratch/tylerdoe/COMPASS-pipeline || exit 1
+echo "Working directory: $(pwd)"
+echo ""
+
 module load Nextflow
 
 # Run pipeline for Kansas 2025 NARMS data

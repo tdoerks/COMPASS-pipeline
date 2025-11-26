@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=compass_ks_2025
-#SBATCH --output=/fastscratch/tylerdoe/slurm-%j.out
-#SBATCH --error=/fastscratch/tylerdoe/slurm-%j.err
+#SBATCH --output=slurm-%j.out
+#SBATCH --error=slurm-%j.err
 #SBATCH --time=168:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
@@ -12,15 +12,11 @@ echo "=========================================="
 echo "COMPASS Pipeline - Kansas 2025"
 echo "Organisms: Campylobacter, Salmonella, E. coli"
 echo "State: Kansas only"
-echo "Running from: /fastscratch/tylerdoe"
+echo "Running from: /fastscratch/tylerdoe/COMPASS-pipeline"
 echo "=========================================="
 echo "Job ID: $SLURM_JOB_ID"
-echo "Start time: $(date)"
-echo ""
-
-# Change to fastscratch working directory
-cd /fastscratch/tylerdoe/COMPASS-pipeline || exit 1
 echo "Working directory: $(pwd)"
+echo "Start time: $(date)"
 echo ""
 
 # Load Nextflow

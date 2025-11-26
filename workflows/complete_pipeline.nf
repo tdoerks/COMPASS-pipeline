@@ -174,7 +174,7 @@ workflow COMPLETE_PIPELINE {
     amr_results = AMR_ANALYSIS.out.results
     phage_results = PHAGE_ANALYSIS.out.vibrant_results
     diamond_results = PHAGE_ANALYSIS.out.diamond_results
-    checkv_results = PHAGE_ANALYSIS.out.checkv_results
+    // checkv_results = PHAGE_ANALYSIS.out.checkv_results  // CheckV not currently emitted by PHAGE_ANALYSIS
     phanotate_results = PHAGE_ANALYSIS.out.phanotate_results
     mlst_results = TYPING.out.mlst_results
     sistr_results = TYPING.out.sistr_results

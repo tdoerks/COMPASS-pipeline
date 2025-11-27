@@ -49,6 +49,11 @@ echo ""
 # Set Nextflow home to homes
 export NXF_HOME=/homes/tylerdoe/.nextflow_homes_test
 
+# Tell Apptainer/Singularity to skip mounting /fastscratch
+export APPTAINER_BIND=""
+export SINGULARITY_BIND=""
+export APPTAINERENV_PREPEND_PATH=$PATH
+
 echo "Running COMPASS pipeline with 5 E. coli 2024 samples..."
 echo "Parameters:"
 echo "  BioProject: PRJNA292663 (E. coli NARMS)"

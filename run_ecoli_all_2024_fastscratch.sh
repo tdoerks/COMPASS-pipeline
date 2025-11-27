@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=compass_ecoli_all_2024
-#SBATCH --output=/fastscratch/tylerdoe/slurm-%j.out
-#SBATCH --error=/fastscratch/tylerdoe/slurm-%j.err
+#SBATCH --output=/homes/tylerdoe/slurm-%j.out
+#SBATCH --error=/homes/tylerdoe/slurm-%j.err
 #SBATCH --time=168:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G

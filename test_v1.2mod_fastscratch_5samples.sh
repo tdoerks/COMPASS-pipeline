@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=compass_v12mod_test
-#SBATCH --output=/fastscratch/tylerdoe/test_v12mod_%j.out
-#SBATCH --error=/fastscratch/tylerdoe/test_v12mod_%j.err
+#SBATCH --output=/homes/tylerdoe/test_v12mod_%j.out
+#SBATCH --error=/homes/tylerdoe/test_v12mod_%j.err
 #SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
@@ -11,6 +11,9 @@
 echo "=========================================="
 echo "COMPASS Pipeline v1.2-mod - TEST RUN"
 echo "5 Sample Test on Fastscratch"
+echo "SLURM logs: /homes/tylerdoe/"
+echo "Pipeline runs from: /fastscratch/tylerdoe/COMPASS-pipeline"
+echo "Results go to: /fastscratch/tylerdoe/test_v1.2mod_5samples"
 echo "=========================================="
 echo "Job ID: $SLURM_JOB_ID"
 echo "Start time: $(date)"
@@ -74,8 +77,8 @@ if [ $EXIT_CODE -eq 0 ]; then
 else
     echo "❌ Test run failed with exit code $EXIT_CODE"
     echo "Check logs:"
-    echo "  tail -100 /fastscratch/tylerdoe/test_v12mod_${SLURM_JOB_ID}.out"
-    echo "  tail -100 /fastscratch/tylerdoe/test_v12mod_${SLURM_JOB_ID}.err"
+    echo "  tail -100 /homes/tylerdoe/test_v12mod_${SLURM_JOB_ID}.out"
+    echo "  tail -100 /homes/tylerdoe/test_v12mod_${SLURM_JOB_ID}.err"
 fi
 
 exit $EXIT_CODE

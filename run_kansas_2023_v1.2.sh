@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=compass_ks_2023_v12
-#SBATCH --output=/fastscratch/tylerdoe/ks_2023_v12_%j.out
-#SBATCH --error=/fastscratch/tylerdoe/ks_2023_v12_%j.err
+#SBATCH --output=/homes/tylerdoe/ks_2023_v12_%j.out
+#SBATCH --error=/homes/tylerdoe/ks_2023_v12_%j.err
 #SBATCH --time=168:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G

@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=compass_summary_test
-#SBATCH --output=/fastscratch/tylerdoe/slurm-%j.out
-#SBATCH --error=/fastscratch/tylerdoe/slurm-%j.err
+#SBATCH --output=/homes/tylerdoe/slurm-%j.out
+#SBATCH --error=/homes/tylerdoe/slurm-%j.err
 #SBATCH --time=24:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
@@ -18,7 +18,7 @@ echo "Start time: $(date)"
 echo ""
 
 # Change to fastscratch directory
-cd /fastscratch/tylerdoe/compass-pipeline
+cd /fastscratch/tylerdoe/COMPASS-pipeline
 
 # Load Nextflow
 module load Nextflow

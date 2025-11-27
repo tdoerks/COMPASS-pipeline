@@ -60,6 +60,7 @@ echo ""
 # Run pipeline
 nextflow run main.nf \
     -profile beocat \
+    --input_mode metadata \
     --bioproject "PRJNA292663" \
     --filter_year_start 2024 \
     --filter_year_end 2024 \

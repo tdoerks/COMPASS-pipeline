@@ -57,9 +57,10 @@ echo "  Max samples: 5"
 echo "  Skip BUSCO: yes (save time/space)"
 echo ""
 
-# Run pipeline
+# Run pipeline with homes-only config (avoid /fastscratch mounts)
 nextflow run main.nf \
     -profile beocat \
+    -c nextflow_homes_only.config \
     --input_mode metadata \
     --bioproject "PRJNA292663" \
     --filter_year_start 2024 \

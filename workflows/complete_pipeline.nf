@@ -24,6 +24,7 @@ workflow COMPLETE_PIPELINE {
     ch_assemblies = Channel.empty()
     ch_versions = Channel.empty()
     ch_metadata = Channel.empty()
+    ch_metadata_file = Channel.empty()
 
     ch_qc_outputs = Channel.empty()
     ch_has_assembly_qc = false
@@ -68,6 +69,7 @@ workflow COMPLETE_PIPELINE {
         ch_quast_report = ASSEMBLY.out.quast_report
         ch_quast_dirs = ASSEMBLY.out.quast_dirs  // Use directories for MultiQC
         ch_metadata = DATA_ACQUISITION.out.metadata
+        ch_metadata_file = DATA_ACQUISITION.out.metadata_file
         ch_versions = ch_versions.mix(DATA_ACQUISITION.out.versions)
         ch_versions = ch_versions.mix(ASSEMBLY.out.versions.first())
 
@@ -161,7 +163,7 @@ workflow COMPLETE_PIPELINE {
         .map { 'ready' }
 
     COMPASS_SUMMARY(
-        ch_metadata.ifEmpty(file('NO_FILE')),
+        ch_metadata_file.ifEmpty(file('NO_FILE')),
         ch_summary_ready
     )
     ch_versions = ch_versions.mix(COMPASS_SUMMARY.out.versions)

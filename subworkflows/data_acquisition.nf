@@ -14,6 +14,7 @@ workflow DATA_ACQUISITION {
     main:
     ch_reads = Channel.empty()
     ch_metadata = Channel.empty()
+    ch_metadata_file = Channel.empty()
     ch_versions = Channel.empty()
 
     if (mode == 'metadata') {
@@ -21,7 +22,10 @@ workflow DATA_ACQUISITION {
         DOWNLOAD_NARMS_METADATA()
         FILTER_NARMS_SAMPLES(DOWNLOAD_NARMS_METADATA.out.metadata)
 
-        // Create metadata map
+        // Save the filtered CSV file for COMPASS_SUMMARY
+        ch_metadata_file = FILTER_NARMS_SAMPLES.out.filtered
+
+        // Create metadata map for downstream processes
         ch_metadata = FILTER_NARMS_SAMPLES.out.filtered
             .splitCsv(header: true)
             .map { row ->
@@ -47,7 +51,8 @@ workflow DATA_ACQUISITION {
     }
 
     emit:
-    reads = ch_reads           // channel: [sample_id, reads]
-    metadata = ch_metadata     // channel: [sample_id, organism]
+    reads = ch_reads                 // channel: [sample_id, reads]
+    metadata = ch_metadata           // channel: [sample_id, organism]
+    metadata_file = ch_metadata_file // path: filtered_samples.csv
     versions = ch_versions
 }

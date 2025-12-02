@@ -23,7 +23,13 @@ process DOWNLOAD_NARMS_METADATA {
         // User-specified BioProject(s)
         def projects = bioproject.split(',').collect { it.trim() }
         def queries = projects.collect { bp ->
-            def name = bp.replaceAll('PRJNA', 'bp')
+            // Map known NARMS BioProjects to pathogen names for file naming
+            def name_map = [
+                'PRJNA292664': 'campylobacter',
+                'PRJNA292661': 'salmonella',
+                'PRJNA292663': 'ecoli'
+            ]
+            def name = name_map.get(bp, bp.replaceAll('PRJNA', 'bp'))
             "esearch -db sra -query \"${bp}[BioProject]\" | efetch -format runinfo > ${name}_metadata.csv"
         }.join('\n    ')
 

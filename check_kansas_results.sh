@@ -14,11 +14,11 @@
 echo "=========================================="
 echo "KANSAS NARMS RESULTS INVENTORY"
 echo "Checking: 2021-2025"
-echo "Location: /homes/tylerdoe/archives/compass_kansas_results/"
+echo "Location: /bulk/tylerdoe/compass_kansas_results/"
 echo "=========================================="
 echo ""
 
-RESULTS_BASE="/homes/tylerdoe/archives/compass_kansas_results"
+RESULTS_BASE="/bulk/tylerdoe/compass_kansas_results"
 
 for year in 2021 2022 2023 2024 2025; do
     echo "========================================="

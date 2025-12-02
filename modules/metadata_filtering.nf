@@ -139,13 +139,14 @@ process FILTER_NARMS_SAMPLES {
         if state_filter and state_filter != "null":
             state_mask = pd.Series([False] * len(df))
             sample_cols = [col for col in df.columns if 'sample' in col.lower() or 'library' in col.lower()]
-            
+
             for col in sample_cols:
                 if col in df.columns:
-                    # Pattern: digits + STATE + digits (e.g., 19KS07)
-                    pattern = f'\\\\d{{2}}{state_filter}\\\\d{{2}}'
+                    # Pattern: STATE code followed by digits (e.g., 25KS08, 19KS07, KS-123)
+                    # This matches both old format (19KS07) and new format (25KS08)
+                    pattern = f'{state_filter}\\\\d'
                     state_mask |= df[col].astype(str).str.contains(pattern, case=False, na=False, regex=True)
-            
+
             mask &= state_mask
             print(f"  After state filter ({state_filter}): {mask.sum()}")
         
@@ -188,7 +189,9 @@ process FILTER_NARMS_SAMPLES {
     
     if not all_samples:
         print("\\nERROR: No samples passed all filters!")
-        pd.DataFrame().to_csv('filtered_samples.csv', index=False)
+        # Create empty CSV with proper headers to avoid Nextflow parsing error
+        empty_df = pd.DataFrame(columns=['Run', 'organism'])
+        empty_df.to_csv('filtered_samples.csv', index=False)
         open('srr_accessions.txt', 'w').close()
         for org in pathogen_map.values():
             open(f"{org.lower()}_srr_list.txt", 'w').close()

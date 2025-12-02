@@ -29,7 +29,6 @@ process ASSEMBLE_SPADES {
             --threads ${task.cpus} \
             --memory ${task.memory.toGiga()} \
             --isolate \
-            --careful \
             --only-assembler
     else
         # Single-end
@@ -39,7 +38,6 @@ process ASSEMBLE_SPADES {
             --threads ${task.cpus} \
             --memory ${task.memory.toGiga()} \
             --isolate \
-            --careful \
             --only-assembler
     fi
 

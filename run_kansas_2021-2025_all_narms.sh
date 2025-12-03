@@ -32,6 +32,9 @@ cd /fastscratch/tylerdoe/compass-pipeline
 # Load Nextflow
 module load Nextflow
 
+# Set unique Nextflow home to avoid cache conflicts
+export NXF_HOME=/fastscratch/tylerdoe/.nextflow_ks_2021-2025
+
 # Define output directory
 OUTDIR="/fastscratch/tylerdoe/kansas_2021-2025_all_narms_v1.2mod"
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-COMPASS Pipeline Comprehensive Summary Report Generator (Enhanced Version)
-Aggregates results from all pipeline modules into comprehensive summary with visualizations
+COMPASS Pipeline Comprehensive Summary Report Generator
+Aggregates results from all pipeline modules into comprehensive summary table and HTML report
 """
 
 import argparse
@@ -13,7 +13,7 @@ from collections import Counter
 import re
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Generate comprehensive COMPASS summary report with visualizations')
+    parser = argparse.ArgumentParser(description='Generate comprehensive COMPASS summary report')
     parser.add_argument('--outdir', required=True, help='Pipeline output directory')
     parser.add_argument('--metadata', help='Optional metadata CSV with organism/source info')
     parser.add_argument('--output_tsv', default='compass_summary.tsv', help='Output TSV summary file')
@@ -396,14 +396,6 @@ def generate_html_report(df, output_file, functional_diversity=None):
     total_plasmids = df['num_plasmids'].sum()
     samples_with_plasmids = len(df[df['num_plasmids'] > 0])
 
-    # Prepare functional diversity data for chart
-    functional_labels = []
-    functional_values = []
-    if functional_diversity:
-        for category, count in functional_diversity.items():
-            functional_labels.append(category)
-            functional_values.append(count)
-
     # Generate HTML
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -411,103 +403,39 @@ def generate_html_report(df, output_file, functional_diversity=None):
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>COMPASS Pipeline Summary Report</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        * {{
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }}
-
         body {{
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
             background-color: #f5f5f5;
         }}
-
         .header {{
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 30px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            border-radius: 10px;
+            margin-bottom: 30px;
         }}
-
         .header h1 {{
             margin: 0;
             font-size: 2.5em;
         }}
-
         .header p {{
             margin: 10px 0 0 0;
             opacity: 0.9;
         }}
-
-        .tabs {{
-            background: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }}
-
-        .tab-buttons {{
-            display: flex;
-            overflow-x: auto;
-            border-bottom: 2px solid #e0e0e0;
-        }}
-
-        .tab-button {{
-            padding: 15px 25px;
-            border: none;
-            background: none;
-            cursor: pointer;
-            font-size: 1em;
-            font-weight: 500;
-            color: #666;
-            white-space: nowrap;
-            transition: all 0.3s ease;
-            border-bottom: 3px solid transparent;
-        }}
-
-        .tab-button:hover {{
-            color: #667eea;
-            background: #f8f9ff;
-        }}
-
-        .tab-button.active {{
-            color: #667eea;
-            border-bottom-color: #667eea;
-            background: #f8f9ff;
-        }}
-
-        .tab-content {{
-            display: none;
-            padding: 30px;
-            animation: fadeIn 0.3s ease-in;
-        }}
-
-        .tab-content.active {{
-            display: block;
-        }}
-
-        @keyframes fadeIn {{
-            from {{ opacity: 0; }}
-            to {{ opacity: 1; }}
-        }}
-
         .summary-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }}
-
         .summary-card {{
             background: white;
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }}
-
         .summary-card h3 {{
             margin: 0 0 10px 0;
             color: #667eea;
@@ -515,37 +443,16 @@ def generate_html_report(df, output_file, functional_diversity=None):
             text-transform: uppercase;
             letter-spacing: 1px;
         }}
-
         .summary-card .value {{
             font-size: 2.5em;
             font-weight: bold;
             color: #333;
         }}
-
         .summary-card .subtext {{
             color: #666;
             font-size: 0.9em;
             margin-top: 5px;
         }}
-
-        .chart-container {{
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }}
-
-        .chart-container h2 {{
-            margin: 0 0 20px 0;
-            color: #333;
-        }}
-
-        .chart-wrapper {{
-            position: relative;
-            height: 400px;
-        }}
-
         .table-container {{
             background: white;
             padding: 20px;
@@ -553,23 +460,11 @@ def generate_html_report(df, output_file, functional_diversity=None):
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             overflow-x: auto;
         }}
-
-        .search-box {{
-            margin-bottom: 20px;
-            padding: 12px;
-            width: 100%;
-            max-width: 400px;
-            border: 2px solid #667eea;
-            border-radius: 6px;
-            font-size: 1em;
-        }}
-
         table {{
             width: 100%;
             border-collapse: collapse;
             font-size: 0.9em;
         }}
-
         th {{
             background: #667eea;
             color: white;
@@ -582,36 +477,39 @@ def generate_html_report(df, output_file, functional_diversity=None):
             top: 0;
             z-index: 10;
         }}
-
         th:hover {{
             background: #5568d3;
         }}
-
         td {{
             padding: 10px 12px;
             border-bottom: 1px solid #eee;
         }}
-
         tr:hover {{
             background-color: #f8f9ff;
         }}
-
         .status-pass {{
             color: #22c55e;
             font-weight: 600;
         }}
-
         .status-fail {{
             color: #ef4444;
             font-weight: 600;
         }}
-
         .mdr-yes {{
             background: #fee2e2;
             color: #991b1b;
             padding: 2px 8px;
             border-radius: 4px;
             font-weight: 600;
+        }}
+        .search-box {{
+            margin-bottom: 20px;
+            padding: 12px;
+            width: 100%;
+            max-width: 400px;
+            border: 2px solid #667eea;
+            border-radius: 6px;
+            font-size: 1em;
         }}
     </style>
 </head>
@@ -621,125 +519,73 @@ def generate_html_report(df, output_file, functional_diversity=None):
         <p>Comprehensive Overview of AMR, Phage, and Assembly Quality Metrics</p>
     </div>
 
-    <div class="tabs">
-        <div class="tab-buttons">
-            <button class="tab-button active" onclick="switchTab(event, 'overview')">Overview</button>
-            <button class="tab-button" onclick="switchTab(event, 'data-table')">Data Table</button>
-            <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>
+    <div class="summary-grid">
+        <div class="summary-card">
+            <h3>Total Samples</h3>
+            <div class="value">{total_samples}</div>
+        </div>
+        <div class="summary-card">
+            <h3>Assembly QC</h3>
+            <div class="value">{passed_qc}</div>
+            <div class="subtext">Passed ({failed_qc} failed)</div>
+        </div>
+        <div class="summary-card">
+            <h3>Average Assembly</h3>
+            <div class="value">{avg_contigs:.0f}</div>
+            <div class="subtext">Contigs (N50: {avg_n50:.0f})</div>
+        </div>
+        <div class="summary-card">
+            <h3>MDR Samples</h3>
+            <div class="value">{mdr_samples}</div>
+            <div class="subtext">{mdr_pct:.1f}% of samples</div>
+        </div>
+        <div class="summary-card">
+            <h3>Total Prophages</h3>
+            <div class="value">{total_prophages}</div>
+            <div class="subtext">Avg: {avg_prophages:.1f} per sample</div>
         </div>
     </div>
 
-    <!-- Overview Tab -->
-    <div id="overview" class="tab-content active">
-        <div class="summary-grid">
-            <div class="summary-card">
-                <h3>Total Samples</h3>
-                <div class="value">{total_samples}</div>
-            </div>
-            <div class="summary-card">
-                <h3>Assembly QC</h3>
-                <div class="value">{passed_qc}</div>
-                <div class="subtext">Passed ({failed_qc} failed)</div>
-            </div>
-            <div class="summary-card">
-                <h3>Average Assembly</h3>
-                <div class="value">{avg_contigs:.0f}</div>
-                <div class="subtext">Contigs (N50: {avg_n50:.0f})</div>
-            </div>
-            <div class="summary-card">
-                <h3>MDR Samples</h3>
-                <div class="value">{mdr_samples}</div>
-                <div class="subtext">{mdr_pct:.1f}% of samples</div>
-            </div>
-            <div class="summary-card">
-                <h3>Total Prophages</h3>
-                <div class="value">{total_prophages}</div>
-                <div class="subtext">Avg: {avg_prophages:.1f} per sample</div>
-            </div>
-            <div class="summary-card">
-                <h3>AMR Genes</h3>
-                <div class="value">{total_amr_genes}</div>
-                <div class="subtext">{samples_with_amr} samples with AMR</div>
-            </div>
-            <div class="summary-card">
-                <h3>Plasmids</h3>
-                <div class="value">{total_plasmids}</div>
-                <div class="subtext">{samples_with_plasmids} samples with plasmids</div>
-            </div>
-        </div>
-    </div>
+    <div class="table-container">
+        <h2>Sample Details</h2>
+        <input type="text" class="search-box" id="searchBox" placeholder="Search samples..." onkeyup="filterTable()">
 
-    <!-- Data Table Tab -->
-    <div id="data-table" class="tab-content">
-        <div class="table-container">
-            <h2>Sample Details</h2>
-            <input type="text" class="search-box" id="searchBox" placeholder="Search samples..." onkeyup="filterTable()">
-
-            <table id="dataTable">
-                <thead>
-                    <tr>
+        <table id="dataTable">
+            <thead>
+                <tr>
 """
 
     # Add table headers
     for col in df.columns:
-        html += f"                        <th onclick=\"sortTable('{col}')\">{col}</th>\n"
+        html += f"                    <th onclick=\"sortTable('{col}')\">{col}</th>\n"
 
-    html += """                    </tr>
-                </thead>
-                <tbody>
+    html += """                </tr>
+            </thead>
+            <tbody>
 """
 
     # Add table rows
     for _, row in df.iterrows():
-        html += "                    <tr>\n"
+        html += "                <tr>\n"
         for col in df.columns:
             value = row[col]
 
             # Apply special formatting
             if col == 'assembly_quality':
                 css_class = 'status-pass' if value == 'Pass' else 'status-fail'
-                html += f"                        <td class='{css_class}'>{value}</td>\n"
+                html += f"                    <td class='{css_class}'>{value}</td>\n"
             elif col == 'mdr_status' and value == 'Yes':
-                html += f"                        <td><span class='mdr-yes'>{value}</span></td>\n"
+                html += f"                    <td><span class='mdr-yes'>{value}</span></td>\n"
             else:
-                html += f"                        <td>{value}</td>\n"
+                html += f"                    <td>{value}</td>\n"
 
-        html += "                    </tr>\n"
+        html += "                </tr>\n"
 
-    html += """                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Prophage Functional Diversity Tab -->
-    <div id="prophage-functional" class="tab-content">
-        <div class="chart-container">
-            <h2>Prophage Functional Diversity</h2>
-            <p style="color: #666; margin-bottom: 20px;">Distribution of prophage gene functions across all samples</p>
-            <div class="chart-wrapper">
-                <canvas id="functionalPieChart"></canvas>
-            </div>
-        </div>
+    html += """            </tbody>
+        </table>
     </div>
 
     <script>
-        // Tab switching
-        function switchTab(evt, tabName) {
-            const tabContents = document.getElementsByClassName('tab-content');
-            for (let i = 0; i < tabContents.length; i++) {
-                tabContents[i].classList.remove('active');
-            }
-
-            const tabButtons = document.getElementsByClassName('tab-button');
-            for (let i = 0; i < tabButtons.length; i++) {
-                tabButtons[i].classList.remove('active');
-            }
-
-            document.getElementById(tabName).classList.add('active');
-            evt.currentTarget.classList.add('active');
-        }
-
-        // Table sorting
         function sortTable(column) {
             const table = document.getElementById('dataTable');
             const tbody = table.querySelector('tbody');
@@ -748,6 +594,7 @@ def generate_html_report(df, output_file, functional_diversity=None):
             const headers = Array.from(headerRow.querySelectorAll('th'));
             const colIndex = headers.findIndex(h => h.textContent === column);
 
+            // Toggle sort direction
             const currentSort = table.dataset.sortColumn;
             const currentDir = table.dataset.sortDir || 'asc';
             const newDir = (currentSort === column && currentDir === 'asc') ? 'desc' : 'asc';
@@ -756,6 +603,7 @@ def generate_html_report(df, output_file, functional_diversity=None):
                 const aVal = a.cells[colIndex].textContent.trim();
                 const bVal = b.cells[colIndex].textContent.trim();
 
+                // Try numeric comparison
                 const aNum = parseFloat(aVal.replace(/[^0-9.-]/g, ''));
                 const bNum = parseFloat(bVal.replace(/[^0-9.-]/g, ''));
 
@@ -763,6 +611,7 @@ def generate_html_report(df, output_file, functional_diversity=None):
                     return newDir === 'asc' ? aNum - bNum : bNum - aNum;
                 }
 
+                // String comparison
                 return newDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
             });
 
@@ -772,7 +621,6 @@ def generate_html_report(df, output_file, functional_diversity=None):
             table.dataset.sortDir = newDir;
         }
 
-        // Table filtering
         function filterTable() {
             const input = document.getElementById('searchBox');
             const filter = input.value.toUpperCase();
@@ -784,57 +632,6 @@ def generate_html_report(df, output_file, functional_diversity=None):
                 row.style.display = text.includes(filter) ? '' : 'none';
             });
         }
-
-        // Prophage Functional Diversity Pie Chart
-        const functionalLabels = {json.dumps(functional_labels)};
-        const functionalData = {json.dumps(functional_values)};
-
-        const functionalCtx = document.getElementById('functionalPieChart').getContext('2d');
-        const functionalPieChart = new Chart(functionalCtx, {{
-            type: 'pie',
-            data: {{
-                labels: functionalLabels,
-                datasets: [{{
-                    data: functionalData,
-                    backgroundColor: [
-                        '#FF6384',  // DNA Packaging
-                        '#36A2EB',  // Structural
-                        '#FFCE56',  // Lysis
-                        '#4BC0C0',  // Regulation
-                        '#9966FF',  // DNA Modification
-                        '#C9CBCF'   // Other
-                    ],
-                    borderWidth: 2,
-                    borderColor: '#fff'
-                }}]
-            }},
-            options: {{
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
-                        position: 'right',
-                        labels: {{
-                            font: {{
-                                size: 14
-                            }},
-                            padding: 15
-                        }}
-                    }},
-                    tooltip: {{
-                        callbacks: {{
-                            label: function(context) {{
-                                const label = context.label || '';
-                                const value = context.parsed || 0;
-                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                const percentage = ((value / total) * 100).toFixed(1);
-                                return label + ': ' + value + ' (' + percentage + '%)';
-                            }}
-                        }}
-                    }}
-                }}
-            }}
-        }});
     </script>
 </body>
 </html>
@@ -874,13 +671,6 @@ def main():
 
     print("Parsing VIBRANT prophage results...")
     vibrant_data = parse_vibrant(outdir / 'vibrant')
-
-    print("Parsing VIBRANT functional annotations...")
-    functional_diversity = parse_vibrant_annotations(outdir / 'vibrant')
-    if functional_diversity:
-        print(f"  Found {sum(functional_diversity.values())} categorized prophage genes")
-        for category, count in functional_diversity.items():
-            print(f"    {category}: {count}")
 
     print("Parsing DIAMOND prophage matches...")
     diamond_data = parse_diamond_prophage(outdir / 'diamond_prophage')
@@ -1011,8 +801,8 @@ def main():
     df.to_csv(args.output_tsv, sep='\t', index=False)
     print(f"✓ TSV summary written to {args.output_tsv}")
 
-    # Generate HTML report with functional diversity data
-    generate_html_report(df, args.output_html, functional_diversity=functional_diversity)
+    # Generate HTML report
+    generate_html_report(df, args.output_html)
     print(f"✓ HTML report written to {args.output_html}")
 
     print(f"\n=== Summary Statistics ===")

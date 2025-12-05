@@ -103,17 +103,18 @@ for i in "${!vibrant_dir_array[@]}"; do
     # Extract sample ID from directory name
     sample_id=$(basename "$vdir" | sed 's/_vibrant$//')
 
-    # Find VIBRANT quality file
-    # Path pattern: {sample}_vibrant/VIBRANT_{sample}/VIBRANT_results_{sample}/VIBRANT_genome_quality_{sample}.tsv
-    quality_file=$(find "$vdir" -name "VIBRANT_genome_quality_*.tsv" 2>/dev/null | head -1)
+    # Find VIBRANT quality file using expected path pattern (faster than find)
+    # Path pattern: {sample}_vibrant/VIBRANT_{sample}_contigs/VIBRANT_results_{sample}_contigs/VIBRANT_genome_quality_{sample}_contigs.tsv
+    quality_file="${vdir}/VIBRANT_${sample_id}_contigs/VIBRANT_results_${sample_id}_contigs/VIBRANT_genome_quality_${sample_id}_contigs.tsv"
 
-    if [ -n "$quality_file" ] && [ -f "$quality_file" ]; then
+    if [ -f "$quality_file" ]; then
         # Add data lines with sample_id prepended
         tail -n +2 "$quality_file" | awk -v sid="$sample_id" 'BEGIN{OFS="\t"} {print sid, $0}' >> "${VIBRANT_OUTPUT}"
         ((found_results++))
     fi
 
-    if [ $(((i+1) % 50)) -eq 0 ]; then
+    # Show progress more frequently - every 25 directories
+    if [ $(((i+1) % 25)) -eq 0 ]; then
         echo "    Processed $((i+1)) / $vibrant_count directories (found results in $found_results)..."
     fi
 done

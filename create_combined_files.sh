@@ -26,8 +26,11 @@ echo "📊 [1/2] Combining AMRFinder results..."
 echo "----------------------------------------"
 
 AMR_OUTPUT="amr_combined.tsv"
-amr_files=$(find amrfinder -name "*_amr.tsv" 2>/dev/null | sort)
-amr_count=$(echo "$amr_files" | wc -l)
+
+# Build array of AMR files
+echo "  Finding AMRFinder files..."
+mapfile -t amr_file_array < <(find amrfinder -name "*_amr.tsv" 2>/dev/null | sort)
+amr_count=${#amr_file_array[@]}
 
 if [ $amr_count -eq 0 ]; then
     echo "  ❌ No AMRFinder files found!"
@@ -37,7 +40,7 @@ fi
 echo "  Found ${amr_count} AMRFinder result files"
 
 # Get header from first file and add sample_id column
-first_file=$(echo "$amr_files" | head -1)
+first_file="${amr_file_array[0]}"
 echo "  Using header from: $(basename $first_file)"
 
 # Write header with sample_id prepended
@@ -45,20 +48,20 @@ echo -ne "sample_id\t" > "${AMR_OUTPUT}"
 head -1 "$first_file" >> "${AMR_OUTPUT}"
 
 # Process each file
-processed=0
 echo "  Processing files..."
-while IFS= read -r amr_file; do
+for i in "${!amr_file_array[@]}"; do
+    amr_file="${amr_file_array[$i]}"
+
     # Extract sample ID from filename (e.g., SRR12345678_amr.tsv -> SRR12345678)
     sample_id=$(basename "$amr_file" | sed 's/_amr\.tsv$//')
 
     # Add all data lines with sample_id prepended
     tail -n +2 "$amr_file" | awk -v sid="$sample_id" 'BEGIN{OFS="\t"} {print sid, $0}' >> "${AMR_OUTPUT}"
 
-    ((processed++))
-    if [ $((processed % 50)) -eq 0 ]; then
-        echo "    Processed $processed / $amr_count files..."
+    if [ $(((i+1) % 50)) -eq 0 ]; then
+        echo "    Processed $((i+1)) / $amr_count files..."
     fi
-done < <(find amrfinder -name "*_amr.tsv" 2>/dev/null | sort)
+done
 
 total_lines=$(wc -l < "${AMR_OUTPUT}")
 data_lines=$((total_lines - 1))
@@ -75,8 +78,11 @@ echo "🦠 [2/2] Combining VIBRANT results..."
 echo "----------------------------------------"
 
 VIBRANT_OUTPUT="vibrant_combined.tsv"
-vibrant_dirs=$(find vibrant -maxdepth 1 -type d -name "*_vibrant" 2>/dev/null | sort)
-vibrant_count=$(echo "$vibrant_dirs" | wc -l)
+
+# Build array of VIBRANT directories
+echo "  Finding VIBRANT directories..."
+mapfile -t vibrant_dir_array < <(find vibrant -maxdepth 1 -type d -name "*_vibrant" 2>/dev/null | sort)
+vibrant_count=${#vibrant_dir_array[@]}
 
 if [ $vibrant_count -eq 0 ]; then
     echo "  ❌ No VIBRANT directories found!"
@@ -89,11 +95,11 @@ echo "  Found ${vibrant_count} VIBRANT result directories"
 echo -e "sample_id\tscaffold\tfragment\tprotein\tkeywords\ttype\tquality\tcompleteness\tcontig_id" > "${VIBRANT_OUTPUT}"
 
 # Process each VIBRANT directory
-processed=0
 found_results=0
-
 echo "  Processing directories..."
-while IFS= read -r vdir; do
+for i in "${!vibrant_dir_array[@]}"; do
+    vdir="${vibrant_dir_array[$i]}"
+
     # Extract sample ID from directory name
     sample_id=$(basename "$vdir" | sed 's/_vibrant$//')
 
@@ -107,11 +113,10 @@ while IFS= read -r vdir; do
         ((found_results++))
     fi
 
-    ((processed++))
-    if [ $((processed % 50)) -eq 0 ]; then
-        echo "    Processed $processed / $vibrant_count directories (found results in $found_results)..."
+    if [ $(((i+1) % 50)) -eq 0 ]; then
+        echo "    Processed $((i+1)) / $vibrant_count directories (found results in $found_results)..."
     fi
-done < <(find vibrant -maxdepth 1 -type d -name "*_vibrant" 2>/dev/null | sort)
+done
 
 total_lines=$(wc -l < "${VIBRANT_OUTPUT}")
 data_lines=$((total_lines - 1))

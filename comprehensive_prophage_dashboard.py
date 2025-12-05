@@ -145,6 +145,7 @@ def parse_vibrant_annotations(base_dir):
     hypothetical_count = 0
     total_proteins = 0
     samples_processed = 0
+    debug_annotations = []  # Collect sample annotations for debugging
 
     # Process each VIBRANT directory
     for sample_dir in sorted(vibrant_dir.glob("*_vibrant")):
@@ -161,20 +162,37 @@ def parse_vibrant_annotations(base_dir):
         try:
             df_annot = pd.read_csv(annot_files[0], sep='\t')
 
+            # Debug: Show columns from first file
+            if samples_processed == 1:
+                print(f"  📋 Annotation file columns: {list(df_annot.columns)}")
+
             # Find protein annotation column
             protein_col = None
-            for col in ['protein', 'annotation', 'product', 'description']:
+            for col in ['protein', 'annotation', 'product', 'description', 'AMG KO', 'AMG KO name']:
                 if col in df_annot.columns:
                     protein_col = col
                     break
 
             if not protein_col:
+                if samples_processed == 1:
+                    print(f"  ⚠️  Warning: No recognized annotation column found in {annot_files[0].name}")
                 continue
+
+            # Debug: Show first few annotations
+            if samples_processed == 1:
+                print(f"  📝 Using column: '{protein_col}'")
+                print(f"  📝 Sample annotations (first 5):")
+                for ann in df_annot[protein_col].dropna().head(5):
+                    print(f"      - {ann}")
 
             # Categorize each annotation
             for annotation in df_annot[protein_col].dropna():
                 total_proteins += 1
                 annotation_lower = str(annotation).lower()
+
+                # Collect debug samples
+                if len(debug_annotations) < 10:
+                    debug_annotations.append(annotation)
 
                 # Skip hypothetical/unknown proteins
                 if any(x in annotation_lower for x in ['hypothetical', 'duf', 'unknown function', 'uncharacterized', 'putative']):
@@ -226,6 +244,14 @@ def parse_vibrant_annotations(base_dir):
 def create_visualizations(df, stats, output_dir):
     """Create comprehensive visualization dashboard."""
     print("\n📊 Generating visualizations...")
+
+    # Validate required columns
+    required_cols = ['type', 'quality', 'sample_id']
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        print(f"  ❌ Error: Missing required columns: {missing_cols}")
+        print(f"  Available columns: {list(df.columns)}")
+        raise ValueError(f"DataFrame missing required columns: {missing_cols}")
 
     # Set style
     plt.style.use('seaborn-v0_8-whitegrid')
@@ -290,15 +316,32 @@ def create_visualizations(df, stats, output_dir):
 
     # 5. Prophage Type by Quality (Stacked Bar)
     ax5 = fig.add_subplot(gs[1, 1])
-    type_quality_crosstab = pd.crosstab(df['type'], df['quality'])
-    type_quality_crosstab.plot(kind='bar', stacked=True, ax=ax5,
-                                color=['#FFD93D', '#6BCB77', '#4D96FF', '#C3C3C3'])
-    ax5.set_xlabel('Prophage Type', fontsize=11, fontweight='bold')
-    ax5.set_ylabel('Count', fontsize=11, fontweight='bold')
-    ax5.set_title('Prophage Type by Quality', fontsize=12, fontweight='bold', pad=10)
-    ax5.legend(title='Quality', loc='upper right', fontsize=9)
-    ax5.grid(axis='y', alpha=0.3)
-    plt.setp(ax5.xaxis.get_majorticklabels(), rotation=45, ha='right')
+    try:
+        # Create crosstab and verify it has data
+        type_quality_crosstab = pd.crosstab(df['type'], df['quality'])
+
+        # Check if crosstab is empty or has no data
+        if type_quality_crosstab.empty or type_quality_crosstab.sum().sum() == 0:
+            # Fallback: show simple message
+            ax5.text(0.5, 0.5, 'Insufficient data for\nType x Quality crosstab',
+                    ha='center', va='center', fontsize=12, transform=ax5.transAxes)
+            ax5.set_title('Prophage Type by Quality', fontsize=12, fontweight='bold', pad=10)
+        else:
+            # Plot crosstab
+            type_quality_crosstab.plot(kind='bar', stacked=True, ax=ax5,
+                                        color=['#FFD93D', '#6BCB77', '#4D96FF', '#C3C3C3'])
+            ax5.set_xlabel('Prophage Type', fontsize=11, fontweight='bold')
+            ax5.set_ylabel('Count', fontsize=11, fontweight='bold')
+            ax5.set_title('Prophage Type by Quality', fontsize=12, fontweight='bold', pad=10)
+            ax5.legend(title='Quality', loc='upper right', fontsize=9)
+            ax5.grid(axis='y', alpha=0.3)
+            plt.setp(ax5.xaxis.get_majorticklabels(), rotation=45, ha='right')
+    except Exception as e:
+        # Fallback on any error
+        print(f"  Warning: Could not create Type x Quality crosstab: {e}")
+        ax5.text(0.5, 0.5, 'Error creating crosstab\nSee log for details',
+                ha='center', va='center', fontsize=12, transform=ax5.transAxes)
+        ax5.set_title('Prophage Type by Quality', fontsize=12, fontweight='bold', pad=10)
 
     # 6. Top 15 Samples by Prophage Count (Horizontal Bar)
     ax6 = fig.add_subplot(gs[1, 2])

@@ -111,65 +111,83 @@ def parse_vibrant_annotations(base_dir):
                 print(f"  📋 Columns: {list(df_annot.columns)}")
                 print(f"  📋 Shape: {df_annot.shape}")
 
-            # Try to find the protein annotation column
-            # VIBRANT uses different column names depending on version
-            protein_col = None
-            for col in ['protein', 'annotation', 'product', 'description',
-                       'AMG KO name', 'KEGG', 'Pfam', 'VOG', 'annotation']:
-                if col in df_annot.columns:
-                    protein_col = col
-                    if samples_processed == 1:
-                        print(f"  ✅ Using column: '{protein_col}'")
-                    break
-
-            if not protein_col:
-                # Try to use the last column or any column with text
-                for col in df_annot.columns:
-                    if df_annot[col].dtype == 'object':
-                        protein_col = col
-                        if samples_processed == 1:
-                            print(f"  ⚠️  No standard column found, trying: '{protein_col}'")
-                        break
-
-            if not protein_col:
-                if samples_processed == 1:
-                    print(f"  ❌ Could not find suitable annotation column")
-                continue
-
-            # Show sample annotations
+            # VIBRANT uses multiple columns for functional info
+            # Based on working v1.2-stable code: columns 4 (KO), 9 (Pfam), 14 (VOG)
             if samples_processed == 1:
-                print(f"\n  📝 Sample annotations (first 10):")
-                for idx, ann in enumerate(df_annot[protein_col].dropna().head(10), 1):
-                    print(f"      {idx}. {ann}")
-                print()
+                print(f"  ✅ Using VIBRANT multi-column format:")
+                print(f"     - Column index 4: KO name")
+                print(f"     - Column index 9: Pfam name")
+                print(f"     - Column index 14: VOG name")
 
-            # Categorize each annotation
-            for annotation in df_annot[protein_col].dropna():
+            # Process each row
+            for idx, row in df_annot.iterrows():
                 total_proteins += 1
-                annotation_lower = str(annotation).lower()
+
+                # Extract annotation from multiple columns
+                ko_name = str(row.iloc[4]) if len(row) > 4 else ""
+                pfam_name = str(row.iloc[9]) if len(row) > 9 else ""
+                vog_name = str(row.iloc[14]) if len(row) > 14 else ""
+
+                combined = f"{ko_name} {pfam_name} {vog_name}".lower()
 
                 # Collect debug samples
                 if len(debug_annotations) < 20:
-                    debug_annotations.append(annotation)
+                    debug_annotations.append(f"KO:{ko_name} | Pfam:{pfam_name} | VOG:{vog_name}")
+
+                # Show sample annotations from first file
+                if samples_processed == 1 and total_proteins <= 10:
+                    print(f"      {total_proteins}. KO:{ko_name} | Pfam:{pfam_name} | VOG:{vog_name}")
 
                 # Skip hypothetical/unknown proteins
                 hypothetical_keywords = [
                     'hypothetical', 'duf', 'unknown function',
                     'uncharacterized', 'putative', 'predicted protein',
-                    'unnamed protein', 'protein of unknown function'
+                    'unnamed protein', 'protein of unknown function', 'nan'
                 ]
 
-                if any(kw in annotation_lower for kw in hypothetical_keywords):
+                if any(kw in combined for kw in hypothetical_keywords):
                     hypothetical_count += 1
                     continue
 
-                # Categorize by keyword matching
+                # Categorize using combined annotation (from v1.2-stable logic)
                 categorized = False
-                for category, keywords in function_keywords.items():
-                    if any(keyword.lower() in annotation_lower for keyword in keywords):
-                        functional_data[category] += 1
-                        categorized = True
-                        break
+
+                # DNA Packaging
+                if any(term in combined for term in ['terminase', 'portal', 'packaging protein', 'dna-packaging']):
+                    functional_data['DNA Packaging'] += 1
+                    categorized = True
+                # Structural - Capsid/Head
+                elif any(term in combined for term in ['capsid', 'head', 'coat protein', 'major capsid', 'minor capsid']):
+                    functional_data['Structural'] += 1
+                    categorized = True
+                # Structural - Tail
+                elif any(term in combined for term in ['tail', 'baseplate']):
+                    functional_data['Structural'] += 1
+                    categorized = True
+                # Tail Fiber
+                elif any(term in combined for term in ['fiber', 'tail fiber', 'tail spike', 'receptor binding']):
+                    functional_data['Tail Fiber'] += 1
+                    categorized = True
+                # Lysis
+                elif any(term in combined for term in ['lyso', 'lysis', 'holin', 'spanin', 'endopeptidase', 'lysin', 'endolysin']):
+                    functional_data['Lysis'] += 1
+                    categorized = True
+                # DNA Modification (integrase/recombinase)
+                elif any(term in combined for term in ['integrase', 'recombinase', 'transposase', 'excisionase']):
+                    functional_data['DNA Modification'] += 1
+                    categorized = True
+                # DNA Modification (replication)
+                elif any(term in combined for term in ['replication', 'primase', 'helicase', 'polymerase', 'ligase']):
+                    functional_data['DNA Modification'] += 1
+                    categorized = True
+                # DNA Modification (nucleases)
+                elif any(term in combined for term in ['endonuclease', 'exonuclease', 'nuclease', 'methylase', 'methyltransferase']):
+                    functional_data['DNA Modification'] += 1
+                    categorized = True
+                # Regulation
+                elif any(term in combined for term in ['repressor', 'regulator', 'antitermination', 'antirepressor', 'anti-repressor']):
+                    functional_data['Regulation'] += 1
+                    categorized = True
 
                 # If not categorized and not hypothetical, mark as "Other"
                 if not categorized:

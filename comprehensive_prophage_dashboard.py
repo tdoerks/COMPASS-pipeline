@@ -121,6 +121,108 @@ def analyze_sample_patterns(df, total_samples):
 
     return pattern_stats
 
+def parse_vibrant_annotations(base_dir):
+    """Parse VIBRANT annotation files to extract prophage functional categories."""
+    print("\n🧬 Parsing prophage functional annotations...")
+
+    vibrant_dir = base_dir / "vibrant"
+    if not vibrant_dir.exists():
+        print("  ⚠️  VIBRANT directory not found, skipping functional analysis")
+        return None
+
+    # Define functional category keywords
+    function_keywords = {
+        'DNA Packaging': ['terminase', 'portal', 'scaffolding', 'DNA-packaging', 'packaging protein', 'head-tail connector'],
+        'Structural': ['capsid', 'coat protein', 'tail', 'baseplate', 'head protein', 'neck', 'collar', 'major capsid', 'minor capsid'],
+        'Lysis': ['holin', 'lysin', 'endolysin', 'spanin', 'lysis protein', 'murein hydrolase'],
+        'Regulation': ['antitermination', 'repressor', 'regulator', 'cro protein', 'cI protein', 'transcriptional', 'anti-repressor'],
+        'DNA Modification': ['recombinase', 'integrase', 'helicase', 'primase', 'polymerase', 'ligase', 'exonuclease', 'endonuclease', 'DNA replication'],
+        'Tail Fiber': ['tail fiber', 'tail spike', 'tail tip', 'receptor binding'],
+        'Other': []  # Catch-all for characterized proteins
+    }
+
+    functional_data = Counter()
+    hypothetical_count = 0
+    total_proteins = 0
+    samples_processed = 0
+
+    # Process each VIBRANT directory
+    for sample_dir in sorted(vibrant_dir.glob("*_vibrant")):
+        sample_id = sample_dir.name.replace('_vibrant', '')
+
+        # Look for annotation file
+        annot_pattern = f"VIBRANT_annotations_{sample_id}_contigs.tsv"
+        annot_files = list(sample_dir.rglob(annot_pattern))
+
+        if not annot_files:
+            continue
+
+        samples_processed += 1
+        try:
+            df_annot = pd.read_csv(annot_files[0], sep='\t')
+
+            # Find protein annotation column
+            protein_col = None
+            for col in ['protein', 'annotation', 'product', 'description']:
+                if col in df_annot.columns:
+                    protein_col = col
+                    break
+
+            if not protein_col:
+                continue
+
+            # Categorize each annotation
+            for annotation in df_annot[protein_col].dropna():
+                total_proteins += 1
+                annotation_lower = str(annotation).lower()
+
+                # Skip hypothetical/unknown proteins
+                if any(x in annotation_lower for x in ['hypothetical', 'duf', 'unknown function', 'uncharacterized', 'putative']):
+                    hypothetical_count += 1
+                    continue
+
+                # Categorize by keyword matching
+                categorized = False
+                for category, keywords in function_keywords.items():
+                    if category == 'Other':
+                        continue
+                    if any(keyword.lower() in annotation_lower for keyword in keywords):
+                        functional_data[category] += 1
+                        categorized = True
+                        break
+
+                # If not categorized and not hypothetical, mark as "Other"
+                if not categorized:
+                    functional_data['Other'] += 1
+
+        except Exception as e:
+            print(f"    Warning: Could not parse {annot_files[0].name}: {e}")
+            continue
+
+        if samples_processed % 100 == 0:
+            print(f"    Processed {samples_processed} samples...")
+
+    if functional_data:
+        print(f"\n  ✅ Analyzed {total_proteins:,} proteins from {samples_processed} samples")
+        print(f"  📊 Functional Categories:")
+        for category, count in functional_data.most_common():
+            pct = count / total_proteins * 100 if total_proteins > 0 else 0
+            print(f"    • {category}: {count:,} ({pct:.1f}%)")
+        print(f"    • Hypothetical/Unknown: {hypothetical_count:,} ({hypothetical_count/total_proteins*100:.1f}%)")
+
+        functional_stats = {
+            'counts': dict(functional_data),
+            'percentages': {cat: (count / total_proteins * 100) for cat, count in functional_data.items()},
+            'hypothetical_count': hypothetical_count,
+            'total_proteins': total_proteins,
+            'samples_processed': samples_processed
+        }
+
+        return functional_stats
+    else:
+        print("  ⚠️  No functional annotations found")
+        return None
+
 def create_visualizations(df, stats, output_dir):
     """Create comprehensive visualization dashboard."""
     print("\n📊 Generating visualizations...")
@@ -129,9 +231,10 @@ def create_visualizations(df, stats, output_dir):
     plt.style.use('seaborn-v0_8-whitegrid')
     sns.set_palette("husl")
 
-    # Create figure with multiple subplots
-    fig = plt.figure(figsize=(20, 12))
-    gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.3)
+    # Create figure with multiple subplots - expanded for functional categories
+    has_functional = stats.get('functional') is not None
+    fig = plt.figure(figsize=(24, 16) if has_functional else (20, 12))
+    gs = fig.add_gridspec(4 if has_functional else 3, 3, hspace=0.3, wspace=0.3)
 
     # Title
     fig.suptitle('Comprehensive Prophage Analysis Dashboard\nKansas 2021-2025 NARMS Dataset',
@@ -207,9 +310,40 @@ def create_visualizations(df, stats, output_dir):
     ax6.set_title('Top 15 Samples by Prophage Count', fontsize=12, fontweight='bold', pad=10)
     ax6.grid(axis='x', alpha=0.3)
 
-    # 7. Summary Statistics Box
-    ax7 = fig.add_subplot(gs[2, :])
-    ax7.axis('off')
+    # 7. Functional Categories (if available)
+    if has_functional and stats['functional']:
+        # 7a. Functional Categories Pie Chart
+        ax7a = fig.add_subplot(gs[2, 0])
+        func_counts = Counter(stats['functional']['counts'])
+        colors_func = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF']
+        wedges, texts, autotexts = ax7a.pie(func_counts.values(), labels=func_counts.keys(),
+                                             autopct='%1.1f%%', colors=colors_func[:len(func_counts)],
+                                             startangle=90, textprops={'fontsize': 9, 'weight': 'bold'})
+        ax7a.set_title('Prophage Functional Categories\n(Characterized Proteins)',
+                       fontsize=12, fontweight='bold', pad=10)
+
+        # 7b. Functional Categories Bar Chart
+        ax7b = fig.add_subplot(gs[2, 1:])
+        categories = list(stats['functional']['counts'].keys())
+        counts = [stats['functional']['counts'][c] for c in categories]
+        bars = ax7b.barh(range(len(categories)), counts, color=colors_func[:len(categories)])
+        ax7b.set_yticks(range(len(categories)))
+        ax7b.set_yticklabels(categories, fontsize=10)
+        ax7b.set_xlabel('Number of Proteins', fontsize=11, fontweight='bold')
+        ax7b.set_title(f'Prophage Protein Functions\n({stats["functional"]["total_proteins"]:,} total proteins analyzed)',
+                       fontsize=12, fontweight='bold', pad=10)
+        ax7b.grid(axis='x', alpha=0.3)
+
+        # Add value labels on bars
+        for i, (bar, count) in enumerate(zip(bars, counts)):
+            pct = stats['functional']['percentages'][categories[i]]
+            ax7b.text(bar.get_width() + max(counts)*0.01, bar.get_y() + bar.get_height()/2,
+                     f'{count:,} ({pct:.1f}%)', va='center', fontsize=9)
+
+    # 8. Summary Statistics Box
+    summary_row = 3 if has_functional else 2
+    ax8 = fig.add_subplot(gs[summary_row, :])
+    ax8.axis('off')
 
     summary_text = f"""
     📊 SUMMARY STATISTICS
@@ -230,7 +364,15 @@ def create_visualizations(df, stats, output_dir):
     • Mean: {stats['patterns']['mean']:.2f} ± {stats['patterns']['std']:.2f} (std dev)
     """
 
-    ax7.text(0.05, 0.95, summary_text, transform=ax7.transAxes,
+    if has_functional and stats['functional']:
+        summary_text += f"""
+    Functional Categories (Top 3):
+    {chr(10).join([f"    • {cat}: {count:,} ({stats['functional']['percentages'][cat]:.1f}%)"
+                   for cat, count in Counter(stats['functional']['counts']).most_common(3)])}
+    • Hypothetical/Unknown: {stats['functional']['hypothetical_count']:,} ({stats['functional']['hypothetical_count']/stats['functional']['total_proteins']*100:.1f}%)
+    """
+
+    ax8.text(0.05, 0.95, summary_text, transform=ax8.transAxes,
              fontsize=11, verticalalignment='top', fontfamily='monospace',
              bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
 
@@ -506,6 +648,59 @@ def generate_html_report(df, stats, output_dir):
                     </ul>
                 </div>
             </section>
+"""
+
+    # Add functional categories section if available
+    if stats.get('functional'):
+        html_content += """
+            <section class="section">
+                <h2>🧬 Prophage Functional Categories</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Functional Category</th>
+                            <th>Protein Count</th>
+                            <th>Percentage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+"""
+        for category, count in Counter(stats['functional']['counts']).most_common():
+            pct = stats['functional']['percentages'][category]
+            html_content += f"""
+                        <tr>
+                            <td><strong>{category}</strong></td>
+                            <td>{count:,}</td>
+                            <td>{pct:.1f}%</td>
+                        </tr>
+"""
+
+        html_content += f"""
+                        <tr style="background: #f0f0f0;">
+                            <td><strong>Hypothetical/Unknown</strong></td>
+                            <td>{stats['functional']['hypothetical_count']:,}</td>
+                            <td>{stats['functional']['hypothetical_count']/stats['functional']['total_proteins']*100:.1f}%</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="info-box">
+                    <strong>🔬 Functional Analysis:</strong>
+                    <ul>
+                        <li>Total Proteins Analyzed: {stats['functional']['total_proteins']:,}</li>
+                        <li>Samples Processed: {stats['functional']['samples_processed']}</li>
+                        <li><strong>DNA Packaging:</strong> Proteins involved in packaging viral DNA into capsids</li>
+                        <li><strong>Structural:</strong> Capsid, tail, and virion structural components</li>
+                        <li><strong>Lysis:</strong> Proteins that lyse the host cell to release virions</li>
+                        <li><strong>Regulation:</strong> Transcriptional regulators and repressors</li>
+                        <li><strong>DNA Modification:</strong> Recombination, replication, and DNA manipulation</li>
+                        <li><strong>Tail Fiber:</strong> Host recognition and receptor binding proteins</li>
+                    </ul>
+                </div>
+            </section>
+"""
+
+    html_content += """
         </div>
     </div>
 </body>
@@ -552,7 +747,8 @@ def main():
         'overall': calculate_overall_statistics(df, total_samples),
         'types': analyze_prophage_types(df),
         'quality': analyze_prophage_quality(df),
-        'patterns': analyze_sample_patterns(df, total_samples)
+        'patterns': analyze_sample_patterns(df, total_samples),
+        'functional': parse_vibrant_annotations(base_dir)
     }
 
     # Create visualizations

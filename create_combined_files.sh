@@ -55,8 +55,8 @@ while IFS= read -r amr_file; do
     tail -n +2 "$amr_file" | awk -v sid="$sample_id" 'BEGIN{OFS="\t"} {print sid, $0}' >> "${AMR_OUTPUT}"
 
     ((processed++))
-    if [ $((processed % 100)) -eq 0 ]; then
-        echo "    Processed $processed files..."
+    if [ $((processed % 50)) -eq 0 ]; then
+        echo "    Processed $processed / $amr_count files..."
     fi
 done < <(find amrfinder -name "*_amr.tsv" 2>/dev/null | sort)
 
@@ -109,7 +109,7 @@ while IFS= read -r vdir; do
 
     ((processed++))
     if [ $((processed % 50)) -eq 0 ]; then
-        echo "    Processed $processed directories..."
+        echo "    Processed $processed / $vibrant_count directories (found results in $found_results)..."
     fi
 done < <(find vibrant -maxdepth 1 -type d -name "*_vibrant" 2>/dev/null | sort)
 

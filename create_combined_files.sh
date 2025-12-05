@@ -5,10 +5,17 @@
 # This script combines individual AMRFinder and VIBRANT results
 # into single TSV files required by the analysis scripts
 #
+# Usage: ./create_combined_files.sh [data_directory]
+#   If no directory specified, uses: /bulk/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod
+#
+# Example:
+#   ./create_combined_files.sh /fastscratch/tylerdoe/kansas_2021-2025_all_narms_v1.2mod
+#
 
 set -e  # Exit on error
 
-KANSAS_DIR="/bulk/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod"
+# Check if directory is passed as argument, otherwise use default
+KANSAS_DIR="${1:-/bulk/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod}"
 
 echo "=========================================="
 echo "Creating Combined TSV Files"

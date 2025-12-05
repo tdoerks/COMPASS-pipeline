@@ -47,7 +47,7 @@ head -1 "$first_file" >> "${AMR_OUTPUT}"
 # Process each file
 processed=0
 echo "  Processing files..."
-echo "$amr_files" | while read amr_file; do
+while IFS= read -r amr_file; do
     # Extract sample ID from filename (e.g., SRR12345678_amr.tsv -> SRR12345678)
     sample_id=$(basename "$amr_file" | sed 's/_amr\.tsv$//')
 
@@ -58,7 +58,7 @@ echo "$amr_files" | while read amr_file; do
     if [ $((processed % 100)) -eq 0 ]; then
         echo "    Processed $processed files..."
     fi
-done
+done < <(find amrfinder -name "*_amr.tsv" 2>/dev/null | sort)
 
 total_lines=$(wc -l < "${AMR_OUTPUT}")
 data_lines=$((total_lines - 1))
@@ -93,7 +93,7 @@ processed=0
 found_results=0
 
 echo "  Processing directories..."
-echo "$vibrant_dirs" | while read vdir; do
+while IFS= read -r vdir; do
     # Extract sample ID from directory name
     sample_id=$(basename "$vdir" | sed 's/_vibrant$//')
 
@@ -111,7 +111,7 @@ echo "$vibrant_dirs" | while read vdir; do
     if [ $((processed % 50)) -eq 0 ]; then
         echo "    Processed $processed directories..."
     fi
-done
+done < <(find vibrant -maxdepth 1 -type d -name "*_vibrant" 2>/dev/null | sort)
 
 total_lines=$(wc -l < "${VIBRANT_OUTPUT}")
 data_lines=$((total_lines - 1))

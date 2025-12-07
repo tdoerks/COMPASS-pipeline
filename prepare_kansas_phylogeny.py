@@ -128,11 +128,12 @@ def load_sample_metadata(results_dir):
                 reader = csv.DictReader(f)
                 for row in reader:
                     srr_id = row.get('Run', '')
-                    metadata[srr_id] = {
-                        'organism': row.get('organism', 'Unknown'),
-                        'sample_name': row.get('SampleName', ''),
-                        'collection_date': row.get('Collection_Date', 'Unknown')
-                    }
+                    if srr_id:  # Only add if we have a valid Run ID
+                        metadata[srr_id] = {
+                            'organism': row.get('organism', 'Unknown'),
+                            'sample_name': row.get('SampleName', ''),
+                            'year': row.get('Year', 'Unknown')  # Changed from Collection_Date to Year
+                        }
         except Exception as e:
             print(f"  Warning: Could not read {filtered_file}: {e}")
 
@@ -191,8 +192,14 @@ def extract_prophage_sequences(complete_prophages, sample_metadata, output_fasta
         sample_meta = sample_metadata.get(sample_id, {})
         organism = sample_meta.get('organism', 'Unknown')
         sample_name = sample_meta.get('sample_name', '')
-        collection_date = sample_meta.get('collection_date', 'Unknown')
-        year = extract_year_from_sample(sample_name, collection_date)
+        year = sample_meta.get('year', 'Unknown')
+
+        # Convert year to int if possible
+        if year != 'Unknown':
+            try:
+                year = int(year)
+            except (ValueError, TypeError):
+                year = 'Unknown'
 
         # Parse the phages_combined.fna file
         for phage_file in phage_files:

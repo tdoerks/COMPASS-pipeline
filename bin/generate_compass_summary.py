@@ -377,7 +377,7 @@ def parse_diamond_prophage(diamond_dir):
                 print(f"Warning: Could not parse DIAMOND results for {diamond_file}: {e}", file=sys.stderr)
     return diamond_data
 
-def generate_html_report(df, output_file, functional_diversity=None):
+def generate_html_report(df, output_file, functional_diversity=None, multiqc_path=None):
     """Generate interactive multi-tab HTML report with visualizations"""
 
     # Calculate summary statistics
@@ -409,6 +409,9 @@ def generate_html_report(df, output_file, functional_diversity=None):
         for category, count in functional_diversity.items():
             functional_labels.append(category)
             functional_values.append(count)
+
+    # Check if MultiQC report exists
+    has_multiqc = multiqc_path and Path(multiqc_path).exists()
 
     # Generate HTML
     html = f"""<!DOCTYPE html>
@@ -631,7 +634,13 @@ def generate_html_report(df, output_file, functional_diversity=None):
         <div class="tab-buttons">
             <button class="tab-button active" onclick="switchTab(event, 'overview')">Overview</button>
             <button class="tab-button" onclick="switchTab(event, 'data-table')">Data Table</button>
-            <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>
+            <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>"""
+
+    if has_multiqc:
+        html += """
+            <button class="tab-button" onclick="switchTab(event, 'multiqc')">MultiQC Report</button>"""
+
+    html += """
         </div>
     </div>
 
@@ -726,7 +735,24 @@ def generate_html_report(df, output_file, functional_diversity=None):
                 <canvas id="functionalPieChart"></canvas>
             </div>
         </div>
-    </div>
+    </div>"""
+
+    if has_multiqc:
+        html += """
+    <!-- MultiQC Report Tab -->
+    <div id="multiqc" class="tab-content">
+        <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h2 style="margin-bottom: 15px;">Quality Control Report</h2>
+            <p style="color: #666; margin-bottom: 20px;">
+                Comprehensive QC metrics from FastQC, fastp, QUAST, and BUSCO aggregated by MultiQC.
+            </p>
+            <iframe src="../multiqc/multiqc_report.html"
+                    style="width: 100%; height: 1200px; border: none; border-radius: 4px;">
+            </iframe>
+        </div>
+    </div>"""
+
+    html += """
 
     <script>
         // Tab switching
@@ -1017,8 +1043,18 @@ def main():
     df.to_csv(args.output_tsv, sep='\t', index=False)
     print(f"✓ TSV summary written to {args.output_tsv}")
 
-    # Generate HTML report with functional diversity data
-    generate_html_report(df, args.output_html, functional_diversity=functional_diversity)
+    # Check for MultiQC report
+    multiqc_report = outdir / 'multiqc' / 'multiqc_report.html'
+    if multiqc_report.exists():
+        print(f"✓ Found MultiQC report at {multiqc_report}")
+    else:
+        print(f"⚠️  MultiQC report not found at {multiqc_report}")
+        multiqc_report = None
+
+    # Generate HTML report with functional diversity data and MultiQC
+    generate_html_report(df, args.output_html,
+                        functional_diversity=functional_diversity,
+                        multiqc_path=multiqc_report)
     print(f"✓ HTML report written to {args.output_html}")
 
     print(f"\n=== Summary Statistics ===")

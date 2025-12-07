@@ -114,7 +114,7 @@ def extract_sample_id(vibrant_path):
     return 'Unknown'
 
 
-def load_sample_metadata(results_dir):
+def load_sample_metadata(results_dir, debug=False):
     """Load sample metadata from filtered_samples.csv files"""
     print("\nLoading sample metadata...")
 
@@ -134,10 +134,14 @@ def load_sample_metadata(results_dir):
                             'sample_name': row.get('SampleName', ''),
                             'year': row.get('Year', 'Unknown')  # Changed from Collection_Date to Year
                         }
+                        if debug and len(metadata) <= 3:  # Show first 3 samples
+                            print(f"  Debug - Sample {srr_id}: organism={row.get('organism')}, year={row.get('Year')}")
         except Exception as e:
             print(f"  Warning: Could not read {filtered_file}: {e}")
 
     print(f"  Loaded metadata for {len(metadata)} samples")
+    if debug and metadata:
+        print(f"  Debug - First metadata key: {list(metadata.keys())[0]}")
     return metadata
 
 
@@ -163,7 +167,7 @@ def extract_year_from_sample(sample_name, collection_date):
     return None
 
 
-def extract_prophage_sequences(complete_prophages, sample_metadata, output_fasta, output_metadata):
+def extract_prophage_sequences(complete_prophages, sample_metadata, output_fasta, output_metadata, debug=False):
     """Extract prophage sequences from VIBRANT phages_combined files"""
     print(f"\nExtracting prophage sequences...")
 
@@ -178,6 +182,14 @@ def extract_prophage_sequences(complete_prophages, sample_metadata, output_fasta
         by_sample[sample_id].append(prophage)
 
     print(f"  Processing {len(by_sample)} samples...")
+
+    if debug:
+        first_sample = list(by_sample.keys())[0] if by_sample else None
+        if first_sample:
+            print(f"  Debug - First extracted sample ID: '{first_sample}'")
+            print(f"  Debug - Is it in metadata? {first_sample in sample_metadata}")
+            if first_sample in sample_metadata:
+                print(f"  Debug - Metadata: {sample_metadata[first_sample]}")
 
     for sample_id, prophages in by_sample.items():
         # Find phages_combined.fna file for this sample
@@ -358,14 +370,15 @@ def main():
         return 1
 
     # Load sample metadata
-    sample_metadata = load_sample_metadata(results_dir)
+    sample_metadata = load_sample_metadata(results_dir, debug=True)
 
     # Extract sequences
     prophage_metadata = extract_prophage_sequences(
         all_complete_prophages,
         sample_metadata,
         output_fasta,
-        output_metadata
+        output_metadata,
+        debug=True
     )
 
     if not prophage_metadata:

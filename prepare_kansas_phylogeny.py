@@ -32,23 +32,51 @@ def find_vibrant_results(results_dir):
     return vibrant_files
 
 
-def parse_vibrant_quality(quality_file):
+def parse_vibrant_quality(quality_file, debug=False):
     """Parse VIBRANT genome quality file to find complete prophages"""
     complete_prophages = []
 
     try:
         with open(quality_file) as f:
             reader = csv.DictReader(f, delimiter='\t')
+
+            # Debug: print first row to see column names
+            if debug:
+                first_row = next(reader, None)
+                if first_row:
+                    print(f"  Debug - Columns in {quality_file.name}:")
+                    print(f"    {list(first_row.keys())}")
+                    print(f"  Debug - First row values:")
+                    for k, v in first_row.items():
+                        print(f"    {k}: {v}")
+                    # Process first row
+                    quality = first_row.get('type', first_row.get('quality', '')).lower()
+                    try:
+                        length = int(first_row.get('length', first_row.get('fragment length', 0)))
+                    except (ValueError, TypeError):
+                        length = 0
+
+                    if quality in ['complete', 'high quality'] and length >= 15000:
+                        complete_prophages.append({
+                            'scaffold': first_row.get('scaffold', first_row.get('fragment', '')),
+                            'length': length,
+                            'quality': quality,
+                            'file': quality_file
+                        })
+
+            # Process remaining rows
             for row in reader:
-                # Filter for high-quality prophages
-                # VIBRANT quality: 'complete', 'high quality', 'medium quality', 'low quality'
-                quality = row.get('quality', '').lower()
-                length = int(row.get('length', 0))
+                # Try different possible column names
+                quality = row.get('type', row.get('quality', '')).lower()
+                try:
+                    length = int(row.get('length', row.get('fragment length', 0)))
+                except (ValueError, TypeError):
+                    length = 0
 
                 # Keep complete and high quality prophages >= 15kb
                 if quality in ['complete', 'high quality'] and length >= 15000:
                     complete_prophages.append({
-                        'scaffold': row.get('scaffold', ''),
+                        'scaffold': row.get('scaffold', row.get('fragment', '')),
                         'length': length,
                         'quality': quality,
                         'file': quality_file
@@ -296,9 +324,11 @@ def main():
     # Parse quality files
     print("\nParsing VIBRANT quality assessments...")
     all_complete_prophages = []
+    debug_first = True  # Enable debug for first file only
     for vf in vibrant_files:
-        prophages = parse_vibrant_quality(vf)
+        prophages = parse_vibrant_quality(vf, debug=debug_first)
         all_complete_prophages.extend(prophages)
+        debug_first = False  # Disable after first file
 
     print(f"  Found {len(all_complete_prophages)} complete prophages (>={args.min_length} bp)")
 

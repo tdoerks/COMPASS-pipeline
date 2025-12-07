@@ -754,7 +754,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         </div>
     </div>"""
 
-    html += """
+    html += f"""
 
     <script>
         // Tab switching

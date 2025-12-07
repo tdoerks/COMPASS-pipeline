@@ -38,7 +38,7 @@ def load_metadata(metadata_tsv):
                 'year': int(row['year']) if row['year'] != 'Unknown' else None,
                 'organism': row['organism'],
                 'length': int(row['length_bp']),
-                'completeness': row['completeness']
+                'quality': row.get('quality', row.get('completeness', 'Unknown'))
             })
 
     print(f"  Loaded {len(prophages)} prophages")
@@ -146,7 +146,7 @@ def save_metadata(selected_prophages, output_tsv):
 
     with open(output_tsv, 'w', newline='') as f:
         writer = csv.writer(f, delimiter='\t')
-        writer.writerow(['prophage_id', 'sample_id', 'year', 'organism', 'length_bp', 'completeness'])
+        writer.writerow(['prophage_id', 'sample_id', 'year', 'organism', 'length_bp', 'quality'])
 
         for p in selected_prophages:
             writer.writerow([
@@ -155,7 +155,7 @@ def save_metadata(selected_prophages, output_tsv):
                 p['year'] if p['year'] else 'Unknown',
                 p['organism'],
                 p['length'],
-                p['completeness']
+                p['quality']
             ])
 
     print(f"  ✅ Saved metadata for {len(selected_prophages)} prophages")

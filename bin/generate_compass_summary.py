@@ -754,7 +754,8 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         </div>
     </div>"""
 
-    html += f"""
+    # Build JavaScript section separately to avoid f-string conflicts
+    js_code = """
 
     <script>
         // Tab switching
@@ -820,8 +821,8 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         }
 
         // Prophage Functional Diversity Pie Chart
-        const functionalLabels = {json.dumps(functional_labels)};
-        const functionalData = {json.dumps(functional_values)};
+        const functionalLabels = FUNCTIONAL_LABELS_PLACEHOLDER;
+        const functionalData = FUNCTIONAL_DATA_PLACEHOLDER;
 
         const functionalCtx = document.getElementById('functionalPieChart').getContext('2d');
         const functionalPieChart = new Chart(functionalCtx, {{
@@ -873,6 +874,13 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 </body>
 </html>
 """
+
+    # Replace placeholders in JavaScript with actual data
+    js_code = js_code.replace('FUNCTIONAL_LABELS_PLACEHOLDER', json.dumps(functional_labels))
+    js_code = js_code.replace('FUNCTIONAL_DATA_PLACEHOLDER', json.dumps(functional_values))
+
+    # Append JavaScript to HTML
+    html += js_code
 
     # Write HTML file
     with open(output_file, 'w') as f:

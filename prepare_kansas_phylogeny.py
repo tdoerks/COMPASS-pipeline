@@ -211,12 +211,22 @@ def extract_prophage_sequences(complete_prophages, sample_metadata, output_fasta
         sample_name = sample_meta.get('sample_name', '')
         year = sample_meta.get('year', 'Unknown')
 
-        # Convert year to int if possible
-        if year != 'Unknown':
+        # Convert year to int if possible, or extract from sample name
+        if year != 'Unknown' and year:
             try:
-                year = int(year)
+                # Handle float values like 2024.0
+                year = int(float(year))
             except (ValueError, TypeError):
                 year = 'Unknown'
+
+        # If year is still Unknown, try to extract from sample name
+        # Format: 24KS04GT05-EC or 23KS12CL01-EC
+        if year == 'Unknown' and sample_name:
+            # Extract first 2 digits if sample name starts with digits
+            if len(sample_name) >= 2 and sample_name[:2].isdigit():
+                year_prefix = sample_name[:2]
+                # Convert to full year (24 -> 2024, 23 -> 2023)
+                year = 2000 + int(year_prefix)
 
         # Parse the phages_combined.fna file
         for phage_file in phage_files:

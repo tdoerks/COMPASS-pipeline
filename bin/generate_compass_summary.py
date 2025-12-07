@@ -246,8 +246,8 @@ def parse_vibrant(vibrant_dir):
     vibrant_data = {}
     vibrant_path = Path(vibrant_dir)
     if vibrant_path.exists():
-        # VIBRANT creates nested structure: sample_vibrant/VIBRANT_sample_contigs/VIBRANT_results_sample_contigs/VIBRANT_results_sample_contigs.tsv
-        for results_file in vibrant_path.glob('*/VIBRANT_*/VIBRANT_results_*/VIBRANT_results_*.tsv'):
+        # VIBRANT creates nested structure: sample_vibrant/VIBRANT_sample_contigs/VIBRANT_results_sample_contigs/VIBRANT_genome_quality_sample_contigs.tsv
+        for results_file in vibrant_path.glob('*/VIBRANT_*/VIBRANT_results_*/VIBRANT_genome_quality_*.tsv'):
             # Extract sample_id from directory name (e.g., SRR001_vibrant -> SRR001)
             sample_id = results_file.parents[2].name.replace('_vibrant', '')
             try:

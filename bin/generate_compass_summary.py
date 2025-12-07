@@ -385,22 +385,24 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     passed_qc = len(df[df['assembly_quality'] == 'Pass'])
     failed_qc = total_samples - passed_qc
 
+    # Convert numeric columns, replacing '-' with 0 and handling NaN
     avg_contigs = df['num_contigs'].replace('-', 0).astype(float).mean()
     avg_n50 = df['n50'].replace('-', 0).astype(float).mean()
 
     mdr_samples = len(df[df['mdr_status'] == 'Yes'])
     mdr_pct = (mdr_samples / total_samples * 100) if total_samples > 0 else 0
 
-    total_prophages = df['num_prophages'].sum()
+    # Ensure prophage counts are numeric before summing
+    total_prophages = int(df['num_prophages'].replace('-', 0).fillna(0).astype(float).sum())
     avg_prophages = total_prophages / total_samples if total_samples > 0 else 0
 
-    # AMR statistics
-    total_amr_genes = df['num_amr_genes'].sum()
-    samples_with_amr = len(df[df['num_amr_genes'] > 0])
+    # AMR statistics - ensure numeric values
+    total_amr_genes = int(df['num_amr_genes'].replace('-', 0).fillna(0).astype(float).sum())
+    samples_with_amr = len(df[df['num_amr_genes'].replace('-', 0).fillna(0).astype(float) > 0])
 
-    # Plasmid statistics
-    total_plasmids = df['num_plasmids'].sum()
-    samples_with_plasmids = len(df[df['num_plasmids'] > 0])
+    # Plasmid statistics - ensure numeric values
+    total_plasmids = int(df['num_plasmids'].replace('-', 0).fillna(0).astype(float).sum())
+    samples_with_plasmids = len(df[df['num_plasmids'].replace('-', 0).fillna(0).astype(float) > 0])
 
     # Prepare functional diversity data for chart
     functional_labels = []

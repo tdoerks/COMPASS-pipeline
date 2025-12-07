@@ -50,15 +50,20 @@ def parse_vibrant_quality(quality_file, debug=False):
                     for k, v in first_row.items():
                         print(f"    {k}: {v}")
                     # Process first row
-                    quality = first_row.get('type', first_row.get('quality', '')).lower()
+                    quality = first_row.get('Quality', first_row.get('quality', '')).lower()
+                    scaffold_name = first_row.get('scaffold', first_row.get('fragment', ''))
                     try:
-                        length = int(first_row.get('length', first_row.get('fragment length', 0)))
-                    except (ValueError, TypeError):
+                        if 'length_' in scaffold_name:
+                            # Extract from scaffold name
+                            length = int(scaffold_name.split('length_')[1].split('_')[0])
+                        else:
+                            length = int(first_row.get('length', first_row.get('fragment length', 0)))
+                    except (ValueError, TypeError, IndexError):
                         length = 0
 
-                    if quality in ['complete', 'high quality'] and length >= 15000:
+                    if quality in ['complete', 'complete circular', 'high quality', 'high quality draft'] and length >= 15000:
                         complete_prophages.append({
-                            'scaffold': first_row.get('scaffold', first_row.get('fragment', '')),
+                            'scaffold': scaffold_name,
                             'length': length,
                             'quality': quality,
                             'file': quality_file
@@ -66,17 +71,26 @@ def parse_vibrant_quality(quality_file, debug=False):
 
             # Process remaining rows
             for row in reader:
-                # Try different possible column names
-                quality = row.get('type', row.get('quality', '')).lower()
+                # Try different possible column names (case-insensitive)
+                quality = row.get('Quality', row.get('quality', '')).lower()
+
+                # Extract length from scaffold name if not in separate column
+                # Format: NODE_3_length_75406_cov_3.848415_fragment_1
+                scaffold_name = row.get('scaffold', row.get('fragment', ''))
                 try:
-                    length = int(row.get('length', row.get('fragment length', 0)))
-                except (ValueError, TypeError):
+                    if 'length_' in scaffold_name:
+                        # Extract from scaffold name
+                        length = int(scaffold_name.split('length_')[1].split('_')[0])
+                    else:
+                        length = int(row.get('length', row.get('fragment length', 0)))
+                except (ValueError, TypeError, IndexError):
                     length = 0
 
                 # Keep complete and high quality prophages >= 15kb
-                if quality in ['complete', 'high quality'] and length >= 15000:
+                # VIBRANT quality types: "complete circular", "high quality draft", "medium quality draft", "low quality draft"
+                if quality in ['complete', 'complete circular', 'high quality', 'high quality draft'] and length >= 15000:
                     complete_prophages.append({
-                        'scaffold': row.get('scaffold', row.get('fragment', '')),
+                        'scaffold': scaffold_name,
                         'length': length,
                         'quality': quality,
                         'file': quality_file

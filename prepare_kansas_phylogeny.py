@@ -103,13 +103,18 @@ def parse_vibrant_quality(quality_file, debug=False):
 
 def extract_sample_id(vibrant_path):
     """Extract sample ID from VIBRANT file path"""
-    # Path format: .../vibrant/SRR12345/VIBRANT_SRR12345/...
+    # Path format: .../vibrant/SRR12345_vibrant/VIBRANT_SRR12345/...
+    # or: .../vibrant/SRR12345/VIBRANT_SRR12345/...
     parts = vibrant_path.parts
 
     # Find 'vibrant' in path, sample ID should be next directory
     for i, part in enumerate(parts):
         if part == 'vibrant' and i + 1 < len(parts):
-            return parts[i + 1]
+            sample_id = parts[i + 1]
+            # Remove _vibrant suffix if present
+            if sample_id.endswith('_vibrant'):
+                sample_id = sample_id[:-8]  # Remove last 8 characters (_vibrant)
+            return sample_id
 
     return 'Unknown'
 

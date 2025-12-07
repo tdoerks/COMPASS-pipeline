@@ -642,7 +642,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         html += """
             <button class="tab-button" onclick="switchTab(event, 'multiqc')">MultiQC Report</button>"""
 
-    html += """
+    html += f"""
         </div>
     </div>
 

@@ -758,18 +758,23 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = """
 
     <script>
-        // Tab switching
+        // Tab switching - simplified to avoid any escaping issues
         function switchTab(evt, tabName) {
-            const tabContents = document.getElementsByClassName('tab-content');
-            for (let i = 0; i < tabContents.length; i++) {
+            // Hide all tab contents
+            var tabContents = document.getElementsByClassName('tab-content');
+            for (var i = 0; i < tabContents.length; i++) {
+                tabContents[i].style.display = 'none';
                 tabContents[i].classList.remove('active');
             }
 
-            const tabButtons = document.getElementsByClassName('tab-button');
-            for (let i = 0; i < tabButtons.length; i++) {
+            // Deactivate all buttons
+            var tabButtons = document.getElementsByClassName('tab-button');
+            for (var i = 0; i < tabButtons.length; i++) {
                 tabButtons[i].classList.remove('active');
             }
 
+            // Show the selected tab and activate button
+            document.getElementById(tabName).style.display = 'block';
             document.getElementById(tabName).classList.add('active');
             evt.currentTarget.classList.add('active');
         }

@@ -936,8 +936,17 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     <!-- Data Table Tab -->
     <div id="data-table" class="tab-content">
         <div class="table-container">
-            <h2>Sample Details</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0;">Sample Details</h2>
+                <button onclick="exportTableToCSV('compass_summary_export.csv')"
+                        style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1em; transition: background 0.2s;">
+                    📥 Export to CSV
+                </button>
+            </div>
             <input type="text" class="search-box" id="searchBox" placeholder="Search samples..." onkeyup="filterTable()">
+            <div style="margin-bottom: 15px; color: #666; font-size: 0.9em;" id="tableStats">
+                Showing <span id="visibleRows">0</span> of <span id="totalRows">0</span> samples
+            </div>
 
             <table id="dataTable">
                 <thead>
@@ -1059,18 +1068,71 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             table.dataset.sortDir = newDir;
         }
 
-        // Table filtering
+        // Table filtering with count
         function filterTable() {
             const input = document.getElementById('searchBox');
             const filter = input.value.toUpperCase();
             const table = document.getElementById('dataTable');
             const rows = table.querySelectorAll('tbody tr');
 
+            var visibleCount = 0;
             rows.forEach(row => {
                 const text = row.textContent.toUpperCase();
-                row.style.display = text.includes(filter) ? '' : 'none';
+                if (text.includes(filter)) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
             });
+
+            // Update count display
+            document.getElementById('visibleRows').textContent = visibleCount;
+            document.getElementById('totalRows').textContent = rows.length;
         }
+
+        // Export table to CSV
+        function exportTableToCSV(filename) {
+            const table = document.getElementById('dataTable');
+            const rows = table.querySelectorAll('tr');
+            const csv = [];
+
+            // Process all rows (including header)
+            for (var i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const cols = row.querySelectorAll('td, th');
+                const csvRow = [];
+
+                for (var j = 0; j < cols.length; j++) {
+                    // Get cell text and escape quotes
+                    var cellText = cols[j].textContent.replace(/"/g, '""');
+                    // Wrap in quotes if contains comma, quote, or newline
+                    if (cellText.includes(',') || cellText.includes('"') || cellText.includes('\\n')) {
+                        cellText = '"' + cellText + '"';
+                    }
+                    csvRow.push(cellText);
+                }
+                csv.push(csvRow.join(','));
+            }
+
+            // Create download link
+            const csvContent = csv.join('\\n');
+            const blob = new Blob([csvContent], {{ type: 'text/csv;charset=utf-8;' }});
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Initialize table stats on page load
+        window.addEventListener('load', function() {{
+            filterTable();  // Initialize counts
+        }});
 
         // AMR Genes Bar Chart
         const amrGeneLabels = AMR_GENE_LABELS_PLACEHOLDER;

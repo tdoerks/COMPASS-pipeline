@@ -11,6 +11,7 @@ from pathlib import Path
 import sys
 from collections import Counter
 import re
+from datetime import datetime
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Generate comprehensive COMPASS summary report with visualizations')
@@ -377,8 +378,12 @@ def parse_diamond_prophage(diamond_dir):
                 print(f"Warning: Could not parse DIAMOND results for {diamond_file}: {e}", file=sys.stderr)
     return diamond_data
 
-def generate_html_report(df, output_file, functional_diversity=None, multiqc_path=None):
+def generate_html_report(df, output_file, functional_diversity=None, multiqc_path=None, generation_time=None):
     """Generate interactive multi-tab HTML report with visualizations"""
+
+    # Get generation time
+    if generation_time is None:
+        generation_time = datetime.now()
 
     # Calculate summary statistics
     total_samples = len(df)
@@ -756,6 +761,69 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             padding: 2px 8px;
             border-radius: 4px;
             font-weight: 600;
+        }}
+
+        .footer {{
+            background: white;
+            padding: 30px;
+            margin-top: 40px;
+            border-top: 3px solid #667eea;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+        }}
+
+        .footer h3 {{
+            color: #333;
+            margin-bottom: 15px;
+        }}
+
+        .footer-content {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }}
+
+        .footer-section {{
+            padding: 15px;
+            background: #f8f9ff;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+        }}
+
+        .footer-section h4 {{
+            color: #667eea;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }}
+
+        .footer-section p {{
+            margin: 5px 0;
+            color: #666;
+            font-size: 0.9em;
+        }}
+
+        .footer-section strong {{
+            color: #333;
+        }}
+
+        .footer-links {{
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }}
+
+        .footer-links a {{
+            color: #667eea;
+            text-decoration: none;
+            margin: 0 10px;
+        }}
+
+        .footer-links a:hover {{
+            text-decoration: underline;
         }}
     </style>
 </head>
@@ -1492,6 +1560,40 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             }}
         }});
     </script>
+
+    <!-- Footer with Report Metadata -->
+    <div class="footer">
+        <h3>Report Information</h3>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>Generation Details</h4>
+                <p><strong>Generated:</strong> GENERATION_TIME_PLACEHOLDER</p>
+                <p><strong>Pipeline:</strong> COMPASS v1.2-mod</p>
+                <p><strong>Report Version:</strong> Enhanced Interactive v2.0</p>
+            </div>
+            <div class="footer-section">
+                <h4>Dataset Summary</h4>
+                <p><strong>Total Samples:</strong> TOTAL_SAMPLES_PLACEHOLDER</p>
+                <p><strong>Date Range:</strong> YEAR_RANGE_PLACEHOLDER</p>
+                <p><strong>Organisms:</strong> ORGANISMS_PLACEHOLDER</p>
+            </div>
+            <div class="footer-section">
+                <h4>Analysis Modules</h4>
+                <p>✓ Assembly QC (QUAST + BUSCO)</p>
+                <p>✓ AMR Detection (AMRFinderPlus)</p>
+                <p>✓ Prophage Identification (VIBRANT)</p>
+                <p>✓ Plasmid Analysis (MOB-suite)</p>
+                <p>✓ Strain Typing (MLST + SISTR)</p>
+            </div>
+        </div>
+        <div class="footer-links">
+            <span>COMPASS Pipeline - Comprehensive Mobile element & Pathogen ASsessment Suite</span>
+            <span>|</span>
+            <a href="https://github.com/tylerdougan/COMPASS-pipeline" target="_blank">GitHub</a>
+            <span>|</span>
+            <span>Generated with Python {sys.version.split()[0]}, pandas {pd.__version__}, Chart.js 4.4.0</span>
+        </div>
+    </div>
 </body>
 </html>
 """
@@ -1521,6 +1623,37 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 
     # Append JavaScript to HTML
     html += js_code
+
+    # Prepare footer metadata
+    generation_time_str = generation_time.strftime("%Y-%m-%d %H:%M:%S")
+
+    # Calculate year range
+    year_range = "Unknown"
+    if 'year' in df.columns:
+        years = []
+        for year_val in df['year']:
+            if year_val and year_val != '-' and year_val != 'Unknown':
+                try:
+                    years.append(int(float(year_val)))
+                except (ValueError, TypeError):
+                    pass
+        if years:
+            year_range = f"{min(years)}-{max(years)}" if min(years) != max(years) else str(min(years))
+
+    # Get organisms summary
+    organisms_str = "Unknown"
+    if 'organism' in df.columns:
+        organism_counts = df['organism'].value_counts()
+        organisms_list = [f"{org} ({count})" for org, count in organism_counts.head(3).items()]
+        if len(organism_counts) > 3:
+            organisms_list.append(f"+{len(organism_counts) - 3} more")
+        organisms_str = ", ".join(organisms_list)
+
+    # Replace footer placeholders
+    html = html.replace('GENERATION_TIME_PLACEHOLDER', generation_time_str)
+    html = html.replace('TOTAL_SAMPLES_PLACEHOLDER', str(total_samples))
+    html = html.replace('YEAR_RANGE_PLACEHOLDER', year_range)
+    html = html.replace('ORGANISMS_PLACEHOLDER', organisms_str)
 
     # Write HTML file
     with open(output_file, 'w') as f:
@@ -1702,9 +1835,11 @@ def main():
         multiqc_report = None
 
     # Generate HTML report with functional diversity data and MultiQC
+    generation_time = datetime.now()
     generate_html_report(df, args.output_html,
                         functional_diversity=functional_diversity,
-                        multiqc_path=multiqc_report)
+                        multiqc_path=multiqc_report,
+                        generation_time=generation_time)
     print(f"✓ HTML report written to {args.output_html}")
 
     print(f"\n=== Summary Statistics ===")

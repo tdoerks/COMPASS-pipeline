@@ -443,6 +443,71 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     amr_class_labels = [cls for cls, count in amr_class_counter.most_common()]
     amr_class_counts = [count for cls, count in amr_class_counter.most_common()]
 
+    # Prepare Assembly Quality data for visualizations
+    # Extract numeric values for histograms
+    n50_values = []
+    assembly_length_values = []
+    contig_count_values = []
+    busco_completeness_values = []
+
+    for _, row in df.iterrows():
+        # N50 values
+        n50 = row.get('n50', '-')
+        if n50 != '-' and str(n50) != 'nan':
+            try:
+                n50_values.append(float(n50))
+            except (ValueError, TypeError):
+                pass
+
+        # Assembly length values
+        length = row.get('assembly_length', '-')
+        if length != '-' and str(length) != 'nan':
+            try:
+                assembly_length_values.append(float(length))
+            except (ValueError, TypeError):
+                pass
+
+        # Contig counts
+        contigs = row.get('num_contigs', '-')
+        if contigs != '-' and str(contigs) != 'nan':
+            try:
+                contig_count_values.append(float(contigs))
+            except (ValueError, TypeError):
+                pass
+
+        # BUSCO completeness
+        busco = row.get('busco_complete_pct', '-')
+        if busco != '-' and str(busco) != 'nan':
+            try:
+                busco_completeness_values.append(float(busco))
+            except (ValueError, TypeError):
+                pass
+
+    # Create bins for histograms
+    # N50 histogram bins (0-200kb in 10kb increments)
+    n50_bins = list(range(0, 210000, 10000))
+    n50_hist, _ = pd.cut(n50_values, bins=n50_bins, retbins=True) if n50_values else ([], n50_bins)
+    n50_counts = n50_hist.value_counts().sort_index().tolist() if len(n50_values) > 0 else []
+    n50_labels = [f"{i//1000}-{(i+10000)//1000}kb" for i in range(0, 200000, 10000)]
+
+    # Assembly length bins (0-8Mb in 0.5Mb increments)
+    length_bins = list(range(0, 8500000, 500000))
+    length_hist, _ = pd.cut(assembly_length_values, bins=length_bins, retbins=True) if assembly_length_values else ([], length_bins)
+    length_counts = length_hist.value_counts().sort_index().tolist() if len(assembly_length_values) > 0 else []
+    length_labels = [f"{i//1000000:.1f}-{(i+500000)//1000000:.1f}Mb" for i in range(0, 8000000, 500000)]
+
+    # Contig count bins (0-500 in bins of 50)
+    contig_bins = list(range(0, 550, 50))
+    contig_hist, _ = pd.cut(contig_count_values, bins=contig_bins, retbins=True) if contig_count_values else ([], contig_bins)
+    contig_counts = contig_hist.value_counts().sort_index().tolist() if len(contig_count_values) > 0 else []
+    contig_labels = [f"{i}-{i+50}" for i in range(0, 500, 50)]
+
+    # BUSCO completeness bins (0-100% in 5% increments)
+    busco_bins = list(range(0, 105, 5))
+    busco_hist, _ = pd.cut(busco_completeness_values, bins=busco_bins, retbins=True) if busco_completeness_values else ([], busco_bins)
+    busco_counts = busco_hist.value_counts().sort_index().tolist() if len(busco_completeness_values) > 0 else []
+    busco_labels = [f"{i}-{i+5}%" for i in range(0, 100, 5)]
+
     # Check if MultiQC report exists
     has_multiqc = multiqc_path and Path(multiqc_path).exists()
 
@@ -667,6 +732,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         <div class="tab-buttons">
             <button class="tab-button active" onclick="switchTab(event, 'overview')">Overview</button>
             <button class="tab-button" onclick="switchTab(event, 'amr-analysis')">AMR Analysis</button>
+            <button class="tab-button" onclick="switchTab(event, 'assembly-quality')">Assembly Quality</button>
             <button class="tab-button" onclick="switchTab(event, 'data-table')">Data Table</button>
             <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>"""
 
@@ -766,6 +832,66 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <p style="color: #666; margin-bottom: 20px;">Samples with multidrug resistance (≥3 resistance classes) vs susceptible samples</p>
             <div class="chart-wrapper" style="height: 300px;">
                 <canvas id="mdrComparisonChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assembly Quality Tab -->
+    <div id="assembly-quality" class="tab-content">
+        <div class="summary-grid" style="margin-bottom: 30px;">
+            <div class="summary-card">
+                <h3>Assemblies Analyzed</h3>
+                <div class="value">{len(n50_values)}</div>
+                <div class="subtext">With quality metrics</div>
+            </div>
+            <div class="summary-card">
+                <h3>Average N50</h3>
+                <div class="value">{avg_n50/1000:.1f}kb</div>
+                <div class="subtext">Assembly contiguity</div>
+            </div>
+            <div class="summary-card">
+                <h3>Average Length</h3>
+                <div class="value">{sum(assembly_length_values)/len(assembly_length_values)/1000000:.2f}Mb</div>
+                <div class="subtext">Genome size</div>
+            </div>
+            <div class="summary-card">
+                <h3>QC Pass Rate</h3>
+                <div class="value">{passed_qc/total_samples*100:.1f}%</div>
+                <div class="subtext">{passed_qc}/{total_samples} samples</div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px;">
+            <div class="chart-container">
+                <h2>N50 Distribution</h2>
+                <p style="color: #666; margin-bottom: 20px;">Assembly contiguity across samples (higher is better)</p>
+                <div class="chart-wrapper">
+                    <canvas id="n50HistChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2>Assembly Length Distribution</h2>
+                <p style="color: #666; margin-bottom: 20px;">Total assembly size distribution</p>
+                <div class="chart-wrapper">
+                    <canvas id="lengthHistChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2>Contig Count Distribution</h2>
+                <p style="color: #666; margin-bottom: 20px;">Number of contigs per assembly (lower is better)</p>
+                <div class="chart-wrapper">
+                    <canvas id="contigHistChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2>BUSCO Completeness</h2>
+                <p style="color: #666; margin-bottom: 20px;">Genome completeness assessment (higher is better)</p>
+                <div class="chart-wrapper">
+                    <canvas id="buscoHistChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -1044,6 +1170,178 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             }}
         }});
 
+        // N50 Distribution Histogram
+        const n50Labels = N50_LABELS_PLACEHOLDER;
+        const n50Counts = N50_COUNTS_PLACEHOLDER;
+
+        const n50Ctx = document.getElementById('n50HistChart').getContext('2d');
+        const n50Hist = new Chart(n50Ctx, {{
+            type: 'bar',
+            data: {{
+                labels: n50Labels,
+                datasets: [{{
+                    label: 'Number of Samples',
+                    data: n50Counts,
+                    backgroundColor: '#667eea',
+                    borderColor: '#5568d3',
+                    borderWidth: 1
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Samples'
+                        }}
+                    }},
+                    x: {{
+                        title: {{
+                            display: true,
+                            text: 'N50 (kb)'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Assembly Length Distribution Histogram
+        const lengthLabels = LENGTH_LABELS_PLACEHOLDER;
+        const lengthCounts = LENGTH_COUNTS_PLACEHOLDER;
+
+        const lengthCtx = document.getElementById('lengthHistChart').getContext('2d');
+        const lengthHist = new Chart(lengthCtx, {{
+            type: 'bar',
+            data: {{
+                labels: lengthLabels,
+                datasets: [{{
+                    label: 'Number of Samples',
+                    data: lengthCounts,
+                    backgroundColor: '#36A2EB',
+                    borderColor: '#2e8bc0',
+                    borderWidth: 1
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Samples'
+                        }}
+                    }},
+                    x: {{
+                        title: {{
+                            display: true,
+                            text: 'Assembly Length (Mb)'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Contig Count Distribution Histogram
+        const contigLabels = CONTIG_LABELS_PLACEHOLDER;
+        const contigCounts = CONTIG_COUNTS_PLACEHOLDER;
+
+        const contigCtx = document.getElementById('contigHistChart').getContext('2d');
+        const contigHist = new Chart(contigCtx, {{
+            type: 'bar',
+            data: {{
+                labels: contigLabels,
+                datasets: [{{
+                    label: 'Number of Samples',
+                    data: contigCounts,
+                    backgroundColor: '#FFCE56',
+                    borderColor: '#e6b84f',
+                    borderWidth: 1
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Samples'
+                        }}
+                    }},
+                    x: {{
+                        title: {{
+                            display: true,
+                            text: 'Number of Contigs'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // BUSCO Completeness Histogram
+        const buscoLabels = BUSCO_LABELS_PLACEHOLDER;
+        const buscoCounts = BUSCO_COUNTS_PLACEHOLDER;
+
+        const buscoCtx = document.getElementById('buscoHistChart').getContext('2d');
+        const buscoHist = new Chart(buscoCtx, {{
+            type: 'bar',
+            data: {{
+                labels: buscoLabels,
+                datasets: [{{
+                    label: 'Number of Samples',
+                    data: buscoCounts,
+                    backgroundColor: '#4BC0C0',
+                    borderColor: '#3da8a8',
+                    borderWidth: 1
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Samples'
+                        }}
+                    }},
+                    x: {{
+                        title: {{
+                            display: true,
+                            text: 'BUSCO Completeness (%)'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
         // Prophage Functional Diversity Pie Chart
         const functionalLabels = FUNCTIONAL_LABELS_PLACEHOLDER;
         const functionalData = FUNCTIONAL_DATA_PLACEHOLDER;
@@ -1107,6 +1405,16 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = js_code.replace('AMR_CLASS_COUNTS_PLACEHOLDER', json.dumps(amr_class_counts))
     js_code = js_code.replace('MDR_SAMPLES_PLACEHOLDER', str(mdr_samples))
     js_code = js_code.replace('NON_MDR_SAMPLES_PLACEHOLDER', str(total_samples - mdr_samples))
+
+    # Assembly quality data
+    js_code = js_code.replace('N50_LABELS_PLACEHOLDER', json.dumps(n50_labels))
+    js_code = js_code.replace('N50_COUNTS_PLACEHOLDER', json.dumps(n50_counts))
+    js_code = js_code.replace('LENGTH_LABELS_PLACEHOLDER', json.dumps(length_labels))
+    js_code = js_code.replace('LENGTH_COUNTS_PLACEHOLDER', json.dumps(length_counts))
+    js_code = js_code.replace('CONTIG_LABELS_PLACEHOLDER', json.dumps(contig_labels))
+    js_code = js_code.replace('CONTIG_COUNTS_PLACEHOLDER', json.dumps(contig_counts))
+    js_code = js_code.replace('BUSCO_LABELS_PLACEHOLDER', json.dumps(busco_labels))
+    js_code = js_code.replace('BUSCO_COUNTS_PLACEHOLDER', json.dumps(busco_counts))
 
     # Prophage functional diversity data
     js_code = js_code.replace('FUNCTIONAL_LABELS_PLACEHOLDER', json.dumps(functional_labels))

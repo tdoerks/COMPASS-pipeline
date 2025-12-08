@@ -412,6 +412,37 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             functional_labels.append(category)
             functional_values.append(count)
 
+    # Prepare AMR data for visualizations
+    # Parse top_amr_genes column to get gene frequency
+    amr_gene_counter = Counter()
+    amr_class_counter = Counter()
+
+    for _, row in df.iterrows():
+        # Parse top AMR genes
+        genes_str = row.get('top_amr_genes', '-')
+        if genes_str and genes_str != '-':
+            genes = [g.strip() for g in str(genes_str).split(',')]
+            for gene in genes:
+                if gene:  # Skip empty strings
+                    amr_gene_counter[gene] += 1
+
+        # Parse AMR classes
+        classes_str = row.get('amr_classes', '-')
+        if classes_str and classes_str != '-':
+            classes = [c.strip() for c in str(classes_str).split(',')]
+            for cls in classes:
+                if cls:  # Skip empty strings
+                    amr_class_counter[cls] += 1
+
+    # Get top 15 AMR genes for bar chart
+    top_amr_genes = amr_gene_counter.most_common(15)
+    amr_gene_labels = [gene for gene, count in top_amr_genes]
+    amr_gene_counts = [count for gene, count in top_amr_genes]
+
+    # Get AMR class distribution for pie chart
+    amr_class_labels = [cls for cls, count in amr_class_counter.most_common()]
+    amr_class_counts = [count for cls, count in amr_class_counter.most_common()]
+
     # Check if MultiQC report exists
     has_multiqc = multiqc_path and Path(multiqc_path).exists()
 
@@ -635,6 +666,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     <div class="tabs">
         <div class="tab-buttons">
             <button class="tab-button active" onclick="switchTab(event, 'overview')">Overview</button>
+            <button class="tab-button" onclick="switchTab(event, 'amr-analysis')">AMR Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'data-table')">Data Table</button>
             <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>"""
 
@@ -682,6 +714,58 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 <h3>Plasmids</h3>
                 <div class="value">{total_plasmids}</div>
                 <div class="subtext">{samples_with_plasmids} samples with plasmids</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AMR Analysis Tab -->
+    <div id="amr-analysis" class="tab-content">
+        <div class="summary-grid" style="margin-bottom: 30px;">
+            <div class="summary-card">
+                <h3>Total AMR Genes</h3>
+                <div class="value">{total_amr_genes}</div>
+                <div class="subtext">Across {samples_with_amr} samples</div>
+            </div>
+            <div class="summary-card">
+                <h3>MDR Samples</h3>
+                <div class="value">{mdr_samples}</div>
+                <div class="subtext">{mdr_pct:.1f}% of total</div>
+            </div>
+            <div class="summary-card">
+                <h3>Unique AMR Genes</h3>
+                <div class="value">{len(amr_gene_counter)}</div>
+                <div class="subtext">Detected across dataset</div>
+            </div>
+            <div class="summary-card">
+                <h3>AMR Classes</h3>
+                <div class="value">{len(amr_class_counter)}</div>
+                <div class="subtext">Resistance classes found</div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px;">
+            <div class="chart-container">
+                <h2>Top 15 AMR Genes</h2>
+                <p style="color: #666; margin-bottom: 20px;">Most frequently detected AMR genes across all samples</p>
+                <div class="chart-wrapper">
+                    <canvas id="amrGenesBarChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2>AMR Class Distribution</h2>
+                <p style="color: #666; margin-bottom: 20px;">Distribution of antimicrobial resistance classes</p>
+                <div class="chart-wrapper">
+                    <canvas id="amrClassPieChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h2>MDR vs Non-MDR Comparison</h2>
+            <p style="color: #666; margin-bottom: 20px;">Samples with multidrug resistance (≥3 resistance classes) vs susceptible samples</p>
+            <div class="chart-wrapper" style="height: 300px;">
+                <canvas id="mdrComparisonChart"></canvas>
             </div>
         </div>
     </div>
@@ -825,6 +909,141 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             });
         }
 
+        // AMR Genes Bar Chart
+        const amrGeneLabels = AMR_GENE_LABELS_PLACEHOLDER;
+        const amrGeneCounts = AMR_GENE_COUNTS_PLACEHOLDER;
+
+        const amrGenesCtx = document.getElementById('amrGenesBarChart').getContext('2d');
+        const amrGenesBar = new Chart(amrGenesCtx, {{
+            type: 'bar',
+            data: {{
+                labels: amrGeneLabels,
+                datasets: [{{
+                    label: 'Number of Samples',
+                    data: amrGeneCounts,
+                    backgroundColor: '#667eea',
+                    borderColor: '#5568d3',
+                    borderWidth: 1
+                }}]
+            }},
+            options: {{
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    x: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Samples'
+                        }}
+                    }},
+                    y: {{
+                        title: {{
+                            display: true,
+                            text: 'AMR Gene'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // AMR Class Pie Chart
+        const amrClassLabels = AMR_CLASS_LABELS_PLACEHOLDER;
+        const amrClassCounts = AMR_CLASS_COUNTS_PLACEHOLDER;
+
+        const amrClassCtx = document.getElementById('amrClassPieChart').getContext('2d');
+        const amrClassPie = new Chart(amrClassCtx, {{
+            type: 'pie',
+            data: {{
+                labels: amrClassLabels,
+                datasets: [{{
+                    data: amrClassCounts,
+                    backgroundColor: [
+                        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                        '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384',
+                        '#36A2EB', '#FFCE56', '#9966FF', '#FF9F40', '#C9CBCF'
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        position: 'right',
+                        labels: {{
+                            font: {{
+                                size: 12
+                            }},
+                            padding: 10
+                        }}
+                    }},
+                    tooltip: {{
+                        callbacks: {{
+                            label: function(context) {{
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return label + ': ' + value + ' (' + percentage + '%)';
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // MDR Comparison Bar Chart
+        const mdrLabels = ['MDR (≥3 classes)', 'Non-MDR'];
+        const mdrCounts = [MDR_SAMPLES_PLACEHOLDER, NON_MDR_SAMPLES_PLACEHOLDER];
+
+        const mdrCtx = document.getElementById('mdrComparisonChart').getContext('2d');
+        const mdrBar = new Chart(mdrCtx, {{
+            type: 'bar',
+            data: {{
+                labels: mdrLabels,
+                datasets: [{{
+                    label: 'Number of Samples',
+                    data: mdrCounts,
+                    backgroundColor: ['#ef4444', '#22c55e'],
+                    borderColor: ['#dc2626', '#16a34a'],
+                    borderWidth: 2
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Samples'
+                        }}
+                    }},
+                    x: {{
+                        title: {{
+                            display: true,
+                            text: 'Resistance Status'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
         // Prophage Functional Diversity Pie Chart
         const functionalLabels = FUNCTIONAL_LABELS_PLACEHOLDER;
         const functionalData = FUNCTIONAL_DATA_PLACEHOLDER;
@@ -881,6 +1100,15 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 """
 
     # Replace placeholders in JavaScript with actual data
+    # AMR data
+    js_code = js_code.replace('AMR_GENE_LABELS_PLACEHOLDER', json.dumps(amr_gene_labels))
+    js_code = js_code.replace('AMR_GENE_COUNTS_PLACEHOLDER', json.dumps(amr_gene_counts))
+    js_code = js_code.replace('AMR_CLASS_LABELS_PLACEHOLDER', json.dumps(amr_class_labels))
+    js_code = js_code.replace('AMR_CLASS_COUNTS_PLACEHOLDER', json.dumps(amr_class_counts))
+    js_code = js_code.replace('MDR_SAMPLES_PLACEHOLDER', str(mdr_samples))
+    js_code = js_code.replace('NON_MDR_SAMPLES_PLACEHOLDER', str(total_samples - mdr_samples))
+
+    # Prophage functional diversity data
     js_code = js_code.replace('FUNCTIONAL_LABELS_PLACEHOLDER', json.dumps(functional_labels))
     js_code = js_code.replace('FUNCTIONAL_DATA_PLACEHOLDER', json.dumps(functional_values))
 

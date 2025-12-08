@@ -613,6 +613,25 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s ease;
+        }}
+
+        .summary-card:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }}
+
+        .summary-card.card-success {{
+            border-left-color: #22c55e;
+        }}
+
+        .summary-card.card-warning {{
+            border-left-color: #f59e0b;
+        }}
+
+        .summary-card.card-danger {{
+            border-left-color: #ef4444;
         }}
 
         .summary-card h3 {{
@@ -621,6 +640,18 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             font-size: 0.9em;
             text-transform: uppercase;
             letter-spacing: 1px;
+        }}
+
+        .summary-card.card-success h3 {{
+            color: #22c55e;
+        }}
+
+        .summary-card.card-warning h3 {{
+            color: #f59e0b;
+        }}
+
+        .summary-card.card-danger h3 {{
+            color: #ef4444;
         }}
 
         .summary-card .value {{
@@ -633,6 +664,12 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             color: #666;
             font-size: 0.9em;
             margin-top: 5px;
+        }}
+
+        .summary-card .indicator {{
+            display: inline-block;
+            margin-left: 8px;
+            font-size: 0.5em;
         }}
 
         .chart-container {{
@@ -751,18 +788,18 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 <h3>Total Samples</h3>
                 <div class="value">{total_samples}</div>
             </div>
-            <div class="summary-card">
-                <h3>Assembly QC</h3>
+            <div class="summary-card {'card-success' if passed_qc/total_samples >= 0.9 else 'card-warning' if passed_qc/total_samples >= 0.7 else 'card-danger'}">
+                <h3>Assembly QC <span class="indicator">{'✓' if passed_qc/total_samples >= 0.9 else '⚠' if passed_qc/total_samples >= 0.7 else '✗'}</span></h3>
                 <div class="value">{passed_qc}</div>
-                <div class="subtext">Passed ({failed_qc} failed)</div>
+                <div class="subtext">Passed ({failed_qc} failed) - {passed_qc/total_samples*100:.1f}%</div>
             </div>
-            <div class="summary-card">
-                <h3>Average Assembly</h3>
+            <div class="summary-card {'card-success' if avg_contigs <= 100 and avg_n50 >= 50000 else 'card-warning' if avg_contigs <= 300 else 'card-danger'}">
+                <h3>Average Assembly <span class="indicator">{'✓' if avg_contigs <= 100 and avg_n50 >= 50000 else '⚠' if avg_contigs <= 300 else '✗'}</span></h3>
                 <div class="value">{avg_contigs:.0f}</div>
-                <div class="subtext">Contigs (N50: {avg_n50:.0f})</div>
+                <div class="subtext">Contigs (N50: {avg_n50/1000:.1f}kb)</div>
             </div>
-            <div class="summary-card">
-                <h3>MDR Samples</h3>
+            <div class="summary-card {'card-success' if mdr_pct < 10 else 'card-warning' if mdr_pct < 25 else 'card-danger'}">
+                <h3>MDR Samples <span class="indicator">{'✓' if mdr_pct < 10 else '⚠' if mdr_pct < 25 else '!'}</span></h3>
                 <div class="value">{mdr_samples}</div>
                 <div class="subtext">{mdr_pct:.1f}% of samples</div>
             </div>
@@ -771,10 +808,10 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 <div class="value">{total_prophages}</div>
                 <div class="subtext">Avg: {avg_prophages:.1f} per sample</div>
             </div>
-            <div class="summary-card">
-                <h3>AMR Genes</h3>
+            <div class="summary-card {'card-warning' if samples_with_amr/total_samples >= 0.5 else 'card-success'}">
+                <h3>AMR Genes <span class="indicator">{'!' if samples_with_amr/total_samples >= 0.5 else 'ⓘ'}</span></h3>
                 <div class="value">{total_amr_genes}</div>
-                <div class="subtext">{samples_with_amr} samples with AMR</div>
+                <div class="subtext">{samples_with_amr} samples with AMR ({samples_with_amr/total_samples*100:.1f}%)</div>
             </div>
             <div class="summary-card">
                 <h3>Plasmids</h3>

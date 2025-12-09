@@ -448,6 +448,69 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     amr_class_labels = [cls for cls, count in amr_class_counter.most_common()]
     amr_class_counts = [count for cls, count in amr_class_counter.most_common()]
 
+    # Prepare Plasmid Analysis data for visualizations
+    inc_group_counter = Counter()
+    mobility_type_counter = Counter()
+    plasmid_count_values = []
+    plasmid_amr_pairs = []  # For scatter plot: (num_plasmids, num_amr_genes)
+
+    for _, row in df.iterrows():
+        # Parse Inc groups
+        inc_str = row.get('inc_groups', '-')
+        if inc_str and inc_str != '-':
+            inc_list = [i.strip() for i in str(inc_str).split(',')]
+            for inc in inc_list:
+                if inc:
+                    inc_group_counter[inc] += 1
+
+        # Parse mobility types
+        mob_str = row.get('mob_types', '-')
+        if mob_str and mob_str != '-':
+            mob_list = [m.strip() for m in str(mob_str).split(',')]
+            for mob in mob_list:
+                if mob:
+                    mobility_type_counter[mob] += 1
+
+        # Plasmid counts
+        num_plas = row.get('num_plasmids', 0)
+        if num_plas != '-' and str(num_plas) != 'nan':
+            try:
+                plasmid_count_values.append(int(num_plas))
+            except (ValueError, TypeError):
+                plasmid_count_values.append(0)
+
+        # Plasmid-AMR correlation data
+        num_amr = row.get('num_amr_genes', 0)
+        if num_plas != '-' and num_amr != '-':
+            try:
+                plas_int = int(num_plas) if num_plas != '-' else 0
+                amr_int = int(num_amr) if num_amr != '-' else 0
+                plasmid_amr_pairs.append((plas_int, amr_int))
+            except (ValueError, TypeError):
+                pass
+
+    # Get top 15 Inc groups for bar chart
+    top_inc_groups = inc_group_counter.most_common(15)
+    inc_group_labels = [inc for inc, count in top_inc_groups]
+    inc_group_counts = [count for inc, count in top_inc_groups]
+
+    # Get mobility type distribution
+    mob_type_labels = [mob for mob, count in mobility_type_counter.most_common()]
+    mob_type_counts = [count for mob, count in mobility_type_counter.most_common()]
+
+    # Create plasmid count histogram (0-10 plasmids)
+    plasmid_bins = list(range(0, 11))
+    if plasmid_count_values:
+        plasmid_hist, _ = pd.cut(plasmid_count_values, bins=plasmid_bins, retbins=True)
+        plasmid_hist_counts = plasmid_hist.value_counts().sort_index().tolist()
+    else:
+        plasmid_hist_counts = []
+    plasmid_hist_labels = [f"{i}-{i+1}" for i in range(0, 10)]
+
+    # Prepare scatter plot data (plasmid count vs AMR gene count)
+    scatter_plasmid_x = [pair[0] for pair in plasmid_amr_pairs]
+    scatter_amr_y = [pair[1] for pair in plasmid_amr_pairs]
+
     # Prepare Assembly Quality data for visualizations
     # Extract numeric values for histograms
     n50_values = []
@@ -837,6 +900,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         <div class="tab-buttons">
             <button class="tab-button active" onclick="switchTab(event, 'overview')">Overview</button>
             <button class="tab-button" onclick="switchTab(event, 'amr-analysis')">AMR Analysis</button>
+            <button class="tab-button" onclick="switchTab(event, 'plasmid-analysis')">Plasmid Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'assembly-quality')">Assembly Quality</button>
             <button class="tab-button" onclick="switchTab(event, 'data-table')">Data Table</button>
             <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>"""
@@ -937,6 +1001,66 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <p style="color: #666; margin-bottom: 20px;">Samples with multidrug resistance (≥3 resistance classes) vs susceptible samples</p>
             <div class="chart-wrapper" style="height: 300px;">
                 <canvas id="mdrComparisonChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Plasmid Analysis Tab -->
+    <div id="plasmid-analysis" class="tab-content">
+        <div class="summary-grid" style="margin-bottom: 30px;">
+            <div class="summary-card">
+                <h3>Total Plasmids</h3>
+                <div class="value">{total_plasmids}</div>
+                <div class="subtext">Across {samples_with_plasmids} samples</div>
+            </div>
+            <div class="summary-card">
+                <h3>Samples with Plasmids</h3>
+                <div class="value">{samples_with_plasmids}</div>
+                <div class="subtext">{samples_with_plasmids/total_samples*100:.1f}% of total</div>
+            </div>
+            <div class="summary-card">
+                <h3>Inc Groups Detected</h3>
+                <div class="value">{len(inc_group_counter)}</div>
+                <div class="subtext">Incompatibility groups</div>
+            </div>
+            <div class="summary-card">
+                <h3>Mobility Types</h3>
+                <div class="value">{len(mobility_type_counter)}</div>
+                <div class="subtext">Different mobility classes</div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px;">
+            <div class="chart-container">
+                <h2>Top 15 Incompatibility Groups</h2>
+                <p style="color: #666; margin-bottom: 20px;">Most common plasmid Inc groups detected across samples</p>
+                <div class="chart-wrapper">
+                    <canvas id="incGroupsBarChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2>Plasmid Mobility Types</h2>
+                <p style="color: #666; margin-bottom: 20px;">Distribution of predicted plasmid mobility mechanisms</p>
+                <div class="chart-wrapper">
+                    <canvas id="mobilityPieChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2>Plasmid Count Distribution</h2>
+                <p style="color: #666; margin-bottom: 20px;">Number of plasmids detected per sample</p>
+                <div class="chart-wrapper">
+                    <canvas id="plasmidCountHistChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2>Plasmid-AMR Correlation</h2>
+                <p style="color: #666; margin-bottom: 20px;">Relationship between plasmid count and AMR gene count</p>
+                <div class="chart-wrapper">
+                    <canvas id="plasmidAmrScatterChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -1337,6 +1461,198 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             }}
         }});
 
+        // Plasmid Inc Groups Bar Chart
+        const incGroupLabels = INC_GROUP_LABELS_PLACEHOLDER;
+        const incGroupCounts = INC_GROUP_COUNTS_PLACEHOLDER;
+
+        const incGroupCtx = document.getElementById('incGroupsBarChart').getContext('2d');
+        const incGroupBar = new Chart(incGroupCtx, {{
+            type: 'bar',
+            data: {{
+                labels: incGroupLabels,
+                datasets: [{{
+                    label: 'Number of Samples',
+                    data: incGroupCounts,
+                    backgroundColor: '#9966FF',
+                    borderColor: '#8855ee',
+                    borderWidth: 1
+                }}]
+            }},
+            options: {{
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    x: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Samples'
+                        }}
+                    }},
+                    y: {{
+                        title: {{
+                            display: true,
+                            text: 'Inc Group'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Plasmid Mobility Types Pie Chart
+        const mobTypeLabels = MOB_TYPE_LABELS_PLACEHOLDER;
+        const mobTypeCounts = MOB_TYPE_COUNTS_PLACEHOLDER;
+
+        const mobTypeCtx = document.getElementById('mobilityPieChart').getContext('2d');
+        const mobTypePie = new Chart(mobTypeCtx, {{
+            type: 'pie',
+            data: {{
+                labels: mobTypeLabels,
+                datasets: [{{
+                    data: mobTypeCounts,
+                    backgroundColor: [
+                        '#FF9F40',  // Conjugative
+                        '#4BC0C0',  // Mobilizable
+                        '#9966FF',  // Non-mobilizable
+                        '#FFCE56',  // Other
+                        '#FF6384'
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        position: 'right',
+                        labels: {{
+                            font: {{
+                                size: 12
+                            }},
+                            padding: 10
+                        }}
+                    }},
+                    tooltip: {{
+                        callbacks: {{
+                            label: function(context) {{
+                                const label = context.label || '';
+                                const value = context.parsed || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return label + ': ' + value + ' (' + percentage + '%)';
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Plasmid Count Histogram
+        const plasmidHistLabels = PLASMID_HIST_LABELS_PLACEHOLDER;
+        const plasmidHistCounts = PLASMID_HIST_COUNTS_PLACEHOLDER;
+
+        const plasmidHistCtx = document.getElementById('plasmidCountHistChart').getContext('2d');
+        const plasmidHist = new Chart(plasmidHistCtx, {{
+            type: 'bar',
+            data: {{
+                labels: plasmidHistLabels,
+                datasets: [{{
+                    label: 'Number of Samples',
+                    data: plasmidHistCounts,
+                    backgroundColor: '#FF9F40',
+                    borderColor: '#e68f39',
+                    borderWidth: 1
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Samples'
+                        }}
+                    }},
+                    x: {{
+                        title: {{
+                            display: true,
+                            text: 'Number of Plasmids'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Plasmid-AMR Correlation Scatter Plot
+        const scatterPlasmidX = SCATTER_PLASMID_X_PLACEHOLDER;
+        const scatterAmrY = SCATTER_AMR_Y_PLACEHOLDER;
+
+        // Create scatter data array
+        const scatterData = scatterPlasmidX.map((x, i) => ({{ x: x, y: scatterAmrY[i] }}));
+
+        const scatterCtx = document.getElementById('plasmidAmrScatterChart').getContext('2d');
+        const scatterChart = new Chart(scatterCtx, {{
+            type: 'scatter',
+            data: {{
+                datasets: [{{
+                    label: 'Samples',
+                    data: scatterData,
+                    backgroundColor: 'rgba(102, 126, 234, 0.5)',
+                    borderColor: '#667eea',
+                    borderWidth: 1,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }},
+                    tooltip: {{
+                        callbacks: {{
+                            label: function(context) {{
+                                return 'Plasmids: ' + context.parsed.x + ', AMR genes: ' + context.parsed.y;
+                            }}
+                        }}
+                    }}
+                }},
+                scales: {{
+                    x: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Plasmids'
+                        }}
+                    }},
+                    y: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of AMR Genes'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
         // N50 Distribution Histogram
         const n50Labels = N50_LABELS_PLACEHOLDER;
         const n50Counts = N50_COUNTS_PLACEHOLDER;
@@ -1606,6 +1922,16 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = js_code.replace('AMR_CLASS_COUNTS_PLACEHOLDER', json.dumps(amr_class_counts))
     js_code = js_code.replace('MDR_SAMPLES_PLACEHOLDER', str(mdr_samples))
     js_code = js_code.replace('NON_MDR_SAMPLES_PLACEHOLDER', str(total_samples - mdr_samples))
+
+    # Plasmid data
+    js_code = js_code.replace('INC_GROUP_LABELS_PLACEHOLDER', json.dumps(inc_group_labels))
+    js_code = js_code.replace('INC_GROUP_COUNTS_PLACEHOLDER', json.dumps(inc_group_counts))
+    js_code = js_code.replace('MOB_TYPE_LABELS_PLACEHOLDER', json.dumps(mob_type_labels))
+    js_code = js_code.replace('MOB_TYPE_COUNTS_PLACEHOLDER', json.dumps(mob_type_counts))
+    js_code = js_code.replace('PLASMID_HIST_LABELS_PLACEHOLDER', json.dumps(plasmid_hist_labels))
+    js_code = js_code.replace('PLASMID_HIST_COUNTS_PLACEHOLDER', json.dumps(plasmid_hist_counts))
+    js_code = js_code.replace('SCATTER_PLASMID_X_PLACEHOLDER', json.dumps(scatter_plasmid_x))
+    js_code = js_code.replace('SCATTER_AMR_Y_PLACEHOLDER', json.dumps(scatter_amr_y))
 
     # Assembly quality data
     js_code = js_code.replace('N50_LABELS_PLACEHOLDER', json.dumps(n50_labels))

@@ -511,6 +511,76 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     scatter_plasmid_x = [pair[0] for pair in plasmid_amr_pairs]
     scatter_amr_y = [pair[1] for pair in plasmid_amr_pairs]
 
+    # Prepare Temporal Analysis data for visualizations
+    # Group data by year
+    temporal_data = defaultdict(lambda: {
+        'total_samples': 0,
+        'amr_positive': 0,
+        'mdr_samples': 0,
+        'prophages': 0,
+        'plasmids': 0
+    })
+
+    for _, row in df.iterrows():
+        year = row.get('year', '-')
+        # Try to parse year as integer
+        if year and year != '-' and year != 'Unknown':
+            try:
+                year_int = int(float(year))
+                temporal_data[year_int]['total_samples'] += 1
+
+                # Count AMR positive samples
+                num_amr = row.get('num_amr_genes', 0)
+                if num_amr and num_amr != '-':
+                    try:
+                        if int(num_amr) > 0:
+                            temporal_data[year_int]['amr_positive'] += 1
+                    except (ValueError, TypeError):
+                        pass
+
+                # Count MDR samples
+                if row.get('mdr_status') == 'Yes':
+                    temporal_data[year_int]['mdr_samples'] += 1
+
+                # Sum prophages
+                num_prophages = row.get('num_prophages', 0)
+                if num_prophages and num_prophages != '-':
+                    try:
+                        temporal_data[year_int]['prophages'] += int(num_prophages)
+                    except (ValueError, TypeError):
+                        pass
+
+                # Sum plasmids
+                num_plasmids = row.get('num_plasmids', 0)
+                if num_plasmids and num_plasmids != '-':
+                    try:
+                        temporal_data[year_int]['plasmids'] += int(num_plasmids)
+                    except (ValueError, TypeError):
+                        pass
+            except (ValueError, TypeError):
+                pass
+
+    # Sort years and prepare chart data
+    sorted_years = sorted(temporal_data.keys())
+    temporal_years = [str(year) for year in sorted_years]
+    temporal_sample_counts = [temporal_data[year]['total_samples'] for year in sorted_years]
+    temporal_amr_counts = [temporal_data[year]['amr_positive'] for year in sorted_years]
+    temporal_mdr_counts = [temporal_data[year]['mdr_samples'] for year in sorted_years]
+    temporal_prophage_counts = [temporal_data[year]['prophages'] for year in sorted_years]
+    temporal_plasmid_counts = [temporal_data[year]['plasmids'] for year in sorted_years]
+
+    # Calculate percentages for AMR/MDR trends
+    temporal_amr_pct = []
+    temporal_mdr_pct = []
+    for year in sorted_years:
+        total = temporal_data[year]['total_samples']
+        if total > 0:
+            temporal_amr_pct.append(round(temporal_data[year]['amr_positive'] / total * 100, 1))
+            temporal_mdr_pct.append(round(temporal_data[year]['mdr_samples'] / total * 100, 1))
+        else:
+            temporal_amr_pct.append(0)
+            temporal_mdr_pct.append(0)
+
     # Prepare Assembly Quality data for visualizations
     # Extract numeric values for histograms
     n50_values = []
@@ -901,6 +971,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <button class="tab-button active" onclick="switchTab(event, 'overview')">Overview</button>
             <button class="tab-button" onclick="switchTab(event, 'amr-analysis')">AMR Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'plasmid-analysis')">Plasmid Analysis</button>
+            <button class="tab-button" onclick="switchTab(event, 'temporal-analysis')">Temporal Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'assembly-quality')">Assembly Quality</button>
             <button class="tab-button" onclick="switchTab(event, 'data-table')">Data Table</button>
             <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>"""
@@ -1060,6 +1131,66 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 <p style="color: #666; margin-bottom: 20px;">Relationship between plasmid count and AMR gene count</p>
                 <div class="chart-wrapper">
                     <canvas id="plasmidAmrScatterChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Temporal Analysis Tab -->
+    <div id="temporal-analysis" class="tab-content">
+        <div class="summary-grid" style="margin-bottom: 30px;">
+            <div class="summary-card">
+                <h3>Years Analyzed</h3>
+                <div class="value">{len(sorted_years)}</div>
+                <div class="subtext">{'From ' + str(min(sorted_years)) + ' to ' + str(max(sorted_years)) if sorted_years else 'No temporal data'}</div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Samples</h3>
+                <div class="value">{sum(temporal_sample_counts) if temporal_sample_counts else 0}</div>
+                <div class="subtext">Across all years</div>
+            </div>
+            <div class="summary-card {'card-danger' if temporal_mdr_pct and max(temporal_mdr_pct) > 25 else 'card-warning' if temporal_mdr_pct and max(temporal_mdr_pct) > 10 else 'card-success'}">
+                <h3>Peak MDR Rate</h3>
+                <div class="value">{max(temporal_mdr_pct) if temporal_mdr_pct else 0:.1f}%</div>
+                <div class="subtext">{'In ' + str(sorted_years[temporal_mdr_pct.index(max(temporal_mdr_pct))]) if temporal_mdr_pct and max(temporal_mdr_pct) > 0 else 'No MDR detected'}</div>
+            </div>
+            <div class="summary-card">
+                <h3>Trend Direction</h3>
+                <div class="value">{'↑' if len(temporal_mdr_pct) >= 2 and temporal_mdr_pct[-1] > temporal_mdr_pct[0] else '↓' if len(temporal_mdr_pct) >= 2 and temporal_mdr_pct[-1] < temporal_mdr_pct[0] else '→'}</div>
+                <div class="subtext">{'MDR increasing' if len(temporal_mdr_pct) >= 2 and temporal_mdr_pct[-1] > temporal_mdr_pct[0] else 'MDR decreasing' if len(temporal_mdr_pct) >= 2 and temporal_mdr_pct[-1] < temporal_mdr_pct[0] else 'MDR stable'}</div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px;">
+            <div class="chart-container">
+                <h2>Sample Collection Over Time</h2>
+                <p style="color: #666; margin-bottom: 20px;">Number of samples collected per year</p>
+                <div class="chart-wrapper">
+                    <canvas id="temporalSamplesChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2>AMR/MDR Trends</h2>
+                <p style="color: #666; margin-bottom: 20px;">Percentage of samples with AMR genes and MDR over time</p>
+                <div class="chart-wrapper">
+                    <canvas id="temporalAmrMdrChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2>Prophage Detection Over Time</h2>
+                <p style="color: #666; margin-bottom: 20px;">Total prophages detected per year</p>
+                <div class="chart-wrapper">
+                    <canvas id="temporalProphagesChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2>Plasmid Detection Over Time</h2>
+                <p style="color: #666; margin-bottom: 20px;">Total plasmids detected per year</p>
+                <div class="chart-wrapper">
+                    <canvas id="temporalPlasmidsChart"></canvas>
                 </div>
             </div>
         </div>
@@ -1653,6 +1784,197 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             }}
         }});
 
+        // Temporal Analysis: Sample Collection Over Time
+        const temporalYears = TEMPORAL_YEARS_PLACEHOLDER;
+        const temporalSampleCounts = TEMPORAL_SAMPLE_COUNTS_PLACEHOLDER;
+
+        const temporalSamplesCtx = document.getElementById('temporalSamplesChart').getContext('2d');
+        const temporalSamplesChart = new Chart(temporalSamplesCtx, {{
+            type: 'line',
+            data: {{
+                labels: temporalYears,
+                datasets: [{{
+                    label: 'Number of Samples',
+                    data: temporalSampleCounts,
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: '#667eea'
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Samples'
+                        }}
+                    }},
+                    x: {{
+                        title: {{
+                            display: true,
+                            text: 'Year'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Temporal Analysis: AMR/MDR Percentage Trends
+        const temporalAmrPct = TEMPORAL_AMR_PCT_PLACEHOLDER;
+        const temporalMdrPct = TEMPORAL_MDR_PCT_PLACEHOLDER;
+
+        const temporalAmrMdrCtx = document.getElementById('temporalAmrMdrChart').getContext('2d');
+        const temporalAmrMdrChart = new Chart(temporalAmrMdrCtx, {{
+            type: 'line',
+            data: {{
+                labels: temporalYears,
+                datasets: [{{
+                    label: 'AMR Positive (%)',
+                    data: temporalAmrPct,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    borderWidth: 3,
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }}, {{
+                    label: 'MDR (%)',
+                    data: temporalMdrPct,
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    borderWidth: 3,
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointHoverRadius: 7
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: true,
+                        position: 'top'
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        max: 100,
+                        title: {{
+                            display: true,
+                            text: 'Percentage (%)'
+                        }}
+                    }},
+                    x: {{
+                        title: {{
+                            display: true,
+                            text: 'Year'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Temporal Analysis: Prophage Detection Over Time
+        const temporalProphageCounts = TEMPORAL_PROPHAGE_COUNTS_PLACEHOLDER;
+
+        const temporalProphagesCtx = document.getElementById('temporalProphagesChart').getContext('2d');
+        const temporalProphagesChart = new Chart(temporalProphagesCtx, {{
+            type: 'bar',
+            data: {{
+                labels: temporalYears,
+                datasets: [{{
+                    label: 'Total Prophages',
+                    data: temporalProphageCounts,
+                    backgroundColor: '#36A2EB',
+                    borderColor: '#2e8bc0',
+                    borderWidth: 1
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Total Prophages Detected'
+                        }}
+                    }},
+                    x: {{
+                        title: {{
+                            display: true,
+                            text: 'Year'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Temporal Analysis: Plasmid Detection Over Time
+        const temporalPlasmidCounts = TEMPORAL_PLASMID_COUNTS_PLACEHOLDER;
+
+        const temporalPlasmidsCtx = document.getElementById('temporalPlasmidsChart').getContext('2d');
+        const temporalPlasmidsChart = new Chart(temporalPlasmidsCtx, {{
+            type: 'bar',
+            data: {{
+                labels: temporalYears,
+                datasets: [{{
+                    label: 'Total Plasmids',
+                    data: temporalPlasmidCounts,
+                    backgroundColor: '#9966FF',
+                    borderColor: '#8855ee',
+                    borderWidth: 1
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    y: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Total Plasmids Detected'
+                        }}
+                    }},
+                    x: {{
+                        title: {{
+                            display: true,
+                            text: 'Year'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
         // N50 Distribution Histogram
         const n50Labels = N50_LABELS_PLACEHOLDER;
         const n50Counts = N50_COUNTS_PLACEHOLDER;
@@ -1932,6 +2254,14 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = js_code.replace('PLASMID_HIST_COUNTS_PLACEHOLDER', json.dumps(plasmid_hist_counts))
     js_code = js_code.replace('SCATTER_PLASMID_X_PLACEHOLDER', json.dumps(scatter_plasmid_x))
     js_code = js_code.replace('SCATTER_AMR_Y_PLACEHOLDER', json.dumps(scatter_amr_y))
+
+    # Temporal analysis data
+    js_code = js_code.replace('TEMPORAL_YEARS_PLACEHOLDER', json.dumps(temporal_years))
+    js_code = js_code.replace('TEMPORAL_SAMPLE_COUNTS_PLACEHOLDER', json.dumps(temporal_sample_counts))
+    js_code = js_code.replace('TEMPORAL_AMR_PCT_PLACEHOLDER', json.dumps(temporal_amr_pct))
+    js_code = js_code.replace('TEMPORAL_MDR_PCT_PLACEHOLDER', json.dumps(temporal_mdr_pct))
+    js_code = js_code.replace('TEMPORAL_PROPHAGE_COUNTS_PLACEHOLDER', json.dumps(temporal_prophage_counts))
+    js_code = js_code.replace('TEMPORAL_PLASMID_COUNTS_PLACEHOLDER', json.dumps(temporal_plasmid_counts))
 
     # Assembly quality data
     js_code = js_code.replace('N50_LABELS_PLACEHOLDER', json.dumps(n50_labels))

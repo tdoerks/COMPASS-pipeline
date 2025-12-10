@@ -3,7 +3,7 @@
 ## Overview
 Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab visualizations using Chart.js v4.4.0. Transformed a basic report into a comprehensive, publication-quality analytical dashboard.
 
-## Completed Phases (1-8, 13)
+## Completed Phases (1-8, 12, 13)
 
 ### Phase 1: Tab Switching Fix
 **Commit:** cd0c891
@@ -93,6 +93,37 @@ Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab vis
 - Charts use smooth line graphs (tension: 0.4) for trends
 - Helps identify temporal patterns in AMR and mobile elements
 
+### Phase 12: Downloadable Report Elements
+**Commit:** [pending]
+- Added export functionality for sharing and archiving report data
+- **Export Toolbar:**
+  - Added dedicated export toolbar below tab buttons
+  - Styled export buttons with hover effects and icons
+  - Positioned for easy access on all tabs
+- **JSON Summary Export:**
+  - Downloads structured JSON with all key metrics
+  - Includes: report metadata, overview stats, AMR analysis, plasmid analysis, prophage analysis
+  - File: `compass_summary.json` with formatted output
+- **Chart PNG Export:**
+  - Individual chart export function `downloadChartPNG(chartId)`
+  - Bulk export: "All Charts (PNG)" downloads 16 charts
+  - Uses Chart.js `toDataURL()` method for high-quality images
+  - Staggered downloads (300ms interval) to avoid browser blocking
+  - Charts: AMR genes, AMR classes, MDR comparison, Inc groups, mobility types, plasmid count, plasmid-AMR scatter, temporal trends (4 charts), assembly quality (4 histograms), functional diversity
+- **PDF Report Generation:**
+  - Integrated jsPDF library (v2.5.1) from CDN
+  - Creates formatted PDF with summary statistics
+  - Sections: Overview, AMR Analysis, Plasmid Analysis, Prophage Analysis
+  - Includes page numbering and pipeline branding
+  - File: `compass_summary_report.pdf`
+- **Implementation details:**
+  - Added jsPDF CDN link in HTML head
+  - 3 new JavaScript functions: `downloadSummaryJSON()`, `downloadAllChartsPNG()`, `generatePDFReport()`
+  - Helper function: `downloadChartPNG(chartId)` for individual exports
+  - Export buttons styled with `.export-btn` class
+  - All exports use Blob API for client-side file generation
+  - No server-side dependencies required
+
 ### Phase 13: Performance Optimizations
 **Commit:** 81ae705
 - Optimized report for large datasets (3,000+ samples)
@@ -120,11 +151,12 @@ Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab vis
 ## Technical Stack
 - **Frontend:** HTML5, CSS3, JavaScript (ES5 for compatibility)
 - **Charting:** Chart.js v4.4.0
+- **PDF Generation:** jsPDF v2.5.1
 - **Backend:** Python 3.9+ with pandas for data manipulation
 - **Data Processing:** Counter from collections, pandas.cut() for binning
 
 ## File Modified
-- `/workspace/COMPASS-pipeline/bin/generate_compass_summary.py` (2,400+ lines)
+- `/workspace/COMPASS-pipeline/bin/generate_compass_summary.py` (2,900+ lines)
 
 ## Current Report Features
 1. **8 Interactive Tabs:**

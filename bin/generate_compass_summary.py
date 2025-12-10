@@ -657,6 +657,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>COMPASS Pipeline Summary Report</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         * {{
             box-sizing: border-box;
@@ -958,6 +959,46 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         .footer-links a:hover {{
             text-decoration: underline;
         }}
+
+        .export-toolbar {{
+            background: #f8f9ff;
+            padding: 12px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }}
+
+        .export-btn {{
+            padding: 8px 16px;
+            background: white;
+            color: #667eea;
+            border: 1px solid #667eea;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }}
+
+        .export-btn:hover {{
+            background: #667eea;
+            color: white;
+        }}
+
+        .export-btn:active {{
+            transform: scale(0.98);
+        }}
+
+        .export-label {{
+            color: #666;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-right: 10px;
+        }}
     </style>
 </head>
 <body>
@@ -981,6 +1022,20 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <button class="tab-button" onclick="switchTab(event, 'multiqc')">MultiQC Report</button>"""
 
     html += f"""
+        </div>
+
+        <!-- Export Toolbar -->
+        <div class="export-toolbar">
+            <span class="export-label">Export:</span>
+            <button class="export-btn" onclick="downloadSummaryJSON()">
+                📊 Summary JSON
+            </button>
+            <button class="export-btn" onclick="downloadAllChartsPNG()">
+                📈 All Charts (PNG)
+            </button>
+            <button class="export-btn" onclick="generatePDFReport()">
+                📄 PDF Report
+            </button>
         </div>
     </div>
 
@@ -1482,6 +1537,217 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             link.click();
             document.body.removeChild(link);
         }
+
+        // Export summary statistics as JSON
+        function downloadSummaryJSON() {{
+            const summary = {{
+                report_metadata: {{
+                    generated_at: '{datetime.now().isoformat()}',
+                    pipeline_version: 'COMPASS v1.2-mod',
+                    total_samples: {total_samples}
+                }},
+                overview: {{
+                    total_samples: {total_samples},
+                    assembly_qc_passed: {passed_qc},
+                    assembly_qc_failed: {failed_qc},
+                    assembly_qc_pass_rate: {passed_qc/total_samples*100:.2f},
+                    average_contigs: {avg_contigs:.2f},
+                    average_n50: {avg_n50:.2f},
+                    average_assembly_length: {avg_length:.2f},
+                    average_gc_percent: {avg_gc:.2f}
+                }},
+                amr_analysis: {{
+                    total_amr_genes: {total_amr_genes},
+                    samples_with_amr: {samples_with_amr},
+                    amr_prevalence: {samples_with_amr/total_samples*100:.2f},
+                    mdr_samples: {mdr_samples},
+                    mdr_percentage: {mdr_pct:.2f},
+                    unique_amr_genes: {len(amr_gene_counter)},
+                    unique_amr_classes: {len(amr_class_counter)}
+                }},
+                plasmid_analysis: {{
+                    total_plasmids: {total_plasmids},
+                    samples_with_plasmids: {samples_with_plasmids},
+                    plasmid_prevalence: {samples_with_plasmids/total_samples*100:.2f},
+                    unique_inc_groups: {len(inc_group_counter)},
+                    unique_mobility_types: {len(mobility_type_counter)}
+                }},
+                prophage_analysis: {{
+                    total_prophages: {total_prophages},
+                    samples_with_prophages: {samples_with_prophages},
+                    prophage_prevalence: {samples_with_prophages/total_samples*100:.2f},
+                    average_prophages_per_sample: {avg_prophages:.2f}
+                }}
+            }};
+
+            const jsonStr = JSON.stringify(summary, null, 2);
+            const blob = new Blob([jsonStr], {{ type: 'application/json' }});
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'compass_summary.json');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }}
+
+        // Download all charts as PNG files
+        function downloadAllChartsPNG() {{
+            const chartIds = [
+                'amrGenesBarChart',
+                'amrClassPieChart',
+                'mdrComparisonChart',
+                'incGroupsBarChart',
+                'mobilityPieChart',
+                'plasmidCountHist',
+                'plasmidAmrScatter',
+                'samplesOverTimeChart',
+                'amrTrendsChart',
+                'prophageTrendChart',
+                'plasmidTrendChart',
+                'n50HistChart',
+                'lengthHistChart',
+                'contigHistChart',
+                'buscoHistChart',
+                'functionalPieChart'
+            ];
+
+            var downloaded = 0;
+            chartIds.forEach(function(chartId, index) {{
+                setTimeout(function() {{
+                    downloadChartPNG(chartId);
+                    downloaded++;
+                    if (downloaded === chartIds.length) {{
+                        alert('Downloaded ' + downloaded + ' charts as PNG files!');
+                    }}
+                }}, index * 300);  // Stagger downloads by 300ms
+            }});
+        }}
+
+        // Download individual chart as PNG
+        function downloadChartPNG(chartId) {{
+            const canvas = document.getElementById(chartId);
+            if (!canvas) {{
+                console.warn('Chart not found: ' + chartId);
+                return;
+            }}
+
+            // Get the chart instance
+            const chartInstance = Chart.getChart(canvas);
+            if (!chartInstance) {{
+                console.warn('Chart instance not found: ' + chartId);
+                return;
+            }}
+
+            // Convert to base64 PNG
+            const url = canvas.toDataURL('image/png');
+
+            // Create download link
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = chartId + '.png';
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }}
+
+        // Generate PDF report (basic version)
+        function generatePDFReport() {{
+            // Check if jsPDF is loaded
+            if (typeof window.jspdf === 'undefined') {{
+                alert('PDF library not loaded. Please refresh the page and try again.');
+                return;
+            }}
+
+            const {{ jsPDF }} = window.jspdf;
+            const doc = new jsPDF();
+
+            var yPos = 20;
+            const lineHeight = 7;
+            const pageHeight = doc.internal.pageSize.height;
+
+            // Helper to check if new page needed
+            function checkPageBreak() {{
+                if (yPos > pageHeight - 20) {{
+                    doc.addPage();
+                    yPos = 20;
+                }}
+            }}
+
+            // Title
+            doc.setFontSize(20);
+            doc.setTextColor(102, 126, 234);
+            doc.text('COMPASS Pipeline Summary Report', 105, yPos, {{ align: 'center' }});
+            yPos += 15;
+
+            // Generated timestamp
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            doc.text('Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', 105, yPos, {{ align: 'center' }});
+            yPos += 15;
+
+            // Overview section
+            doc.setFontSize(14);
+            doc.setTextColor(0, 0, 0);
+            doc.text('Overview', 20, yPos);
+            yPos += 10;
+
+            doc.setFontSize(10);
+            const overviewStats = [
+                'Total Samples: {total_samples}',
+                'Assembly QC Passed: {passed_qc} ({passed_qc/total_samples*100:.1f}%)',
+                'Average Contigs: {avg_contigs:.0f}',
+                'Average N50: {avg_n50/1000:.1f} kb',
+                '',
+                'AMR Analysis',
+                'Total AMR Genes: {total_amr_genes}',
+                'Samples with AMR: {samples_with_amr} ({samples_with_amr/total_samples*100:.1f}%)',
+                'MDR Samples: {mdr_samples} ({mdr_pct:.1f}%)',
+                '',
+                'Plasmid Analysis',
+                'Total Plasmids: {total_plasmids}',
+                'Samples with Plasmids: {samples_with_plasmids} ({samples_with_plasmids/total_samples*100:.1f}%)',
+                '',
+                'Prophage Analysis',
+                'Total Prophages: {total_prophages}',
+                'Samples with Prophages: {samples_with_prophages} ({samples_with_prophages/total_samples*100:.1f}%)',
+                'Average per Sample: {avg_prophages:.1f}'
+            ];
+
+            overviewStats.forEach(function(stat) {{
+                checkPageBreak();
+                if (stat === '') {{
+                    yPos += 3;
+                }} else if (stat.includes('Analysis')) {{
+                    doc.setFontSize(12);
+                    doc.setTextColor(102, 126, 234);
+                    doc.text(stat, 20, yPos);
+                    doc.setFontSize(10);
+                    doc.setTextColor(0, 0, 0);
+                    yPos += lineHeight;
+                }} else {{
+                    doc.text(stat, 25, yPos);
+                    yPos += lineHeight;
+                }}
+            }});
+
+            // Footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for (var i = 1; i <= pageCount; i++) {{
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(150, 150, 150);
+                doc.text('Page ' + i + ' of ' + pageCount, 105, pageHeight - 10, {{ align: 'center' }});
+                doc.text('Generated by COMPASS Pipeline v1.2-mod', 105, pageHeight - 5, {{ align: 'center' }});
+            }}
+
+            // Save PDF
+            doc.save('compass_summary_report.pdf');
+            alert('PDF report generated successfully!');
+        }}
 
         // Initialize table stats and pagination on page load
         window.addEventListener('load', function() {{

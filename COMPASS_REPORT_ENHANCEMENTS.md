@@ -94,7 +94,7 @@ Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab vis
 - Helps identify temporal patterns in AMR and mobile elements
 
 ### Phase 12: Downloadable Report Elements
-**Commit:** [pending]
+**Commit:** 6fb4255
 - Added export functionality for sharing and archiving report data
 - **Export Toolbar:**
   - Added dedicated export toolbar below tab buttons
@@ -175,6 +175,9 @@ Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab vis
    - Table filtering (real-time search)
    - Table pagination (50/100/500/All rows per page)
    - CSV export with proper escaping
+   - JSON summary export (structured metrics)
+   - PNG chart export (individual or bulk download)
+   - PDF report generation (summary statistics)
    - Hover effects on cards and charts
    - Responsive grid layouts
 
@@ -185,7 +188,7 @@ Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab vis
    - Line charts (temporal trends)
    - Scatter plot (plasmid-AMR correlation)
 
-## Planned Future Enhancements (Phases 9-14)
+## Planned Future Enhancements (Phases 9-11, 14)
 
 ### Phase 9: Geographic Analysis Tab
 - State-level distribution maps/charts
@@ -201,11 +204,6 @@ Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab vis
 - Dynamic filters updating all charts
 - Filter by: organism, year range, state, MDR status
 - URL parameter support for sharing filtered views
-
-### Phase 12: Downloadable Report Elements
-- PNG export for individual charts (Chart.js toBase64Image)
-- PDF generation for full report
-- Downloadable summary statistics JSON
 
 ### Phase 14: Comparison Mode
 - Side-by-side dataset comparison
@@ -256,4 +254,4 @@ All phases committed individually with detailed messages and co-authored by Clau
 
 Repository: `/workspace/COMPASS-pipeline`
 Branch: `v1.2-mod`
-Total commits for enhancements: 9
+Total commits for enhancements: 10

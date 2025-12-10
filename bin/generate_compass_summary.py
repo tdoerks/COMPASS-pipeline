@@ -646,6 +646,62 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     busco_counts = busco_hist.value_counts().sort_index().tolist() if len(busco_completeness_values) > 0 else []
     busco_labels = [f"{i}-{i+5}%" for i in range(0, 100, 5)]
 
+    # Geographic Analysis data preparation
+    state_counter = Counter()
+    state_mdr_counts = {}  # state -> MDR count
+    state_total_counts = {}  # state -> total samples
+    state_amr_totals = {}  # state -> total AMR genes
+
+    for _, row in df.iterrows():
+        state = row.get('state', '-')
+        if state and state != '-':
+            # Count samples per state
+            state_counter[state] += 1
+
+            # Track MDR by state
+            if state not in state_mdr_counts:
+                state_mdr_counts[state] = 0
+                state_total_counts[state] = 0
+                state_amr_totals[state] = 0
+
+            state_total_counts[state] += 1
+
+            # Count MDR samples
+            if row.get('mdr_status') == 'Yes':
+                state_mdr_counts[state] += 1
+
+            # Sum AMR genes
+            num_amr = row.get('num_amr_genes', 0)
+            if num_amr != '-':
+                try:
+                    state_amr_totals[state] += int(num_amr)
+                except (ValueError, TypeError):
+                    pass
+
+    # Calculate MDR rates by state
+    state_mdr_rates = {}
+    for state in state_counter.keys():
+        if state_total_counts.get(state, 0) > 0:
+            state_mdr_rates[state] = (state_mdr_counts.get(state, 0) / state_total_counts[state]) * 100
+        else:
+            state_mdr_rates[state] = 0
+
+    # Get top 15 states by sample count
+    top_states = state_counter.most_common(15)
+    state_labels = [state for state, count in top_states]
+    state_counts = [count for state, count in top_states]
+
+    # MDR rates for top states
+    state_mdr_rate_values = [state_mdr_rates.get(state, 0) for state in state_labels]
+
+    # Total states with samples
+    num_states = len(state_counter)
+
+    # State with highest MDR rate
+    max_mdr_state = max(state_mdr_rates.items(), key=lambda x: x[1]) if state_mdr_rates else ('-', 0)
+    max_mdr_state_name = max_mdr_state[0]
+    max_mdr_state_rate = max_mdr_state[1]
+
     # Check if MultiQC report exists
     has_multiqc = multiqc_path and Path(multiqc_path).exists()
 
@@ -1013,6 +1069,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <button class="tab-button" onclick="switchTab(event, 'amr-analysis')">AMR Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'plasmid-analysis')">Plasmid Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'temporal-analysis')">Temporal Analysis</button>
+            <button class="tab-button" onclick="switchTab(event, 'geographic-analysis')">Geographic Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'assembly-quality')">Assembly Quality</button>
             <button class="tab-button" onclick="switchTab(event, 'data-table')">Data Table</button>
             <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>"""
@@ -1247,6 +1304,58 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 <div class="chart-wrapper">
                     <canvas id="temporalPlasmidsChart"></canvas>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Geographic Analysis Tab -->
+    <div id="geographic-analysis" class="tab-content">
+        <div class="summary-grid" style="margin-bottom: 30px;">
+            <div class="summary-card">
+                <h3>States Analyzed</h3>
+                <div class="value">{num_states}</div>
+                <div class="subtext">Geographic regions with data</div>
+            </div>
+            <div class="summary-card {'card-success' if num_states > 10 else 'card-warning' if num_states > 5 else ''}">
+                <h3>Top State</h3>
+                <div class="value">{state_labels[0] if state_labels else '-'}</div>
+                <div class="subtext">{state_counts[0] if state_counts else 0} samples</div>
+            </div>
+            <div class="summary-card {'card-danger' if max_mdr_state_rate > 30 else 'card-warning' if max_mdr_state_rate > 20 else 'card-success'}">
+                <h3>Highest MDR Rate</h3>
+                <div class="value">{max_mdr_state_rate:.1f}%</div>
+                <div class="subtext">{max_mdr_state_name}</div>
+            </div>
+            <div class="summary-card">
+                <h3>Coverage</h3>
+                <div class="value">{total_samples}</div>
+                <div class="subtext">Samples across {num_states} states</div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px; margin-bottom: 20px;">
+            <div class="chart-container">
+                <h2>Samples by State</h2>
+                <p style="color: #666; margin-bottom: 20px;">Top 15 states by sample count</p>
+                <div class="chart-wrapper">
+                    <canvas id="stateSamplesChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2>MDR Rates by State</h2>
+                <p style="color: #666; margin-bottom: 20px;">Multidrug resistance prevalence across states</p>
+                <div class="chart-wrapper">
+                    <canvas id="stateMDRChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h2>Regional Comparison</h2>
+            <p style="color: #666; margin-bottom: 20px;">Sample counts vs MDR rates by state</p>
+            <div class="chart-wrapper" style="height: 400px;">
+                <canvas id="regionalComparisonChart"></canvas>
             </div>
         </div>
     </div>
@@ -1607,6 +1716,9 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 'amrTrendsChart',
                 'prophageTrendChart',
                 'plasmidTrendChart',
+                'stateSamplesChart',
+                'stateMDRChart',
+                'regionalComparisonChart',
                 'n50HistChart',
                 'lengthHistChart',
                 'contigHistChart',
@@ -2364,6 +2476,140 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                         title: {{
                             display: true,
                             text: 'Year'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Geographic Analysis: Samples by State
+        const stateLabels = {json.dumps(state_labels)};
+        const stateCounts = {json.dumps(state_counts)};
+
+        const stateSamplesCtx = document.getElementById('stateSamplesChart').getContext('2d');
+        const stateSamplesChart = new Chart(stateSamplesCtx, {{
+            type: 'bar',
+            data: {{
+                labels: stateLabels,
+                datasets: [{{
+                    label: 'Number of Samples',
+                    data: stateCounts,
+                    backgroundColor: '#36A2EB',
+                    borderColor: '#2a8fcc',
+                    borderWidth: 1
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',  // Horizontal bar chart
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    x: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Samples'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Geographic Analysis: MDR Rates by State
+        const stateMDRRates = {json.dumps(state_mdr_rate_values)};
+
+        const stateMDRCtx = document.getElementById('stateMDRChart').getContext('2d');
+        const stateMDRChart = new Chart(stateMDRCtx, {{
+            type: 'bar',
+            data: {{
+                labels: stateLabels,
+                datasets: [{{
+                    label: 'MDR Rate (%)',
+                    data: stateMDRRates,
+                    backgroundColor: '#ef4444',
+                    borderColor: '#dc2626',
+                    borderWidth: 1
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',  // Horizontal bar chart
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    x: {{
+                        beginAtZero: true,
+                        max: 100,
+                        title: {{
+                            display: true,
+                            text: 'MDR Rate (%)'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Geographic Analysis: Regional Comparison (Scatter Plot)
+        const regionalData = stateLabels.map(function(state, i) {{
+            return {{
+                x: stateCounts[i],
+                y: stateMDRRates[i],
+                label: state
+            }};
+        }});
+
+        const regionalComparisonCtx = document.getElementById('regionalComparisonChart').getContext('2d');
+        const regionalComparisonChart = new Chart(regionalComparisonCtx, {{
+            type: 'scatter',
+            data: {{
+                datasets: [{{
+                    label: 'States',
+                    data: regionalData,
+                    backgroundColor: '#9966FF',
+                    borderColor: '#7744cc',
+                    pointRadius: 8,
+                    pointHoverRadius: 10
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }},
+                    tooltip: {{
+                        callbacks: {{
+                            label: function(context) {{
+                                var point = context.raw;
+                                return point.label + ': ' + point.x + ' samples, ' + point.y.toFixed(1) + '% MDR';
+                            }}
+                        }}
+                    }}
+                }},
+                scales: {{
+                    x: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Samples'
+                        }}
+                    }},
+                    y: {{
+                        beginAtZero: true,
+                        max: 100,
+                        title: {{
+                            display: true,
+                            text: 'MDR Rate (%)'
                         }}
                     }}
                 }}

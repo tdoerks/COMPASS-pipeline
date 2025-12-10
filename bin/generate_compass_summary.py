@@ -702,6 +702,50 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     max_mdr_state_name = max_mdr_state[0]
     max_mdr_state_rate = max_mdr_state[1]
 
+    # Strain Typing Analysis data preparation
+    mlst_st_counter = Counter()
+    serovar_counter = Counter()
+    mlst_scheme_counter = Counter()
+
+    for _, row in df.iterrows():
+        # Count MLST sequence types
+        mlst_st = row.get('mlst_st', '-')
+        if mlst_st and mlst_st != '-':
+            mlst_st_counter[mlst_st] += 1
+
+        # Count MLST schemes
+        mlst_scheme = row.get('mlst_scheme', '-')
+        if mlst_scheme and mlst_scheme != '-':
+            mlst_scheme_counter[mlst_scheme] += 1
+
+        # Count serovars (Salmonella)
+        serovar = row.get('serovar', '-')
+        if serovar and serovar != '-':
+            serovar_counter[serovar] += 1
+
+    # Get top 15 MLST STs for bar chart
+    top_mlst_sts = mlst_st_counter.most_common(15)
+    mlst_st_labels = [str(st) for st, count in top_mlst_sts]
+    mlst_st_counts = [count for st, count in top_mlst_sts]
+
+    # Get top 15 serovars for bar chart
+    top_serovars = serovar_counter.most_common(15)
+    serovar_labels = [serovar for serovar, count in top_serovars]
+    serovar_counts = [count for serovar, count in top_serovars]
+
+    # MLST scheme distribution
+    mlst_scheme_labels = [scheme for scheme, count in mlst_scheme_counter.most_common()]
+    mlst_scheme_counts = [count for scheme, count in mlst_scheme_counter.most_common()]
+
+    # Total unique types
+    num_unique_sts = len(mlst_st_counter)
+    num_unique_serovars = len(serovar_counter)
+    num_mlst_schemes = len(mlst_scheme_counter)
+
+    # Samples with typing data
+    samples_with_mlst = len([s for s in df['mlst_st'] if s and s != '-'])
+    samples_with_sistr = len([s for s in df['serovar'] if s and s != '-'])
+
     # Check if MultiQC report exists
     has_multiqc = multiqc_path and Path(multiqc_path).exists()
 
@@ -1070,6 +1114,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <button class="tab-button" onclick="switchTab(event, 'plasmid-analysis')">Plasmid Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'temporal-analysis')">Temporal Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'geographic-analysis')">Geographic Analysis</button>
+            <button class="tab-button" onclick="switchTab(event, 'strain-typing')">Strain Typing</button>
             <button class="tab-button" onclick="switchTab(event, 'assembly-quality')">Assembly Quality</button>
             <button class="tab-button" onclick="switchTab(event, 'data-table')">Data Table</button>
             <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>"""
@@ -1356,6 +1401,58 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <p style="color: #666; margin-bottom: 20px;">Sample counts vs MDR rates by state</p>
             <div class="chart-wrapper" style="height: 400px;">
                 <canvas id="regionalComparisonChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Strain Typing Tab -->
+    <div id="strain-typing" class="tab-content">
+        <div class="summary-grid" style="margin-bottom: 30px;">
+            <div class="summary-card">
+                <h3>Samples with MLST</h3>
+                <div class="value">{samples_with_mlst}</div>
+                <div class="subtext">{samples_with_mlst/total_samples*100:.1f}% of total samples</div>
+            </div>
+            <div class="summary-card {'card-success' if num_unique_sts > 10 else 'card-warning' if num_unique_sts > 5 else ''}">
+                <h3>Unique Sequence Types</h3>
+                <div class="value">{num_unique_sts}</div>
+                <div class="subtext">MLST STs detected</div>
+            </div>
+            <div class="summary-card">
+                <h3>Samples with Serovars</h3>
+                <div class="value">{samples_with_sistr}</div>
+                <div class="subtext">{samples_with_sistr/total_samples*100:.1f}% (Salmonella only)</div>
+            </div>
+            <div class="summary-card {'card-success' if num_unique_serovars > 5 else ''}">
+                <h3>Unique Serovars</h3>
+                <div class="value">{num_unique_serovars}</div>
+                <div class="subtext">SISTR serovar predictions</div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px; margin-bottom: 20px;">
+            <div class="chart-container">
+                <h2>Top MLST Sequence Types</h2>
+                <p style="color: #666; margin-bottom: 20px;">Most common ST types across samples</p>
+                <div class="chart-wrapper">
+                    <canvas id="mlstSTChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2>MLST Scheme Distribution</h2>
+                <p style="color: #666; margin-bottom: 20px;">Typing schemes used for strain classification</p>
+                <div class="chart-wrapper">
+                    <canvas id="mlstSchemeChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h2>Top Serovars (Salmonella)</h2>
+            <p style="color: #666; margin-bottom: 20px;">Most common Salmonella serovars detected by SISTR</p>
+            <div class="chart-wrapper" style="height: 400px;">
+                <canvas id="serovarChart"></canvas>
             </div>
         </div>
     </div>
@@ -1719,6 +1816,9 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 'stateSamplesChart',
                 'stateMDRChart',
                 'regionalComparisonChart',
+                'mlstSTChart',
+                'mlstSchemeChart',
+                'serovarChart',
                 'n50HistChart',
                 'lengthHistChart',
                 'contigHistChart',
@@ -2610,6 +2710,116 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                         title: {{
                             display: true,
                             text: 'MDR Rate (%)'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Strain Typing: MLST Sequence Types
+        const mlstSTLabels = {json.dumps(mlst_st_labels)};
+        const mlstSTCounts = {json.dumps(mlst_st_counts)};
+
+        const mlstSTCtx = document.getElementById('mlstSTChart').getContext('2d');
+        const mlstSTChart = new Chart(mlstSTCtx, {{
+            type: 'bar',
+            data: {{
+                labels: mlstSTLabels,
+                datasets: [{{
+                    label: 'Number of Samples',
+                    data: mlstSTCounts,
+                    backgroundColor: '#22c55e',
+                    borderColor: '#16a34a',
+                    borderWidth: 1
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',  // Horizontal bar chart
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    x: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Samples'
+                        }}
+                    }}
+                }}
+            }}
+        }});
+
+        // Strain Typing: MLST Scheme Distribution
+        const mlstSchemeLabels = {json.dumps(mlst_scheme_labels)};
+        const mlstSchemeCounts = {json.dumps(mlst_scheme_counts)};
+
+        const mlstSchemeCtx = document.getElementById('mlstSchemeChart').getContext('2d');
+        const mlstSchemeChart = new Chart(mlstSchemeCtx, {{
+            type: 'pie',
+            data: {{
+                labels: mlstSchemeLabels,
+                datasets: [{{
+                    data: mlstSchemeCounts,
+                    backgroundColor: [
+                        '#22c55e',
+                        '#10b981',
+                        '#14b8a6',
+                        '#06b6d4',
+                        '#0ea5e9',
+                        '#3b82f6'
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {{
+                    legend: {{
+                        position: 'right'
+                    }}
+                }}
+            }}
+        }});
+
+        // Strain Typing: Serovar Distribution (Salmonella)
+        const serovarLabels = {json.dumps(serovar_labels)};
+        const serovarCounts = {json.dumps(serovar_counts)};
+
+        const serovarCtx = document.getElementById('serovarChart').getContext('2d');
+        const serovarChart = new Chart(serovarCtx, {{
+            type: 'bar',
+            data: {{
+                labels: serovarLabels,
+                datasets: [{{
+                    label: 'Number of Samples',
+                    data: serovarCounts,
+                    backgroundColor: '#f59e0b',
+                    borderColor: '#d97706',
+                    borderWidth: 1
+                }}]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',  // Horizontal bar chart
+                plugins: {{
+                    legend: {{
+                        display: false
+                    }}
+                }},
+                scales: {{
+                    x: {{
+                        beginAtZero: true,
+                        title: {{
+                            display: true,
+                            text: 'Number of Samples'
                         }}
                     }}
                 }}

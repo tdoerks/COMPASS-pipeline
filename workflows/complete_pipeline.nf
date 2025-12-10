@@ -129,7 +129,7 @@ workflow COMPLETE_PIPELINE {
         ch_quast_report.collect().ifEmpty([]),  // quast_reports
         ch_busco_summary.collect().ifEmpty([]), // busco_summaries
         TYPING.out.mlst_results.map { it[1] }.collect(),     // mlst_results
-        TYPING.out.sistr_results.map { it[1] }.collect(),    // sistr_results
+        TYPING.out.sistr_results.filter { it instanceof List }.map { it[1] }.collect().ifEmpty([]),    // sistr_results (filter skipped non-Salmonella)
         ch_metadata.ifEmpty(file('NO_FILE'))    // metadata
     )
     ch_versions = ch_versions.mix(COMBINE_RESULTS.out.versions)

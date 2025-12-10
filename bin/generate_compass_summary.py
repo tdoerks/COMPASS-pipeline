@@ -1271,6 +1271,26 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 Showing <span id="visibleRows">0</span> of <span id="totalRows">0</span> samples
             </div>
 
+            <!-- Pagination Controls -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px; background: #f8f9ff; border-radius: 6px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label style="color: #666;">Rows per page:</label>
+                    <select id="pageSizeSelect" onchange="changePageSize()" style="padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="500">500</option>
+                        <option value="999999">All</option>
+                    </select>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span id="pageInfo" style="color: #666; font-size: 0.9em;">Page 1 of 1</span>
+                    <button onclick="firstPage()" id="firstPage" style="padding: 5px 10px; background: white; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">⏮ First</button>
+                    <button onclick="prevPage()" id="prevPage" style="padding: 5px 10px; background: white; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">◀ Prev</button>
+                    <button onclick="nextPage()" id="nextPage" style="padding: 5px 10px; background: white; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">Next ▶</button>
+                    <button onclick="lastPage()" id="lastPage" style="padding: 5px 10px; background: white; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">Last ⏭</button>
+                </div>
+            </div>
+
             <table id="dataTable">
                 <thead>
                     <tr>
@@ -1338,6 +1358,11 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 
     <script>
         // Tab switching - simplified to avoid any escaping issues
+        // Track which tabs have been rendered (for lazy loading)
+        var renderedTabs = {{
+            'overview': true  // Overview is visible on load
+        }};
+
         function switchTab(evt, tabName) {
             // Hide all tab contents
             var tabContents = document.getElementsByClassName('tab-content');
@@ -1356,6 +1381,12 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             document.getElementById(tabName).style.display = 'block';
             document.getElementById(tabName).classList.add('active');
             evt.currentTarget.classList.add('active');
+
+            // Lazy load charts for this tab if not already rendered
+            if (!renderedTabs[tabName]) {
+                renderTabCharts(tabName);
+                renderedTabs[tabName] = true;
+            }
         }
 
         // Table sorting
@@ -1452,10 +1483,102 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             document.body.removeChild(link);
         }
 
-        // Initialize table stats on page load
+        // Initialize table stats and pagination on page load
         window.addEventListener('load', function() {{
             filterTable();  // Initialize counts
+            updatePagination();  // Initialize pagination
         }});
+
+        // Pagination variables
+        var currentPage = 1;
+        var rowsPerPage = 100;
+
+        // Update table pagination
+        function updatePagination() {{
+            const table = document.getElementById('dataTable');
+            const rows = Array.from(table.querySelectorAll('tbody tr'));
+            const totalRows = rows.length;
+            const totalPages = Math.ceil(totalRows / rowsPerPage);
+
+            // Hide all rows first
+            rows.forEach(row => row.style.display = 'none');
+
+            // Show only rows for current page
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+            for (var i = start; i < end && i < totalRows; i++) {{
+                rows[i].style.display = '';
+            }}
+
+            // Update pagination info
+            document.getElementById('pageInfo').textContent =
+                'Page ' + currentPage + ' of ' + totalPages + ' (' + totalRows + ' total rows)';
+
+            // Update button states
+            document.getElementById('prevPage').disabled = currentPage === 1;
+            document.getElementById('nextPage').disabled = currentPage === totalPages;
+            document.getElementById('firstPage').disabled = currentPage === 1;
+            document.getElementById('lastPage').disabled = currentPage === totalPages;
+        }}
+
+        // Pagination controls
+        function firstPage() {{
+            currentPage = 1;
+            updatePagination();
+        }}
+
+        function prevPage() {{
+            if (currentPage > 1) {{
+                currentPage--;
+                updatePagination();
+            }}
+        }}
+
+        function nextPage() {{
+            const table = document.getElementById('dataTable');
+            const rows = table.querySelectorAll('tbody tr');
+            const totalPages = Math.ceil(rows.length / rowsPerPage);
+            if (currentPage < totalPages) {{
+                currentPage++;
+                updatePagination();
+            }}
+        }}
+
+        function lastPage() {{
+            const table = document.getElementById('dataTable');
+            const rows = table.querySelectorAll('tbody tr');
+            const totalPages = Math.ceil(rows.length / rowsPerPage);
+            currentPage = totalPages;
+            updatePagination();
+        }}
+
+        function changePageSize() {{
+            const select = document.getElementById('pageSizeSelect');
+            rowsPerPage = parseInt(select.value);
+            currentPage = 1;  // Reset to first page
+            updatePagination();
+        }}
+
+        // Master function to render charts for a specific tab (lazy loading)
+        function renderTabCharts(tabName) {{
+            switch(tabName) {{
+                case 'amr-analysis':
+                    renderAMRCharts();
+                    break;
+                case 'plasmid-analysis':
+                    renderPlasmidCharts();
+                    break;
+                case 'temporal-analysis':
+                    renderTemporalCharts();
+                    break;
+                case 'assembly-quality':
+                    renderAssemblyCharts();
+                    break;
+                case 'prophage-functional':
+                    renderProphageCharts();
+                    break;
+            }}
+        }}
 
         // AMR Genes Bar Chart
         const amrGeneLabels = AMR_GENE_LABELS_PLACEHOLDER;
@@ -1763,6 +1886,12 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                                 return 'Plasmids: ' + context.parsed.x + ', AMR genes: ' + context.parsed.y;
                             }}
                         }}
+                    }},
+                    decimation: {{
+                        enabled: true,
+                        algorithm: 'lttb',  // Largest-Triangle-Three-Buckets algorithm
+                        samples: 500,  // Display max 500 points for large datasets
+                        threshold: 1000  // Only decimate if dataset > 1000 points
                     }}
                 }},
                 scales: {{

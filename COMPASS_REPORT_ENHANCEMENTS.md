@@ -3,7 +3,7 @@
 ## Overview
 Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab visualizations using Chart.js v4.4.0. Transformed a basic report into a comprehensive, publication-quality analytical dashboard.
 
-## Completed Phases (1-9, 12, 13)
+## Completed Phases (1-10, 12, 13)
 
 ### Phase 1: Tab Switching Fix
 **Commit:** cd0c891
@@ -112,6 +112,25 @@ Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab vis
 - MDR rate calculation per state with threshold alerts
 - Scatter plot with custom tooltips showing state details
 
+### Phase 10: Strain Typing Tab
+**Commit:** 20f7dc6
+- Added comprehensive MLST and SISTR strain typing analysis
+- **Data preparation:** parse MLST STs, schemes, and Salmonella serovars
+- **3 Visualizations:**
+  - Top MLST Sequence Types (horizontal bar chart, top 15 STs)
+  - MLST Scheme Distribution (pie chart of typing schemes)
+  - Top Serovars (horizontal bar chart, Salmonella-specific SISTR results)
+- **4 Summary cards:**
+  - Samples with MLST (count + percentage)
+  - Unique Sequence Types (ST diversity)
+  - Samples with Serovars (Salmonella only + percentage)
+  - Unique Serovars (SISTR predictions)
+- **Color coding:** Green for MLST (#22c55e, #10b981), orange for serovars (#f59e0b)
+- **Data insights:** Identify dominant strain types and serovar prevalence
+- MLST data from mlst tool (sequence types and schemes)
+- SISTR data from sistr tool (Salmonella serovar predictions)
+- Supports multi-organism datasets (E. coli, Salmonella, Campylobacter)
+
 ### Phase 12: Downloadable Report Elements
 **Commit:** 6fb4255
 - Added export functionality for sharing and archiving report data
@@ -175,15 +194,16 @@ Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab vis
 - **Data Processing:** Counter from collections, pandas.cut() for binning
 
 ## File Modified
-- `/workspace/COMPASS-pipeline/bin/generate_compass_summary.py` (3,000+ lines)
+- `/workspace/COMPASS-pipeline/bin/generate_compass_summary.py` (3,360+ lines)
 
 ## Current Report Features
-1. **9 Interactive Tabs:**
+1. **10 Interactive Tabs:**
    - Overview (summary cards with color coding)
    - AMR Analysis (genes, classes, MDR comparison)
    - Plasmid Analysis (Inc groups, mobility, correlation)
    - Temporal Analysis (trends over time)
    - Geographic Analysis (state distribution, MDR by region)
+   - Strain Typing (MLST, serovars, strain diversity)
    - Assembly Quality (N50, length, contigs, BUSCO)
    - Data Table (searchable, sortable, exportable)
    - Prophage Functional Diversity (gene categories)
@@ -201,19 +221,14 @@ Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab vis
    - Hover effects on cards and charts
    - Responsive grid layouts
 
-3. **Visualizations (23+ charts):**
-   - Horizontal bar charts (AMR genes, Inc groups, state distributions)
-   - Pie charts (AMR classes, mobility types, functional diversity)
+3. **Visualizations (26+ charts):**
+   - Horizontal bar charts (AMR genes, Inc groups, state distributions, MLST STs, serovars)
+   - Pie charts (AMR classes, mobility types, functional diversity, MLST schemes)
    - Vertical bar charts (MDR comparison, histograms, temporal totals)
    - Line charts (temporal trends)
    - Scatter plots (plasmid-AMR correlation, regional comparison)
 
-## Planned Future Enhancements (Phases 10-11, 14)
-
-### Phase 10: Strain Typing Tab
-- MLST distribution visualizations
-- SISTR serovar charts (for Salmonella)
-- Strain diversity metrics
+## Planned Future Enhancements (Phases 11, 14)
 
 ### Phase 11: Interactive Filtering
 - Dynamic filters updating all charts
@@ -269,4 +284,4 @@ All phases committed individually with detailed messages and co-authored by Clau
 
 Repository: `/workspace/COMPASS-pipeline`
 Branch: `v1.2-mod`
-Total commits for enhancements: 11
+Total commits for enhancements: 12

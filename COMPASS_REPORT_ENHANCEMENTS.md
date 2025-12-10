@@ -3,7 +3,7 @@
 ## Overview
 Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab visualizations using Chart.js v4.4.0. Transformed a basic report into a comprehensive, publication-quality analytical dashboard.
 
-## Completed Phases (1-8, 12, 13)
+## Completed Phases (1-9, 12, 13)
 
 ### Phase 1: Tab Switching Fix
 **Commit:** cd0c891
@@ -93,6 +93,25 @@ Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab vis
 - Charts use smooth line graphs (tension: 0.4) for trends
 - Helps identify temporal patterns in AMR and mobile elements
 
+### Phase 9: Geographic Analysis Tab
+**Commit:** 87e62ca
+- Added comprehensive state-level geographic analysis
+- **Data preparation:** parse state from metadata, calculate state metrics
+- **3 Visualizations:**
+  - Samples by State (horizontal bar chart, top 15 states)
+  - MDR Rates by State (horizontal bar chart, resistance rates)
+  - Regional Comparison (scatter plot: samples vs MDR rate)
+- **4 Summary cards:**
+  - States Analyzed (total geographic regions)
+  - Top State (state with most samples + count)
+  - Highest MDR Rate (state with peak MDR, color-coded)
+  - Coverage (total samples across all states)
+- **Color coding:** Green (good coverage), yellow (warning), red (high MDR)
+- **Data insights:** Identify geographic hotspots for AMR resistance
+- State labels from metadata `geo_loc_name_state_province` field
+- MDR rate calculation per state with threshold alerts
+- Scatter plot with custom tooltips showing state details
+
 ### Phase 12: Downloadable Report Elements
 **Commit:** 6fb4255
 - Added export functionality for sharing and archiving report data
@@ -156,14 +175,15 @@ Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab vis
 - **Data Processing:** Counter from collections, pandas.cut() for binning
 
 ## File Modified
-- `/workspace/COMPASS-pipeline/bin/generate_compass_summary.py` (2,900+ lines)
+- `/workspace/COMPASS-pipeline/bin/generate_compass_summary.py` (3,000+ lines)
 
 ## Current Report Features
-1. **8 Interactive Tabs:**
+1. **9 Interactive Tabs:**
    - Overview (summary cards with color coding)
    - AMR Analysis (genes, classes, MDR comparison)
    - Plasmid Analysis (Inc groups, mobility, correlation)
    - Temporal Analysis (trends over time)
+   - Geographic Analysis (state distribution, MDR by region)
    - Assembly Quality (N50, length, contigs, BUSCO)
    - Data Table (searchable, sortable, exportable)
    - Prophage Functional Diversity (gene categories)
@@ -181,19 +201,14 @@ Enhanced the COMPASS pipeline HTML summary report with interactive multi-tab vis
    - Hover effects on cards and charts
    - Responsive grid layouts
 
-3. **Visualizations (20+ charts):**
-   - Horizontal bar charts (AMR genes, Inc groups)
+3. **Visualizations (23+ charts):**
+   - Horizontal bar charts (AMR genes, Inc groups, state distributions)
    - Pie charts (AMR classes, mobility types, functional diversity)
    - Vertical bar charts (MDR comparison, histograms, temporal totals)
    - Line charts (temporal trends)
-   - Scatter plot (plasmid-AMR correlation)
+   - Scatter plots (plasmid-AMR correlation, regional comparison)
 
-## Planned Future Enhancements (Phases 9-11, 14)
-
-### Phase 9: Geographic Analysis Tab
-- State-level distribution maps/charts
-- Regional AMR/MDR comparisons
-- Geographic clustering analysis
+## Planned Future Enhancements (Phases 10-11, 14)
 
 ### Phase 10: Strain Typing Tab
 - MLST distribution visualizations
@@ -254,4 +269,4 @@ All phases committed individually with detailed messages and co-authored by Clau
 
 Repository: `/workspace/COMPASS-pipeline`
 Branch: `v1.2-mod`
-Total commits for enhancements: 10
+Total commits for enhancements: 11

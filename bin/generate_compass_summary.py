@@ -1149,16 +1149,16 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         <div class="summary-grid">
             <div class="summary-card">
                 <h3>Total Samples</h3>
-                <div class="value">__TOTAL_SAMPLES__</div>
+                <div class="value">{total_samples}</div>
             </div>
             <div class="summary-card {'card-success' if passed_qc/total_samples >= 0.9 else 'card-warning' if passed_qc/total_samples >= 0.7 else 'card-danger'}">
                 <h3>Assembly QC <span class="indicator">{'✓' if passed_qc/total_samples >= 0.9 else '⚠' if passed_qc/total_samples >= 0.7 else '✗'}</span></h3>
-                <div class="value">__PASSED_QC__</div>
-                <div class="subtext">Passed (__FAILED_QC__ failed) - {passed_qc/total_samples*100:.1f}%</div>
+                <div class="value">{passed_qc}</div>
+                <div class="subtext">Passed ({failed_qc} failed) - {passed_qc/total_samples*100:.1f}%</div>
             </div>
             <div class="summary-card {'card-success' if avg_contigs <= 100 and avg_n50 >= 50000 else 'card-warning' if avg_contigs <= 300 else 'card-danger'}">
                 <h3>Average Assembly <span class="indicator">{'✓' if avg_contigs <= 100 and avg_n50 >= 50000 else '⚠' if avg_contigs <= 300 else '✗'}</span></h3>
-                <div class="value">__AVG_CONTIGS_INT__</div>
+                <div class="value">{avg_contigs:.0f}</div>
                 <div class="subtext">Contigs (N50: __AVG_N50_KB__kb)</div>
             </div>
             <div class="summary-card {'card-success' if mdr_pct < 10 else 'card-warning' if mdr_pct < 25 else 'card-danger'}">
@@ -1376,7 +1376,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             </div>
             <div class="summary-card">
                 <h3>Coverage</h3>
-                <div class="value">__TOTAL_SAMPLES__</div>
+                <div class="value">{total_samples}</div>
                 <div class="subtext">Samples across {num_states} states</div>
             </div>
         </div>
@@ -1481,7 +1481,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <div class="summary-card">
                 <h3>QC Pass Rate</h3>
                 <div class="value">{passed_qc/total_samples*100:.1f}%</div>
-                <div class="subtext">__PASSED_QC__/__TOTAL_SAMPLES__ samples</div>
+                <div class="subtext">{passed_qc}/{total_samples} samples</div>
             </div>
         </div>
 

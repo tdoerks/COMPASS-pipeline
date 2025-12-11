@@ -1615,7 +1615,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     </div>"""
 
     # Build JavaScript section separately to avoid f-string conflicts
-    js_code = """
+    js_code = f"""
 
     <script>
         // Tab switching - simplified to avoid any escaping issues

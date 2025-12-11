@@ -1620,9 +1620,9 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     <script>
         // Tab switching - simplified to avoid any escaping issues
         // Track which tabs have been rendered (for lazy loading)
-        var renderedTabs = {{
+        var renderedTabs = {
             'overview': true  // Overview is visible on load
-        }};
+        };
 
         function switchTab(evt, tabName) {
             // Hide all tab contents

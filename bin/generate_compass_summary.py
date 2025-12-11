@@ -3329,6 +3329,18 @@ def main():
     column_order = [col for col in column_order if col in df.columns]
     df = df[column_order]
 
+    # Create output directories if they don't exist
+    import os
+    tsv_dir = os.path.dirname(args.output_tsv)
+    if tsv_dir and not os.path.exists(tsv_dir):
+        os.makedirs(tsv_dir, exist_ok=True)
+        print(f"Created output directory: {tsv_dir}")
+
+    html_dir = os.path.dirname(args.output_html)
+    if html_dir and not os.path.exists(html_dir):
+        os.makedirs(html_dir, exist_ok=True)
+        print(f"Created output directory: {html_dir}")
+
     # Save TSV
     df.to_csv(args.output_tsv, sep='\t', index=False)
     print(f"✓ TSV summary written to {args.output_tsv}")

@@ -9,7 +9,7 @@ import pandas as pd
 import json
 from pathlib import Path
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 import re
 from datetime import datetime
 

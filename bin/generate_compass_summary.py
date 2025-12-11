@@ -1159,27 +1159,27 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <div class="summary-card {'card-success' if avg_contigs <= 100 and avg_n50 >= 50000 else 'card-warning' if avg_contigs <= 300 else 'card-danger'}">
                 <h3>Average Assembly <span class="indicator">{'✓' if avg_contigs <= 100 and avg_n50 >= 50000 else '⚠' if avg_contigs <= 300 else '✗'}</span></h3>
                 <div class="value">{avg_contigs:.0f}</div>
-                <div class="subtext">Contigs (N50: __AVG_N50_KB__kb)</div>
+                <div class="subtext">Contigs (N50: {avg_n50/1000:.1f}kb)</div>
             </div>
             <div class="summary-card {'card-success' if mdr_pct < 10 else 'card-warning' if mdr_pct < 25 else 'card-danger'}">
                 <h3>MDR Samples <span class="indicator">{'✓' if mdr_pct < 10 else '⚠' if mdr_pct < 25 else '!'}</span></h3>
-                <div class="value">__MDR_SAMPLES__</div>
-                <div class="subtext">__MDR_PCT_1F__% of samples</div>
+                <div class="value">{mdr_samples}</div>
+                <div class="subtext">{mdr_pct:.1f}% of samples</div>
             </div>
             <div class="summary-card">
                 <h3>Total Prophages</h3>
-                <div class="value">__TOTAL_PROPHAGES__</div>
-                <div class="subtext">Avg: __AVG_PROPHAGES_1F__ per sample</div>
+                <div class="value">{total_prophages}</div>
+                <div class="subtext">Avg: {avg_prophages:.1f} per sample</div>
             </div>
             <div class="summary-card {'card-warning' if samples_with_amr/total_samples >= 0.5 else 'card-success'}">
                 <h3>AMR Genes <span class="indicator">{'!' if samples_with_amr/total_samples >= 0.5 else 'ⓘ'}</span></h3>
-                <div class="value">__TOTAL_AMR_GENES__</div>
-                <div class="subtext">__SAMPLES_WITH_AMR__ samples with AMR (__AMR_PREVALENCE_1F__%)</div>
+                <div class="value">{total_amr_genes}</div>
+                <div class="subtext">{samples_with_amr} samples with AMR ({samples_with_amr/total_samples*100:.1f}%)</div>
             </div>
             <div class="summary-card">
                 <h3>Plasmids</h3>
-                <div class="value">__TOTAL_PLASMIDS__</div>
-                <div class="subtext">__SAMPLES_WITH_PLASMIDS__ samples with plasmids</div>
+                <div class="value">{total_plasmids}</div>
+                <div class="subtext">{samples_with_plasmids} samples with plasmids</div>
             </div>
         </div>
     </div>
@@ -1189,22 +1189,22 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         <div class="summary-grid" style="margin-bottom: 30px;">
             <div class="summary-card">
                 <h3>Total AMR Genes</h3>
-                <div class="value">__TOTAL_AMR_GENES__</div>
-                <div class="subtext">Across __SAMPLES_WITH_AMR__ samples</div>
+                <div class="value">{total_amr_genes}</div>
+                <div class="subtext">Across {samples_with_amr} samples</div>
             </div>
             <div class="summary-card">
                 <h3>MDR Samples</h3>
-                <div class="value">__MDR_SAMPLES__</div>
-                <div class="subtext">__MDR_PCT_1F__% of total</div>
+                <div class="value">{mdr_samples}</div>
+                <div class="subtext">{mdr_pct:.1f}% of total</div>
             </div>
             <div class="summary-card">
                 <h3>Unique AMR Genes</h3>
-                <div class="value">__UNIQUE_AMR_GENES__</div>
+                <div class="value">{len(amr_gene_counter)}</div>
                 <div class="subtext">Detected across dataset</div>
             </div>
             <div class="summary-card">
                 <h3>AMR Classes</h3>
-                <div class="value">__UNIQUE_AMR_CLASSES__</div>
+                <div class="value">{len(amr_class_counter)}</div>
                 <div class="subtext">Resistance classes found</div>
             </div>
         </div>
@@ -1241,22 +1241,22 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         <div class="summary-grid" style="margin-bottom: 30px;">
             <div class="summary-card">
                 <h3>Total Plasmids</h3>
-                <div class="value">__TOTAL_PLASMIDS__</div>
-                <div class="subtext">Across __SAMPLES_WITH_PLASMIDS__ samples</div>
+                <div class="value">{total_plasmids}</div>
+                <div class="subtext">Across {samples_with_plasmids} samples</div>
             </div>
             <div class="summary-card">
                 <h3>Samples with Plasmids</h3>
-                <div class="value">__SAMPLES_WITH_PLASMIDS__</div>
+                <div class="value">{samples_with_plasmids}</div>
                 <div class="subtext">__PLASMID_PREVALENCE_1F__% of total</div>
             </div>
             <div class="summary-card">
                 <h3>Inc Groups Detected</h3>
-                <div class="value">__UNIQUE_INC_GROUPS__</div>
+                <div class="value">{len(inc_group_counter)}</div>
                 <div class="subtext">Incompatibility groups</div>
             </div>
             <div class="summary-card">
                 <h3>Mobility Types</h3>
-                <div class="value">__UNIQUE_MOBILITY_TYPES__</div>
+                <div class="value">{len(mobility_type_counter)}</div>
                 <div class="subtext">Different mobility classes</div>
             </div>
         </div>
@@ -1470,7 +1470,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             </div>
             <div class="summary-card">
                 <h3>Average N50</h3>
-                <div class="value">__AVG_N50_KB__kb</div>
+                <div class="value">{avg_n50/1000:.1f}kb</div>
                 <div class="subtext">Assembly contiguity</div>
             </div>
             <div class="summary-card">

@@ -401,6 +401,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 
     # Ensure prophage counts are numeric before summing
     total_prophages = int(df['num_prophages'].replace('-', 0).fillna(0).astype(float).sum())
+    samples_with_prophages = len(df[df['num_prophages'].replace('-', 0).fillna(0).astype(float) > 0])
     avg_prophages = total_prophages / total_samples if total_samples > 0 else 0
 
     # AMR statistics - ensure numeric values

@@ -393,6 +393,8 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     # Convert numeric columns, replacing '-' with 0 and handling NaN
     avg_contigs = df['num_contigs'].replace('-', 0).astype(float).mean()
     avg_n50 = df['n50'].replace('-', 0).astype(float).mean()
+    avg_length = df['assembly_length'].replace('-', 0).astype(float).mean() if 'assembly_length' in df.columns else 0
+    avg_gc = df['gc_percent'].replace('-', 0).astype(float).mean() if 'gc_percent' in df.columns else 0
 
     mdr_samples = len(df[df['mdr_status'] == 'Yes'])
     mdr_pct = (mdr_samples / total_samples * 100) if total_samples > 0 else 0

@@ -9,7 +9,7 @@ import pandas as pd
 import json
 from pathlib import Path
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 import re
 from datetime import datetime
 
@@ -393,12 +393,15 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     # Convert numeric columns, replacing '-' with 0 and handling NaN
     avg_contigs = df['num_contigs'].replace('-', 0).astype(float).mean()
     avg_n50 = df['n50'].replace('-', 0).astype(float).mean()
+    avg_length = df['assembly_length'].replace('-', 0).astype(float).mean() if 'assembly_length' in df.columns else 0
+    avg_gc = df['gc_percent'].replace('-', 0).astype(float).mean() if 'gc_percent' in df.columns else 0
 
     mdr_samples = len(df[df['mdr_status'] == 'Yes'])
     mdr_pct = (mdr_samples / total_samples * 100) if total_samples > 0 else 0
 
     # Ensure prophage counts are numeric before summing
     total_prophages = int(df['num_prophages'].replace('-', 0).fillna(0).astype(float).sum())
+    samples_with_prophages = len(df[df['num_prophages'].replace('-', 0).fillna(0).astype(float) > 0])
     avg_prophages = total_prophages / total_samples if total_samples > 0 else 0
 
     # AMR statistics - ensure numeric values
@@ -1244,7 +1247,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <div class="summary-card">
                 <h3>Samples with Plasmids</h3>
                 <div class="value">{samples_with_plasmids}</div>
-                <div class="subtext">{samples_with_plasmids/total_samples*100:.1f}% of total</div>
+                <div class="subtext">__PLASMID_PREVALENCE_1F__% of total</div>
             </div>
             <div class="summary-card">
                 <h3>Inc Groups Detected</h3>
@@ -1614,15 +1617,15 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         </div>
     </div>"""
 
-    # Build JavaScript section separately to avoid f-string conflicts
+    # Build JavaScript section as regular string, will format with .format() at end
     js_code = """
 
     <script>
         // Tab switching - simplified to avoid any escaping issues
         // Track which tabs have been rendered (for lazy loading)
-        var renderedTabs = {{
+        var renderedTabs = {
             'overview': true  // Overview is visible on load
-        }};
+        };
 
         function switchTab(evt, tabName) {
             // Hide all tab contents
@@ -1732,7 +1735,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 
             // Create download link
             const csvContent = csv.join('\\n');
-            const blob = new Blob([csvContent], {{ type: 'text/csv;charset=utf-8;' }});
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
 
@@ -1745,49 +1748,49 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         }
 
         // Export summary statistics as JSON
-        function downloadSummaryJSON() {{
-            const summary = {{
-                report_metadata: {{
-                    generated_at: '{datetime.now().isoformat()}',
+        function downloadSummaryJSON() {
+            const summary = {
+                report_metadata: {
+                    generated_at: '__GENERATION_TIMESTAMP__',
                     pipeline_version: 'COMPASS v1.2-mod',
-                    total_samples: {total_samples}
-                }},
-                overview: {{
-                    total_samples: {total_samples},
-                    assembly_qc_passed: {passed_qc},
-                    assembly_qc_failed: {failed_qc},
-                    assembly_qc_pass_rate: {passed_qc/total_samples*100:.2f},
-                    average_contigs: {avg_contigs:.2f},
-                    average_n50: {avg_n50:.2f},
-                    average_assembly_length: {avg_length:.2f},
-                    average_gc_percent: {avg_gc:.2f}
-                }},
-                amr_analysis: {{
-                    total_amr_genes: {total_amr_genes},
-                    samples_with_amr: {samples_with_amr},
-                    amr_prevalence: {samples_with_amr/total_samples*100:.2f},
-                    mdr_samples: {mdr_samples},
-                    mdr_percentage: {mdr_pct:.2f},
-                    unique_amr_genes: {len(amr_gene_counter)},
-                    unique_amr_classes: {len(amr_class_counter)}
-                }},
-                plasmid_analysis: {{
-                    total_plasmids: {total_plasmids},
-                    samples_with_plasmids: {samples_with_plasmids},
-                    plasmid_prevalence: {samples_with_plasmids/total_samples*100:.2f},
-                    unique_inc_groups: {len(inc_group_counter)},
-                    unique_mobility_types: {len(mobility_type_counter)}
-                }},
-                prophage_analysis: {{
-                    total_prophages: {total_prophages},
-                    samples_with_prophages: {samples_with_prophages},
-                    prophage_prevalence: {samples_with_prophages/total_samples*100:.2f},
-                    average_prophages_per_sample: {avg_prophages:.2f}
-                }}
-            }};
+                    total_samples: __TOTAL_SAMPLES__
+                },
+                overview: {
+                    total_samples: __TOTAL_SAMPLES__,
+                    assembly_qc_passed: __PASSED_QC__,
+                    assembly_qc_failed: __FAILED_QC__,
+                    assembly_qc_pass_rate: __QC_PASS_RATE__,
+                    average_contigs: __AVG_CONTIGS__,
+                    average_n50: __AVG_N50__,
+                    average_assembly_length: __AVG_LENGTH__,
+                    average_gc_percent: __AVG_GC__
+                },
+                amr_analysis: {
+                    total_amr_genes: __TOTAL_AMR_GENES__,
+                    samples_with_amr: __SAMPLES_WITH_AMR__,
+                    amr_prevalence: __AMR_PREVALENCE__,
+                    mdr_samples: __MDR_SAMPLES__,
+                    mdr_percentage: __MDR_PCT__,
+                    unique_amr_genes: __UNIQUE_AMR_GENES__,
+                    unique_amr_classes: __UNIQUE_AMR_CLASSES__
+                },
+                plasmid_analysis: {
+                    total_plasmids: __TOTAL_PLASMIDS__,
+                    samples_with_plasmids: __SAMPLES_WITH_PLASMIDS__,
+                    plasmid_prevalence: __PLASMID_PREVALENCE__,
+                    unique_inc_groups: __UNIQUE_INC_GROUPS__,
+                    unique_mobility_types: __UNIQUE_MOBILITY_TYPES__
+                },
+                prophage_analysis: {
+                    total_prophages: __TOTAL_PROPHAGES__,
+                    samples_with_prophages: __SAMPLES_WITH_PROPHAGES__,
+                    prophage_prevalence: __PROPHAGE_PREVALENCE__,
+                    average_prophages_per_sample: __AVG_PROPHAGES__
+                }
+            };
 
             const jsonStr = JSON.stringify(summary, null, 2);
-            const blob = new Blob([jsonStr], {{ type: 'application/json' }});
+            const blob = new Blob([jsonStr], { type: 'application/json' });
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
 
@@ -1797,10 +1800,10 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-        }}
+        }
 
         // Download all charts as PNG files
-        function downloadAllChartsPNG() {{
+        function downloadAllChartsPNG() {
             const chartIds = [
                 'amrGenesBarChart',
                 'amrClassPieChart',
@@ -1827,31 +1830,31 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             ];
 
             var downloaded = 0;
-            chartIds.forEach(function(chartId, index) {{
-                setTimeout(function() {{
+            chartIds.forEach(function(chartId, index) {
+                setTimeout(function() {
                     downloadChartPNG(chartId);
                     downloaded++;
-                    if (downloaded === chartIds.length) {{
+                    if (downloaded === chartIds.length) {
                         alert('Downloaded ' + downloaded + ' charts as PNG files!');
-                    }}
-                }}, index * 300);  // Stagger downloads by 300ms
-            }});
-        }}
+                    }
+                }, index * 300);  // Stagger downloads by 300ms
+            });
+        }
 
         // Download individual chart as PNG
-        function downloadChartPNG(chartId) {{
+        function downloadChartPNG(chartId) {
             const canvas = document.getElementById(chartId);
-            if (!canvas) {{
+            if (!canvas) {
                 console.warn('Chart not found: ' + chartId);
                 return;
-            }}
+            }
 
             // Get the chart instance
             const chartInstance = Chart.getChart(canvas);
-            if (!chartInstance) {{
+            if (!chartInstance) {
                 console.warn('Chart instance not found: ' + chartId);
                 return;
-            }}
+            }
 
             // Convert to base64 PNG
             const url = canvas.toDataURL('image/png');
@@ -1864,17 +1867,17 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-        }}
+        }
 
         // Generate PDF report (basic version)
-        function generatePDFReport() {{
+        function generatePDFReport() {
             // Check if jsPDF is loaded
-            if (typeof window.jspdf === 'undefined') {{
+            if (typeof window.jspdf === 'undefined') {
                 alert('PDF library not loaded. Please refresh the page and try again.');
                 return;
-            }}
+            }
 
-            const {{ jsPDF }} = window.jspdf;
+            const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
 
             var yPos = 20;
@@ -1882,23 +1885,23 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             const pageHeight = doc.internal.pageSize.height;
 
             // Helper to check if new page needed
-            function checkPageBreak() {{
-                if (yPos > pageHeight - 20) {{
+            function checkPageBreak() {
+                if (yPos > pageHeight - 20) {
                     doc.addPage();
                     yPos = 20;
-                }}
-            }}
+                }
+            }
 
             // Title
             doc.setFontSize(20);
             doc.setTextColor(102, 126, 234);
-            doc.text('COMPASS Pipeline Summary Report', 105, yPos, {{ align: 'center' }});
+            doc.text('COMPASS Pipeline Summary Report', 105, yPos, { align: 'center' });
             yPos += 15;
 
             // Generated timestamp
             doc.setFontSize(10);
             doc.setTextColor(100, 100, 100);
-            doc.text('Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', 105, yPos, {{ align: 'center' }});
+            doc.text('Generated: __GENERATION_DATETIME__', 105, yPos, { align: 'center' });
             yPos += 15;
 
             // Overview section
@@ -1909,70 +1912,70 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 
             doc.setFontSize(10);
             const overviewStats = [
-                'Total Samples: {total_samples}',
-                'Assembly QC Passed: {passed_qc} ({passed_qc/total_samples*100:.1f}%)',
-                'Average Contigs: {avg_contigs:.0f}',
-                'Average N50: {avg_n50/1000:.1f} kb',
+                'Total Samples: __TOTAL_SAMPLES__',
+                'Assembly QC Passed: __PASSED_QC__ ({passed_qc/total_samples*100:.1f}%)',
+                'Average Contigs: __AVG_CONTIGS_INT__',
+                'Average N50: __AVG_N50_KB__ kb',
                 '',
                 'AMR Analysis',
-                'Total AMR Genes: {total_amr_genes}',
-                'Samples with AMR: {samples_with_amr} ({samples_with_amr/total_samples*100:.1f}%)',
-                'MDR Samples: {mdr_samples} ({mdr_pct:.1f}%)',
+                'Total AMR Genes: __TOTAL_AMR_GENES__',
+                'Samples with AMR: __SAMPLES_WITH_AMR__ (__AMR_PREVALENCE_1F__%)',
+                'MDR Samples: __MDR_SAMPLES__ (__MDR_PCT_1F__%)',
                 '',
                 'Plasmid Analysis',
-                'Total Plasmids: {total_plasmids}',
-                'Samples with Plasmids: {samples_with_plasmids} ({samples_with_plasmids/total_samples*100:.1f}%)',
+                'Total Plasmids: __TOTAL_PLASMIDS__',
+                'Samples with Plasmids: __SAMPLES_WITH_PLASMIDS__ (__PLASMID_PREVALENCE_1F__%)',
                 '',
                 'Prophage Analysis',
-                'Total Prophages: {total_prophages}',
-                'Samples with Prophages: {samples_with_prophages} ({samples_with_prophages/total_samples*100:.1f}%)',
-                'Average per Sample: {avg_prophages:.1f}'
+                'Total Prophages: __TOTAL_PROPHAGES__',
+                'Samples with Prophages: __SAMPLES_WITH_PROPHAGES__ (__PROPHAGE_PREVALENCE_1F__%)',
+                'Average per Sample: __AVG_PROPHAGES_1F__'
             ];
 
-            overviewStats.forEach(function(stat) {{
+            overviewStats.forEach(function(stat) {
                 checkPageBreak();
-                if (stat === '') {{
+                if (stat === '') {
                     yPos += 3;
-                }} else if (stat.includes('Analysis')) {{
+                } else if (stat.includes('Analysis')) {
                     doc.setFontSize(12);
                     doc.setTextColor(102, 126, 234);
                     doc.text(stat, 20, yPos);
                     doc.setFontSize(10);
                     doc.setTextColor(0, 0, 0);
                     yPos += lineHeight;
-                }} else {{
+                } else {
                     doc.text(stat, 25, yPos);
                     yPos += lineHeight;
-                }}
-            }});
+                }
+            });
 
             // Footer
             const pageCount = doc.internal.getNumberOfPages();
-            for (var i = 1; i <= pageCount; i++) {{
+            for (var i = 1; i <= pageCount; i++) {
                 doc.setPage(i);
                 doc.setFontSize(8);
                 doc.setTextColor(150, 150, 150);
-                doc.text('Page ' + i + ' of ' + pageCount, 105, pageHeight - 10, {{ align: 'center' }});
-                doc.text('Generated by COMPASS Pipeline v1.2-mod', 105, pageHeight - 5, {{ align: 'center' }});
-            }}
+                doc.text('Page ' + i + ' of ' + pageCount, 105, pageHeight - 10, { align: 'center' });
+                doc.text('Generated by COMPASS Pipeline v1.2-mod', 105, pageHeight - 5, { align: 'center' });
+            }
 
             // Save PDF
             doc.save('compass_summary_report.pdf');
             alert('PDF report generated successfully!');
-        }}
+        }
 
         // Initialize table stats and pagination on page load
-        window.addEventListener('load', function() {{
+        window.addEventListener('load', function() {
             filterTable();  // Initialize counts
             updatePagination();  // Initialize pagination
-        }});
+        });
 
         // Pagination variables
         var currentPage = 1;
         var rowsPerPage = 100;
 
         // Update table pagination
-        function updatePagination() {{
+        function updatePagination() {
             const table = document.getElementById('dataTable');
             const rows = Array.from(table.querySelectorAll('tbody tr'));
             const totalRows = rows.length;
@@ -1984,9 +1987,9 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             // Show only rows for current page
             const start = (currentPage - 1) * rowsPerPage;
             const end = start + rowsPerPage;
-            for (var i = start; i < end && i < totalRows; i++) {{
+            for (var i = start; i < end && i < totalRows; i++) {
                 rows[i].style.display = '';
-            }}
+            }
 
             // Update pagination info
             document.getElementById('pageInfo').textContent =
@@ -1997,49 +2000,49 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             document.getElementById('nextPage').disabled = currentPage === totalPages;
             document.getElementById('firstPage').disabled = currentPage === 1;
             document.getElementById('lastPage').disabled = currentPage === totalPages;
-        }}
+        }
 
         // Pagination controls
-        function firstPage() {{
+        function firstPage() {
             currentPage = 1;
             updatePagination();
-        }}
+        }
 
-        function prevPage() {{
-            if (currentPage > 1) {{
+        function prevPage() {
+            if (currentPage > 1) {
                 currentPage--;
                 updatePagination();
-            }}
-        }}
+            }
+        }
 
-        function nextPage() {{
+        function nextPage() {
             const table = document.getElementById('dataTable');
             const rows = table.querySelectorAll('tbody tr');
             const totalPages = Math.ceil(rows.length / rowsPerPage);
-            if (currentPage < totalPages) {{
+            if (currentPage < totalPages) {
                 currentPage++;
                 updatePagination();
-            }}
-        }}
+            }
+        }
 
-        function lastPage() {{
+        function lastPage() {
             const table = document.getElementById('dataTable');
             const rows = table.querySelectorAll('tbody tr');
             const totalPages = Math.ceil(rows.length / rowsPerPage);
             currentPage = totalPages;
             updatePagination();
-        }}
+        }
 
-        function changePageSize() {{
+        function changePageSize() {
             const select = document.getElementById('pageSizeSelect');
             rowsPerPage = parseInt(select.value);
             currentPage = 1;  // Reset to first page
             updatePagination();
-        }}
+        }
 
         // Master function to render charts for a specific tab (lazy loading)
-        function renderTabCharts(tabName) {{
-            switch(tabName) {{
+        function renderTabCharts(tabName) {
+            switch(tabName) {
                 case 'amr-analysis':
                     renderAMRCharts();
                     break;
@@ -2055,63 +2058,63 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 case 'prophage-functional':
                     renderProphageCharts();
                     break;
-            }}
-        }}
+            }
+        }
 
         // AMR Genes Bar Chart
         const amrGeneLabels = AMR_GENE_LABELS_PLACEHOLDER;
         const amrGeneCounts = AMR_GENE_COUNTS_PLACEHOLDER;
 
         const amrGenesCtx = document.getElementById('amrGenesBarChart').getContext('2d');
-        const amrGenesBar = new Chart(amrGenesCtx, {{
+        const amrGenesBar = new Chart(amrGenesCtx, {
             type: 'bar',
-            data: {{
+            data: {
                 labels: amrGeneLabels,
-                datasets: [{{
+                datasets: [{
                     label: 'Number of Samples',
                     data: amrGeneCounts,
                     backgroundColor: '#667eea',
                     borderColor: '#5568d3',
                     borderWidth: 1
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    x: {{
+                    }
+                },
+                scales: {
+                    x: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of Samples'
-                        }}
-                    }},
-                    y: {{
-                        title: {{
+                        }
+                    },
+                    y: {
+                        title: {
                             display: true,
                             text: 'AMR Gene'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // AMR Class Pie Chart
         const amrClassLabels = AMR_CLASS_LABELS_PLACEHOLDER;
         const amrClassCounts = AMR_CLASS_COUNTS_PLACEHOLDER;
 
         const amrClassCtx = document.getElementById('amrClassPieChart').getContext('2d');
-        const amrClassPie = new Chart(amrClassCtx, {{
+        const amrClassPie = new Chart(amrClassCtx, {
             type: 'pie',
-            data: {{
+            data: {
                 labels: amrClassLabels,
-                datasets: [{{
+                datasets: [{
                     data: amrClassCounts,
                     backgroundColor: [
                         '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
@@ -2120,133 +2123,133 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     ],
                     borderWidth: 2,
                     borderColor: '#fff'
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         position: 'right',
-                        labels: {{
-                            font: {{
+                        labels: {
+                            font: {
                                 size: 12
-                            }},
+                            },
                             padding: 10
-                        }}
-                    }},
-                    tooltip: {{
-                        callbacks: {{
-                            label: function(context) {{
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
                                 const label = context.label || '';
                                 const value = context.parsed || 0;
                                 const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                 const percentage = ((value / total) * 100).toFixed(1);
                                 return label + ': ' + value + ' (' + percentage + '%)';
-                            }}
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                            }
+                        }
+                    }
+                }
+            }
+        });
 
         // MDR Comparison Bar Chart
         const mdrLabels = ['MDR (≥3 classes)', 'Non-MDR'];
         const mdrCounts = [MDR_SAMPLES_PLACEHOLDER, NON_MDR_SAMPLES_PLACEHOLDER];
 
         const mdrCtx = document.getElementById('mdrComparisonChart').getContext('2d');
-        const mdrBar = new Chart(mdrCtx, {{
+        const mdrBar = new Chart(mdrCtx, {
             type: 'bar',
-            data: {{
+            data: {
                 labels: mdrLabels,
-                datasets: [{{
+                datasets: [{
                     label: 'Number of Samples',
                     data: mdrCounts,
                     backgroundColor: ['#ef4444', '#22c55e'],
                     borderColor: ['#dc2626', '#16a34a'],
                     borderWidth: 2
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    y: {{
+                    }
+                },
+                scales: {
+                    y: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of Samples'
-                        }}
-                    }},
-                    x: {{
-                        title: {{
+                        }
+                    },
+                    x: {
+                        title: {
                             display: true,
                             text: 'Resistance Status'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Plasmid Inc Groups Bar Chart
         const incGroupLabels = INC_GROUP_LABELS_PLACEHOLDER;
         const incGroupCounts = INC_GROUP_COUNTS_PLACEHOLDER;
 
         const incGroupCtx = document.getElementById('incGroupsBarChart').getContext('2d');
-        const incGroupBar = new Chart(incGroupCtx, {{
+        const incGroupBar = new Chart(incGroupCtx, {
             type: 'bar',
-            data: {{
+            data: {
                 labels: incGroupLabels,
-                datasets: [{{
+                datasets: [{
                     label: 'Number of Samples',
                     data: incGroupCounts,
                     backgroundColor: '#9966FF',
                     borderColor: '#8855ee',
                     borderWidth: 1
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    x: {{
+                    }
+                },
+                scales: {
+                    x: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of Samples'
-                        }}
-                    }},
-                    y: {{
-                        title: {{
+                        }
+                    },
+                    y: {
+                        title: {
                             display: true,
                             text: 'Inc Group'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Plasmid Mobility Types Pie Chart
         const mobTypeLabels = MOB_TYPE_LABELS_PLACEHOLDER;
         const mobTypeCounts = MOB_TYPE_COUNTS_PLACEHOLDER;
 
         const mobTypeCtx = document.getElementById('mobilityPieChart').getContext('2d');
-        const mobTypePie = new Chart(mobTypeCtx, {{
+        const mobTypePie = new Chart(mobTypeCtx, {
             type: 'pie',
-            data: {{
+            data: {
                 labels: mobTypeLabels,
-                datasets: [{{
+                datasets: [{
                     data: mobTypeCounts,
                     backgroundColor: [
                         '#FF9F40',  // Conjugative
@@ -2257,91 +2260,91 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     ],
                     borderWidth: 2,
                     borderColor: '#fff'
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         position: 'right',
-                        labels: {{
-                            font: {{
+                        labels: {
+                            font: {
                                 size: 12
-                            }},
+                            },
                             padding: 10
-                        }}
-                    }},
-                    tooltip: {{
-                        callbacks: {{
-                            label: function(context) {{
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
                                 const label = context.label || '';
                                 const value = context.parsed || 0;
                                 const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                 const percentage = ((value / total) * 100).toFixed(1);
                                 return label + ': ' + value + ' (' + percentage + '%)';
-                            }}
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                            }
+                        }
+                    }
+                }
+            }
+        });
 
         // Plasmid Count Histogram
         const plasmidHistLabels = PLASMID_HIST_LABELS_PLACEHOLDER;
         const plasmidHistCounts = PLASMID_HIST_COUNTS_PLACEHOLDER;
 
         const plasmidHistCtx = document.getElementById('plasmidCountHistChart').getContext('2d');
-        const plasmidHist = new Chart(plasmidHistCtx, {{
+        const plasmidHist = new Chart(plasmidHistCtx, {
             type: 'bar',
-            data: {{
+            data: {
                 labels: plasmidHistLabels,
-                datasets: [{{
+                datasets: [{
                     label: 'Number of Samples',
                     data: plasmidHistCounts,
                     backgroundColor: '#FF9F40',
                     borderColor: '#e68f39',
                     borderWidth: 1
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    y: {{
+                    }
+                },
+                scales: {
+                    y: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of Samples'
-                        }}
-                    }},
-                    x: {{
-                        title: {{
+                        }
+                    },
+                    x: {
+                        title: {
                             display: true,
                             text: 'Number of Plasmids'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Plasmid-AMR Correlation Scatter Plot
         const scatterPlasmidX = SCATTER_PLASMID_X_PLACEHOLDER;
         const scatterAmrY = SCATTER_AMR_Y_PLACEHOLDER;
 
         // Create scatter data array
-        const scatterData = scatterPlasmidX.map((x, i) => ({{ x: x, y: scatterAmrY[i] }}));
+        const scatterData = scatterPlasmidX.map((x, i) => ({ x: x, y: scatterAmrY[i] }));
 
         const scatterCtx = document.getElementById('plasmidAmrScatterChart').getContext('2d');
-        const scatterChart = new Chart(scatterCtx, {{
+        const scatterChart = new Chart(scatterCtx, {
             type: 'scatter',
-            data: {{
-                datasets: [{{
+            data: {
+                datasets: [{
                     label: 'Samples',
                     data: scatterData,
                     backgroundColor: 'rgba(102, 126, 234, 0.5)',
@@ -2349,58 +2352,58 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     borderWidth: 1,
                     pointRadius: 4,
                     pointHoverRadius: 6
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }},
-                    tooltip: {{
-                        callbacks: {{
-                            label: function(context) {{
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
                                 return 'Plasmids: ' + context.parsed.x + ', AMR genes: ' + context.parsed.y;
-                            }}
-                        }}
-                    }},
-                    decimation: {{
+                            }
+                        }
+                    },
+                    decimation: {
                         enabled: true,
                         algorithm: 'lttb',  // Largest-Triangle-Three-Buckets algorithm
                         samples: 500,  // Display max 500 points for large datasets
                         threshold: 1000  // Only decimate if dataset > 1000 points
-                    }}
-                }},
-                scales: {{
-                    x: {{
+                    }
+                },
+                scales: {
+                    x: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of Plasmids'
-                        }}
-                    }},
-                    y: {{
+                        }
+                    },
+                    y: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of AMR Genes'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Temporal Analysis: Sample Collection Over Time
         const temporalYears = TEMPORAL_YEARS_PLACEHOLDER;
         const temporalSampleCounts = TEMPORAL_SAMPLE_COUNTS_PLACEHOLDER;
 
         const temporalSamplesCtx = document.getElementById('temporalSamplesChart').getContext('2d');
-        const temporalSamplesChart = new Chart(temporalSamplesCtx, {{
+        const temporalSamplesChart = new Chart(temporalSamplesCtx, {
             type: 'line',
-            data: {{
+            data: {
                 labels: temporalYears,
-                datasets: [{{
+                datasets: [{
                     label: 'Number of Samples',
                     data: temporalSampleCounts,
                     borderColor: '#667eea',
@@ -2411,44 +2414,44 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     pointRadius: 5,
                     pointHoverRadius: 7,
                     pointBackgroundColor: '#667eea'
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    y: {{
+                    }
+                },
+                scales: {
+                    y: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of Samples'
-                        }}
-                    }},
-                    x: {{
-                        title: {{
+                        }
+                    },
+                    x: {
+                        title: {
                             display: true,
                             text: 'Year'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Temporal Analysis: AMR/MDR Percentage Trends
         const temporalAmrPct = TEMPORAL_AMR_PCT_PLACEHOLDER;
         const temporalMdrPct = TEMPORAL_MDR_PCT_PLACEHOLDER;
 
         const temporalAmrMdrCtx = document.getElementById('temporalAmrMdrChart').getContext('2d');
-        const temporalAmrMdrChart = new Chart(temporalAmrMdrCtx, {{
+        const temporalAmrMdrChart = new Chart(temporalAmrMdrCtx, {
             type: 'line',
-            data: {{
+            data: {
                 labels: temporalYears,
-                datasets: [{{
+                datasets: [{
                     label: 'AMR Positive (%)',
                     data: temporalAmrPct,
                     borderColor: '#f59e0b',
@@ -2458,7 +2461,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     tension: 0.4,
                     pointRadius: 5,
                     pointHoverRadius: 7
-                }}, {{
+                }, {
                     label: 'MDR (%)',
                     data: temporalMdrPct,
                     borderColor: '#ef4444',
@@ -2468,302 +2471,302 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     tension: 0.4,
                     pointRadius: 5,
                     pointHoverRadius: 7
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: true,
                         position: 'top'
-                    }}
-                }},
-                scales: {{
-                    y: {{
+                    }
+                },
+                scales: {
+                    y: {
                         beginAtZero: true,
                         max: 100,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Percentage (%)'
-                        }}
-                    }},
-                    x: {{
-                        title: {{
+                        }
+                    },
+                    x: {
+                        title: {
                             display: true,
                             text: 'Year'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Temporal Analysis: Prophage Detection Over Time
         const temporalProphageCounts = TEMPORAL_PROPHAGE_COUNTS_PLACEHOLDER;
 
         const temporalProphagesCtx = document.getElementById('temporalProphagesChart').getContext('2d');
-        const temporalProphagesChart = new Chart(temporalProphagesCtx, {{
+        const temporalProphagesChart = new Chart(temporalProphagesCtx, {
             type: 'bar',
-            data: {{
+            data: {
                 labels: temporalYears,
-                datasets: [{{
+                datasets: [{
                     label: 'Total Prophages',
                     data: temporalProphageCounts,
                     backgroundColor: '#36A2EB',
                     borderColor: '#2e8bc0',
                     borderWidth: 1
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    y: {{
+                    }
+                },
+                scales: {
+                    y: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Total Prophages Detected'
-                        }}
-                    }},
-                    x: {{
-                        title: {{
+                        }
+                    },
+                    x: {
+                        title: {
                             display: true,
                             text: 'Year'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Temporal Analysis: Plasmid Detection Over Time
         const temporalPlasmidCounts = TEMPORAL_PLASMID_COUNTS_PLACEHOLDER;
 
         const temporalPlasmidsCtx = document.getElementById('temporalPlasmidsChart').getContext('2d');
-        const temporalPlasmidsChart = new Chart(temporalPlasmidsCtx, {{
+        const temporalPlasmidsChart = new Chart(temporalPlasmidsCtx, {
             type: 'bar',
-            data: {{
+            data: {
                 labels: temporalYears,
-                datasets: [{{
+                datasets: [{
                     label: 'Total Plasmids',
                     data: temporalPlasmidCounts,
                     backgroundColor: '#9966FF',
                     borderColor: '#8855ee',
                     borderWidth: 1
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    y: {{
+                    }
+                },
+                scales: {
+                    y: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Total Plasmids Detected'
-                        }}
-                    }},
-                    x: {{
-                        title: {{
+                        }
+                    },
+                    x: {
+                        title: {
                             display: true,
                             text: 'Year'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Geographic Analysis: Samples by State
         const stateLabels = {json.dumps(state_labels)};
         const stateCounts = {json.dumps(state_counts)};
 
         const stateSamplesCtx = document.getElementById('stateSamplesChart').getContext('2d');
-        const stateSamplesChart = new Chart(stateSamplesCtx, {{
+        const stateSamplesChart = new Chart(stateSamplesCtx, {
             type: 'bar',
-            data: {{
+            data: {
                 labels: stateLabels,
-                datasets: [{{
+                datasets: [{
                     label: 'Number of Samples',
                     data: stateCounts,
                     backgroundColor: '#36A2EB',
                     borderColor: '#2a8fcc',
                     borderWidth: 1
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 indexAxis: 'y',  // Horizontal bar chart
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    x: {{
+                    }
+                },
+                scales: {
+                    x: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of Samples'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Geographic Analysis: MDR Rates by State
         const stateMDRRates = {json.dumps(state_mdr_rate_values)};
 
         const stateMDRCtx = document.getElementById('stateMDRChart').getContext('2d');
-        const stateMDRChart = new Chart(stateMDRCtx, {{
+        const stateMDRChart = new Chart(stateMDRCtx, {
             type: 'bar',
-            data: {{
+            data: {
                 labels: stateLabels,
-                datasets: [{{
+                datasets: [{
                     label: 'MDR Rate (%)',
                     data: stateMDRRates,
                     backgroundColor: '#ef4444',
                     borderColor: '#dc2626',
                     borderWidth: 1
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 indexAxis: 'y',  // Horizontal bar chart
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    x: {{
+                    }
+                },
+                scales: {
+                    x: {
                         beginAtZero: true,
                         max: 100,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'MDR Rate (%)'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Geographic Analysis: Regional Comparison (Scatter Plot)
-        const regionalData = stateLabels.map(function(state, i) {{
-            return {{
+        const regionalData = stateLabels.map(function(state, i) {
+            return {
                 x: stateCounts[i],
                 y: stateMDRRates[i],
                 label: state
-            }};
-        }});
+            };
+        });
 
         const regionalComparisonCtx = document.getElementById('regionalComparisonChart').getContext('2d');
-        const regionalComparisonChart = new Chart(regionalComparisonCtx, {{
+        const regionalComparisonChart = new Chart(regionalComparisonCtx, {
             type: 'scatter',
-            data: {{
-                datasets: [{{
+            data: {
+                datasets: [{
                     label: 'States',
                     data: regionalData,
                     backgroundColor: '#9966FF',
                     borderColor: '#7744cc',
                     pointRadius: 8,
                     pointHoverRadius: 10
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }},
-                    tooltip: {{
-                        callbacks: {{
-                            label: function(context) {{
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
                                 var point = context.raw;
                                 return point.label + ': ' + point.x + ' samples, ' + point.y.toFixed(1) + '% MDR';
-                            }}
-                        }}
-                    }}
-                }},
-                scales: {{
-                    x: {{
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of Samples'
-                        }}
-                    }},
-                    y: {{
+                        }
+                    },
+                    y: {
                         beginAtZero: true,
                         max: 100,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'MDR Rate (%)'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Strain Typing: MLST Sequence Types
         const mlstSTLabels = {json.dumps(mlst_st_labels)};
         const mlstSTCounts = {json.dumps(mlst_st_counts)};
 
         const mlstSTCtx = document.getElementById('mlstSTChart').getContext('2d');
-        const mlstSTChart = new Chart(mlstSTCtx, {{
+        const mlstSTChart = new Chart(mlstSTCtx, {
             type: 'bar',
-            data: {{
+            data: {
                 labels: mlstSTLabels,
-                datasets: [{{
+                datasets: [{
                     label: 'Number of Samples',
                     data: mlstSTCounts,
                     backgroundColor: '#22c55e',
                     borderColor: '#16a34a',
                     borderWidth: 1
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 indexAxis: 'y',  // Horizontal bar chart
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    x: {{
+                    }
+                },
+                scales: {
+                    x: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of Samples'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Strain Typing: MLST Scheme Distribution
         const mlstSchemeLabels = {json.dumps(mlst_scheme_labels)};
         const mlstSchemeCounts = {json.dumps(mlst_scheme_counts)};
 
         const mlstSchemeCtx = document.getElementById('mlstSchemeChart').getContext('2d');
-        const mlstSchemeChart = new Chart(mlstSchemeCtx, {{
+        const mlstSchemeChart = new Chart(mlstSchemeCtx, {
             type: 'pie',
-            data: {{
+            data: {
                 labels: mlstSchemeLabels,
-                datasets: [{{
+                datasets: [{
                     data: mlstSchemeCounts,
                     backgroundColor: [
                         '#22c55e',
@@ -2775,239 +2778,239 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     ],
                     borderWidth: 2,
                     borderColor: '#fff'
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         position: 'right'
-                    }}
-                }}
-            }}
-        }});
+                    }
+                }
+            }
+        });
 
         // Strain Typing: Serovar Distribution (Salmonella)
         const serovarLabels = {json.dumps(serovar_labels)};
         const serovarCounts = {json.dumps(serovar_counts)};
 
         const serovarCtx = document.getElementById('serovarChart').getContext('2d');
-        const serovarChart = new Chart(serovarCtx, {{
+        const serovarChart = new Chart(serovarCtx, {
             type: 'bar',
-            data: {{
+            data: {
                 labels: serovarLabels,
-                datasets: [{{
+                datasets: [{
                     label: 'Number of Samples',
                     data: serovarCounts,
                     backgroundColor: '#f59e0b',
                     borderColor: '#d97706',
                     borderWidth: 1
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 indexAxis: 'y',  // Horizontal bar chart
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    x: {{
+                    }
+                },
+                scales: {
+                    x: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of Samples'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // N50 Distribution Histogram
         const n50Labels = N50_LABELS_PLACEHOLDER;
         const n50Counts = N50_COUNTS_PLACEHOLDER;
 
         const n50Ctx = document.getElementById('n50HistChart').getContext('2d');
-        const n50Hist = new Chart(n50Ctx, {{
+        const n50Hist = new Chart(n50Ctx, {
             type: 'bar',
-            data: {{
+            data: {
                 labels: n50Labels,
-                datasets: [{{
+                datasets: [{
                     label: 'Number of Samples',
                     data: n50Counts,
                     backgroundColor: '#667eea',
                     borderColor: '#5568d3',
                     borderWidth: 1
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    y: {{
+                    }
+                },
+                scales: {
+                    y: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of Samples'
-                        }}
-                    }},
-                    x: {{
-                        title: {{
+                        }
+                    },
+                    x: {
+                        title: {
                             display: true,
                             text: 'N50 (kb)'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Assembly Length Distribution Histogram
         const lengthLabels = LENGTH_LABELS_PLACEHOLDER;
         const lengthCounts = LENGTH_COUNTS_PLACEHOLDER;
 
         const lengthCtx = document.getElementById('lengthHistChart').getContext('2d');
-        const lengthHist = new Chart(lengthCtx, {{
+        const lengthHist = new Chart(lengthCtx, {
             type: 'bar',
-            data: {{
+            data: {
                 labels: lengthLabels,
-                datasets: [{{
+                datasets: [{
                     label: 'Number of Samples',
                     data: lengthCounts,
                     backgroundColor: '#36A2EB',
                     borderColor: '#2e8bc0',
                     borderWidth: 1
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    y: {{
+                    }
+                },
+                scales: {
+                    y: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of Samples'
-                        }}
-                    }},
-                    x: {{
-                        title: {{
+                        }
+                    },
+                    x: {
+                        title: {
                             display: true,
                             text: 'Assembly Length (Mb)'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Contig Count Distribution Histogram
         const contigLabels = CONTIG_LABELS_PLACEHOLDER;
         const contigCounts = CONTIG_COUNTS_PLACEHOLDER;
 
         const contigCtx = document.getElementById('contigHistChart').getContext('2d');
-        const contigHist = new Chart(contigCtx, {{
+        const contigHist = new Chart(contigCtx, {
             type: 'bar',
-            data: {{
+            data: {
                 labels: contigLabels,
-                datasets: [{{
+                datasets: [{
                     label: 'Number of Samples',
                     data: contigCounts,
                     backgroundColor: '#FFCE56',
                     borderColor: '#e6b84f',
                     borderWidth: 1
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    y: {{
+                    }
+                },
+                scales: {
+                    y: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of Samples'
-                        }}
-                    }},
-                    x: {{
-                        title: {{
+                        }
+                    },
+                    x: {
+                        title: {
                             display: true,
                             text: 'Number of Contigs'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // BUSCO Completeness Histogram
         const buscoLabels = BUSCO_LABELS_PLACEHOLDER;
         const buscoCounts = BUSCO_COUNTS_PLACEHOLDER;
 
         const buscoCtx = document.getElementById('buscoHistChart').getContext('2d');
-        const buscoHist = new Chart(buscoCtx, {{
+        const buscoHist = new Chart(buscoCtx, {
             type: 'bar',
-            data: {{
+            data: {
                 labels: buscoLabels,
-                datasets: [{{
+                datasets: [{
                     label: 'Number of Samples',
                     data: buscoCounts,
                     backgroundColor: '#4BC0C0',
                     borderColor: '#3da8a8',
                     borderWidth: 1
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         display: false
-                    }}
-                }},
-                scales: {{
-                    y: {{
+                    }
+                },
+                scales: {
+                    y: {
                         beginAtZero: true,
-                        title: {{
+                        title: {
                             display: true,
                             text: 'Number of Samples'
-                        }}
-                    }},
-                    x: {{
-                        title: {{
+                        }
+                    },
+                    x: {
+                        title: {
                             display: true,
                             text: 'BUSCO Completeness (%)'
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                        }
+                    }
+                }
+            }
+        });
 
         // Prophage Functional Diversity Pie Chart
         const functionalLabels = FUNCTIONAL_LABELS_PLACEHOLDER;
         const functionalData = FUNCTIONAL_DATA_PLACEHOLDER;
 
         const functionalCtx = document.getElementById('functionalPieChart').getContext('2d');
-        const functionalPieChart = new Chart(functionalCtx, {{
+        const functionalPieChart = new Chart(functionalCtx, {
             type: 'pie',
-            data: {{
+            data: {
                 labels: functionalLabels,
-                datasets: [{{
+                datasets: [{
                     data: functionalData,
                     backgroundColor: [
                         '#FF6384',  // DNA Packaging
@@ -3019,35 +3022,35 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     ],
                     borderWidth: 2,
                     borderColor: '#fff'
-                }}]
-            }},
-            options: {{
+                }]
+            },
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {{
-                    legend: {{
+                plugins: {
+                    legend: {
                         position: 'right',
-                        labels: {{
-                            font: {{
+                        labels: {
+                            font: {
                                 size: 14
-                            }},
+                            },
                             padding: 15
-                        }}
-                    }},
-                    tooltip: {{
-                        callbacks: {{
-                            label: function(context) {{
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
                                 const label = context.label || '';
                                 const value = context.parsed || 0;
                                 const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                 const percentage = ((value / total) * 100).toFixed(1);
                                 return label + ': ' + value + ' (' + percentage + '%)';
-                            }}
-                        }}
-                    }}
-                }}
-            }}
-        }});
+                            }
+                        }
+                    }
+                }
+            }
+        });
     </script>
 
     <!-- Footer with Report Metadata -->
@@ -3127,6 +3130,42 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     # Prophage functional diversity data
     js_code = js_code.replace('FUNCTIONAL_LABELS_PLACEHOLDER', json.dumps(functional_labels))
     js_code = js_code.replace('FUNCTIONAL_DATA_PLACEHOLDER', json.dumps(functional_values))
+
+    # Replace summary statistics placeholders
+    from datetime import datetime
+    js_code = js_code.replace('__GENERATION_TIMESTAMP__', datetime.now().isoformat())
+    js_code = js_code.replace('__GENERATION_DATETIME__', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    js_code = js_code.replace('__TOTAL_SAMPLES__', str(total_samples))
+    js_code = js_code.replace('__PASSED_QC__', str(passed_qc))
+    js_code = js_code.replace('__FAILED_QC__', str(failed_qc))
+    js_code = js_code.replace('__QC_PASS_RATE__', f'{passed_qc/total_samples*100:.2f}')
+    js_code = js_code.replace('__AVG_CONTIGS__', f'{avg_contigs:.2f}')
+    js_code = js_code.replace('__AVG_CONTIGS_INT__', f'{avg_contigs:.0f}')
+    js_code = js_code.replace('__AVG_N50__', f'{avg_n50:.2f}')
+    js_code = js_code.replace('__AVG_N50_KB__', f'{avg_n50/1000:.1f}')
+    js_code = js_code.replace('__AVG_LENGTH__', f'{avg_length:.2f}')
+    js_code = js_code.replace('__AVG_GC__', f'{avg_gc:.2f}')
+    js_code = js_code.replace('__TOTAL_AMR_GENES__', str(total_amr_genes))
+    js_code = js_code.replace('__SAMPLES_WITH_AMR__', str(samples_with_amr))
+    js_code = js_code.replace('__AMR_PREVALENCE__', f'{samples_with_amr/total_samples*100:.2f}')
+    js_code = js_code.replace('__AMR_PREVALENCE_1F__', f'{samples_with_amr/total_samples*100:.1f}')
+    js_code = js_code.replace('__MDR_SAMPLES__', str(mdr_samples))
+    js_code = js_code.replace('__MDR_PCT__', f'{mdr_pct:.2f}')
+    js_code = js_code.replace('__MDR_PCT_1F__', f'{mdr_pct:.1f}')
+    js_code = js_code.replace('__UNIQUE_AMR_GENES__', str(len(amr_gene_counter)))
+    js_code = js_code.replace('__UNIQUE_AMR_CLASSES__', str(len(amr_class_counter)))
+    js_code = js_code.replace('__TOTAL_PLASMIDS__', str(total_plasmids))
+    js_code = js_code.replace('__SAMPLES_WITH_PLASMIDS__', str(samples_with_plasmids))
+    js_code = js_code.replace('__PLASMID_PREVALENCE__', f'{samples_with_plasmids/total_samples*100:.2f}')
+    js_code = js_code.replace('__PLASMID_PREVALENCE_1F__', f'{samples_with_plasmids/total_samples*100:.1f}')
+    js_code = js_code.replace('__UNIQUE_INC_GROUPS__', str(len(inc_group_counter)))
+    js_code = js_code.replace('__UNIQUE_MOBILITY_TYPES__', str(len(mobility_type_counter)))
+    js_code = js_code.replace('__TOTAL_PROPHAGES__', str(total_prophages))
+    js_code = js_code.replace('__SAMPLES_WITH_PROPHAGES__', str(samples_with_prophages))
+    js_code = js_code.replace('__PROPHAGE_PREVALENCE__', f'{samples_with_prophages/total_samples*100:.2f}')
+    js_code = js_code.replace('__PROPHAGE_PREVALENCE_1F__', f'{samples_with_prophages/total_samples*100:.1f}')
+    js_code = js_code.replace('__AVG_PROPHAGES__', f'{avg_prophages:.2f}')
+    js_code = js_code.replace('__AVG_PROPHAGES_1F__', f'{avg_prophages:.1f}')
 
     # Append JavaScript to HTML
     html += js_code
@@ -3328,6 +3367,18 @@ def main():
     # Only include columns that exist
     column_order = [col for col in column_order if col in df.columns]
     df = df[column_order]
+
+    # Create output directories if they don't exist
+    import os
+    tsv_dir = os.path.dirname(args.output_tsv)
+    if tsv_dir and not os.path.exists(tsv_dir):
+        os.makedirs(tsv_dir, exist_ok=True)
+        print(f"Created output directory: {tsv_dir}")
+
+    html_dir = os.path.dirname(args.output_html)
+    if html_dir and not os.path.exists(html_dir):
+        os.makedirs(html_dir, exist_ok=True)
+        print(f"Created output directory: {html_dir}")
 
     # Save TSV
     df.to_csv(args.output_tsv, sep='\t', index=False)

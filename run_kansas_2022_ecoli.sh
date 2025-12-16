@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH --job-name=ks_ecoli_2022
-#SBATCH --output=/homes/tylerdoe/slurm-%j.out
-#SBATCH --error=/homes/tylerdoe/slurm-%j.err
+#SBATCH --output=/fastscratch/tylerdoe/logs/slurm-%j.out
+#SBATCH --error=/fastscratch/tylerdoe/logs/slurm-%j.err
 #SBATCH --partition=batch.q
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -28,11 +28,18 @@ echo "  - State: Kansas (KS)"
 echo "  - Output: kansas_2022_ecoli"
 echo ""
 
+# Create logs directory if it doesn't exist
+mkdir -p /fastscratch/tylerdoe/logs
+
 # Load required modules
 module load Nextflow
 
 # Navigate to pipeline directory
 cd /fastscratch/tylerdoe/COMPASS-pipeline
+
+# Ensure we're in the right directory
+pwd
+ls -la main.nf
 
 # Run the pipeline
 nextflow run main.nf \
@@ -72,11 +79,12 @@ else
     echo "❌ Pipeline failed with exit code $EXIT_CODE"
     echo ""
     echo "Check logs:"
-    echo "  - SLURM log: /homes/tylerdoe/slurm-${SLURM_JOB_ID}.out"
-    echo "  - Nextflow log: .nextflow.log"
+    echo "  - SLURM log: /fastscratch/tylerdoe/logs/slurm-${SLURM_JOB_ID}.out"
+    echo "  - Nextflow log: /fastscratch/tylerdoe/COMPASS-pipeline/.nextflow.log"
     echo ""
     echo "To resume from where it failed:"
-    echo "  nextflow run main.nf -resume ..."
+    echo "  cd /fastscratch/tylerdoe/COMPASS-pipeline"
+    echo "  sbatch run_kansas_2022_ecoli.sh"
     echo ""
 fi
 

@@ -41,7 +41,7 @@ nextflow run main.nf \
     --filter_state "KS" \
     --filter_year_start 2022 \
     --filter_year_end 2022 \
-    --outdir kansas_2022_ecoli \
+    --outdir /fastscratch/tylerdoe/kansas_2022_ecoli \
     -resume
 
 EXIT_CODE=$?

@@ -9,6 +9,8 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=4G
 #SBATCH --time=96:00:00
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=tylerdoe@ksu.edu
 
 # Kansas 2022 E. coli NARMS Analysis
 # E. coli BioProject: PRJNA292663

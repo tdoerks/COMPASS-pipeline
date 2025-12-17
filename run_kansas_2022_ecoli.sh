@@ -43,7 +43,7 @@ cd /fastscratch/tylerdoe/COMPASS-pipeline
 pwd
 ls -la main.nf
 
-# Run the pipeline
+# Run the pipeline (skip BUSCO due to download issues)
 nextflow run main.nf \
     --input_mode metadata \
     --bioproject "PRJNA292663" \
@@ -51,6 +51,7 @@ nextflow run main.nf \
     --filter_year_start 2022 \
     --filter_year_end 2022 \
     --outdir /fastscratch/tylerdoe/kansas_2022_ecoli \
+    --skip_busco true \
     -resume
 
 EXIT_CODE=$?

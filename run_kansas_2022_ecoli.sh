@@ -6,8 +6,8 @@
 #SBATCH --partition=batch.q
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
-#SBATCH --mem=4G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
 #SBATCH --time=96:00:00
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=tdoerks@vet.k-state.edu

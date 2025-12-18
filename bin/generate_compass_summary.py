@@ -2586,8 +2586,8 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         });
 
         // Geographic Analysis: Samples by State
-        const stateLabels = {json.dumps(state_labels)};
-        const stateCounts = {json.dumps(state_counts)};
+        const stateLabels = STATE_LABELS_PLACEHOLDER;
+        const stateCounts = STATE_COUNTS_PLACEHOLDER;
 
         const stateSamplesCtx = document.getElementById('stateSamplesChart').getContext('2d');
         const stateSamplesChart = new Chart(stateSamplesCtx, {
@@ -2624,7 +2624,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         });
 
         // Geographic Analysis: MDR Rates by State
-        const stateMDRRates = {json.dumps(state_mdr_rate_values)};
+        const stateMDRRates = STATE_MDR_RATES_PLACEHOLDER;
 
         const stateMDRCtx = document.getElementById('stateMDRChart').getContext('2d');
         const stateMDRChart = new Chart(stateMDRCtx, {
@@ -2720,8 +2720,8 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         });
 
         // Strain Typing: MLST Sequence Types
-        const mlstSTLabels = {json.dumps(mlst_st_labels)};
-        const mlstSTCounts = {json.dumps(mlst_st_counts)};
+        const mlstSTLabels = MLST_ST_LABELS_PLACEHOLDER;
+        const mlstSTCounts = MLST_ST_COUNTS_PLACEHOLDER;
 
         const mlstSTCtx = document.getElementById('mlstSTChart').getContext('2d');
         const mlstSTChart = new Chart(mlstSTCtx, {
@@ -2758,8 +2758,8 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         });
 
         // Strain Typing: MLST Scheme Distribution
-        const mlstSchemeLabels = {json.dumps(mlst_scheme_labels)};
-        const mlstSchemeCounts = {json.dumps(mlst_scheme_counts)};
+        const mlstSchemeLabels = MLST_SCHEME_LABELS_PLACEHOLDER;
+        const mlstSchemeCounts = MLST_SCHEME_COUNTS_PLACEHOLDER;
 
         const mlstSchemeCtx = document.getElementById('mlstSchemeChart').getContext('2d');
         const mlstSchemeChart = new Chart(mlstSchemeCtx, {
@@ -2792,8 +2792,8 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         });
 
         // Strain Typing: Serovar Distribution (Salmonella)
-        const serovarLabels = {json.dumps(serovar_labels)};
-        const serovarCounts = {json.dumps(serovar_counts)};
+        const serovarLabels = SEROVAR_LABELS_PLACEHOLDER;
+        const serovarCounts = SEROVAR_COUNTS_PLACEHOLDER;
 
         const serovarCtx = document.getElementById('serovarChart').getContext('2d');
         const serovarChart = new Chart(serovarCtx, {
@@ -3094,6 +3094,21 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     # Prophage functional diversity data
     js_code = js_code.replace('FUNCTIONAL_LABELS_PLACEHOLDER', json.dumps(functional_labels))
     js_code = js_code.replace('FUNCTIONAL_DATA_PLACEHOLDER', json.dumps(functional_values))
+
+    # Geographic analysis data
+    js_code = js_code.replace('STATE_LABELS_PLACEHOLDER', json.dumps(state_labels))
+    js_code = js_code.replace('STATE_COUNTS_PLACEHOLDER', json.dumps(state_counts))
+    js_code = js_code.replace('STATE_MDR_RATES_PLACEHOLDER', json.dumps(state_mdr_rate_values))
+
+    # MLST typing data
+    js_code = js_code.replace('MLST_ST_LABELS_PLACEHOLDER', json.dumps(mlst_st_labels))
+    js_code = js_code.replace('MLST_ST_COUNTS_PLACEHOLDER', json.dumps(mlst_st_counts))
+    js_code = js_code.replace('MLST_SCHEME_LABELS_PLACEHOLDER', json.dumps(mlst_scheme_labels))
+    js_code = js_code.replace('MLST_SCHEME_COUNTS_PLACEHOLDER', json.dumps(mlst_scheme_counts))
+
+    # Serovar data
+    js_code = js_code.replace('SEROVAR_LABELS_PLACEHOLDER', json.dumps(serovar_labels))
+    js_code = js_code.replace('SEROVAR_COUNTS_PLACEHOLDER', json.dumps(serovar_counts))
 
     # Replace summary statistics placeholders
     from datetime import datetime

@@ -3052,42 +3052,6 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             }
         });
     </script>
-
-    <!-- Footer with Report Metadata -->
-    <div class="footer">
-        <h3>Report Information</h3>
-        <div class="footer-content">
-            <div class="footer-section">
-                <h4>Generation Details</h4>
-                <p><strong>Generated:</strong> GENERATION_TIME_PLACEHOLDER</p>
-                <p><strong>Pipeline:</strong> COMPASS v1.2-mod</p>
-                <p><strong>Report Version:</strong> Enhanced Interactive v2.0</p>
-            </div>
-            <div class="footer-section">
-                <h4>Dataset Summary</h4>
-                <p><strong>Total Samples:</strong> TOTAL_SAMPLES_PLACEHOLDER</p>
-                <p><strong>Date Range:</strong> YEAR_RANGE_PLACEHOLDER</p>
-                <p><strong>Organisms:</strong> ORGANISMS_PLACEHOLDER</p>
-            </div>
-            <div class="footer-section">
-                <h4>Analysis Modules</h4>
-                <p>✓ Assembly QC (QUAST + BUSCO)</p>
-                <p>✓ AMR Detection (AMRFinderPlus)</p>
-                <p>✓ Prophage Identification (VIBRANT)</p>
-                <p>✓ Plasmid Analysis (MOB-suite)</p>
-                <p>✓ Strain Typing (MLST + SISTR)</p>
-            </div>
-        </div>
-        <div class="footer-links">
-            <span>COMPASS Pipeline - Comprehensive Mobile element & Pathogen ASsessment Suite</span>
-            <span>|</span>
-            <a href="https://github.com/tylerdougan/COMPASS-pipeline" target="_blank">GitHub</a>
-            <span>|</span>
-            <span>Generated with Python {sys.version.split()[0]}, pandas {pd.__version__}, Chart.js 4.4.0</span>
-        </div>
-    </div>
-</body>
-</html>
 """
 
     # Replace placeholders in JavaScript with actual data
@@ -3195,11 +3159,45 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             organisms_list.append(f"+{len(organism_counts) - 3} more")
         organisms_str = ", ".join(organisms_list)
 
-    # Replace footer placeholders
-    html = html.replace('GENERATION_TIME_PLACEHOLDER', generation_time_str)
-    html = html.replace('TOTAL_SAMPLES_PLACEHOLDER', str(total_samples))
-    html = html.replace('YEAR_RANGE_PLACEHOLDER', year_range)
-    html = html.replace('ORGANISMS_PLACEHOLDER', organisms_str)
+    # Add footer as f-string so Python expressions are evaluated
+    import sys
+    html += f"""
+    <!-- Footer with Report Metadata -->
+    <div class="footer">
+        <h3>Report Information</h3>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>Generation Details</h4>
+                <p><strong>Generated:</strong> {generation_time_str}</p>
+                <p><strong>Pipeline:</strong> COMPASS v1.2-mod</p>
+                <p><strong>Report Version:</strong> Enhanced Interactive v2.0</p>
+            </div>
+            <div class="footer-section">
+                <h4>Dataset Summary</h4>
+                <p><strong>Total Samples:</strong> {total_samples}</p>
+                <p><strong>Date Range:</strong> {year_range}</p>
+                <p><strong>Organisms:</strong> {organisms_str}</p>
+            </div>
+            <div class="footer-section">
+                <h4>Analysis Modules</h4>
+                <p>✓ Assembly QC (QUAST + BUSCO)</p>
+                <p>✓ AMR Detection (AMRFinderPlus)</p>
+                <p>✓ Prophage Identification (VIBRANT)</p>
+                <p>✓ Plasmid Analysis (MOB-suite)</p>
+                <p>✓ Strain Typing (MLST + SISTR)</p>
+            </div>
+        </div>
+        <div class="footer-links">
+            <span>COMPASS Pipeline - Comprehensive Mobile element & Pathogen ASsessment Suite</span>
+            <span>|</span>
+            <a href="https://github.com/tylerdougan/COMPASS-pipeline" target="_blank">GitHub</a>
+            <span>|</span>
+            <span>Generated with Python {sys.version.split()[0]}, pandas {pd.__version__}, Chart.js 4.4.0</span>
+        </div>
+    </div>
+</body>
+</html>
+"""
 
     # Write HTML file
     with open(output_file, 'w') as f:

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=compass_ks_2022
+#SBATCH --job-name=compass_ecoli_2022
 #SBATCH --output=/homes/tylerdoe/slurm-%j.out
 #SBATCH --error=/homes/tylerdoe/slurm-%j.err
 #SBATCH --time=168:00:00
@@ -9,11 +9,12 @@
 #SBATCH --mail-user=tdoerks@vet.k-state.edu
 
 echo "=========================================="
-echo "COMPASS Pipeline - Kansas 2022"
-echo "Organisms: Campylobacter, Salmonella, E. coli"
-echo "State: Kansas only"
+echo "COMPASS Pipeline - E. coli 2022"
+echo "Organism: E. coli only (PRJNA292663)"
+echo "No state filter - ALL US samples"
+echo "Year: 2022"
 echo "Running from: /fastscratch/tylerdoe"
-echo "Branch: v1.2-dev"
+echo "Branch: v1.2-mod"
 echo "=========================================="
 echo "Job ID: $SLURM_JOB_ID"
 echo "Start time: $(date)"
@@ -25,25 +26,22 @@ cd /fastscratch/tylerdoe/COMPASS-pipeline
 # Load Nextflow
 module load Nextflow
 
-# Set unique Nextflow home to avoid cache conflicts with other runs
-export NXF_HOME=/fastscratch/tylerdoe/.nextflow_2022
+# Set unique Nextflow home to avoid cache conflicts
+export NXF_HOME=/fastscratch/tylerdoe/.nextflow_ecoli_2022
 
-# Run pipeline for Kansas 2022 NARMS data
-# Automatically processes all three organisms:
-#   - Campylobacter (PRJNA292664)
-#   - Salmonella (PRJNA292661)
-#   - E. coli (PRJNA292663)
-# Filters for KS state code in sample names
-# Uses separate work directory (work_2022) to avoid conflicts with other runs
+# Run pipeline for E. coli 2022 NARMS data
+# Note: Set filter_state to null to process ALL states
+# Uses v1.2-mod branch which has error handling for failed assemblies
 nextflow run main.nf \
     -profile beocat \
     --input_mode metadata \
-    --filter_state "KS" \
+    --filter_state null \
+    --filter_organism "Escherichia" \
     --filter_year_start 2022 \
     --filter_year_end 2022 \
     --skip_busco true \
-    --outdir /fastscratch/tylerdoe/results_kansas_2022 \
-    -w work_2022 \
+    --outdir /fastscratch/tylerdoe/kansas_2022_ecoli \
+    -w work_ecoli_2022 \
     -resume
 
 EXIT_CODE=$?
@@ -57,17 +55,14 @@ echo "=========================================="
 if [ $EXIT_CODE -eq 0 ]; then
     echo "✅ Pipeline completed successfully!"
     echo ""
-    echo "Results location: /fastscratch/tylerdoe/results_kansas_2022"
+    echo "Results location: /fastscratch/tylerdoe/kansas_2022_ecoli"
     echo ""
-    echo "Next steps:"
-    echo "1. Copy results to homes (if needed):"
-    echo "   cp -r /fastscratch/tylerdoe/results_kansas_2022 /homes/tylerdoe/pipelines/compass-pipeline/"
+    echo "Summary report (if generated):"
+    echo "  - /fastscratch/tylerdoe/kansas_2022_ecoli/summary/compass_summary.html"
+    echo "  - /fastscratch/tylerdoe/kansas_2022_ecoli/summary/compass_summary.tsv"
     echo ""
-    echo "2. Generate report:"
-    echo "   ./bin/generate_report_v3.py /fastscratch/tylerdoe/results_kansas_2022 -o compass_report_ks_2022.html"
-    echo ""
-    echo "3. Download report:"
-    echo "   scp tylerdoe@beocat.ksu.edu:/fastscratch/tylerdoe/compass_report_ks_2022.html C:\\Users\\tdoerks\\Downloads\\"
+    echo "Note: This includes ALL US E. coli 2022 samples"
+    echo "Expected: ~500-1000 samples for 2022"
 else
     echo "❌ Pipeline failed with exit code $EXIT_CODE"
     echo "Check logs: /fastscratch/tylerdoe/slurm-${SLURM_JOB_ID}.out and .nextflow.log"

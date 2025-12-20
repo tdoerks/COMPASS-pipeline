@@ -2054,25 +2054,11 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             updatePagination();
         }
 
-        // Master function to render charts for a specific tab (lazy loading)
+        // Note: All charts are created on page load for immediate availability
+        // No lazy loading needed since Chart.js is lightweight
         function renderTabCharts(tabName) {
-            switch(tabName) {
-                case 'amr-analysis':
-                    renderAMRCharts();
-                    break;
-                case 'plasmid-analysis':
-                    renderPlasmidCharts();
-                    break;
-                case 'temporal-analysis':
-                    renderTemporalCharts();
-                    break;
-                case 'assembly-quality':
-                    renderAssemblyCharts();
-                    break;
-                case 'prophage-functional':
-                    renderProphageCharts();
-                    break;
-            }
+            // Charts already rendered, no action needed
+            // This function is called by switchTab but charts are pre-rendered
         }
 
         // AMR Genes Bar Chart
@@ -3074,8 +3060,9 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = js_code.replace('AMR_GENE_COUNTS_PLACEHOLDER', json.dumps(amr_gene_counts))
     js_code = js_code.replace('AMR_CLASS_LABELS_PLACEHOLDER', json.dumps(amr_class_labels))
     js_code = js_code.replace('AMR_CLASS_COUNTS_PLACEHOLDER', json.dumps(amr_class_counts))
-    js_code = js_code.replace('MDR_SAMPLES_PLACEHOLDER', str(mdr_samples))
+    # Replace NON_MDR first to avoid partial match with MDR_SAMPLES_PLACEHOLDER
     js_code = js_code.replace('NON_MDR_SAMPLES_PLACEHOLDER', str(total_samples - mdr_samples))
+    js_code = js_code.replace('MDR_SAMPLES_PLACEHOLDER', str(mdr_samples))
 
     # Plasmid data
     js_code = js_code.replace('INC_GROUP_LABELS_PLACEHOLDER', json.dumps(inc_group_labels))

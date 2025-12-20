@@ -305,7 +305,8 @@ def parse_vibrant_annotations(vibrant_dir):
 
     if vibrant_path.exists():
         # Look for annotation files - VIBRANT creates nested structure
-        for annot_file in vibrant_path.glob('*_vibrant/VIBRANT_*/VIBRANT_annotations_*.tsv'):
+        # Pattern: sample_vibrant/VIBRANT_sample_contigs/VIBRANT_results_sample_contigs/VIBRANT_annotations_sample_contigs.tsv
+        for annot_file in vibrant_path.glob('*_vibrant/VIBRANT_*/VIBRANT_results_*/VIBRANT_annotations_*.tsv'):
             try:
                 df = pd.read_csv(annot_file, sep='\t')
 

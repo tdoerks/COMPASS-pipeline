@@ -549,6 +549,93 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     scatter_plasmid_x = [pair[0] for pair in plasmid_amr_pairs]
     scatter_amr_y = [pair[1] for pair in plasmid_amr_pairs]
 
+    # ============================================================
+    # METADATA EXPLORER - Dynamic metadata field aggregation
+    # ============================================================
+    # Identify all available metadata fields (excluding technical columns)
+    excluded_fields = {'sample_id', 'assembly_path', 'num_amr_genes', 'num_prophages',
+                       'num_plasmids', 'amr_genes', 'mdr_status', 'n50', 'assembly_length',
+                       'num_contigs', 'busco_completeness', 'mlst_st', 'mlst_scheme',
+                       'serovar', 'inc_groups', 'mobility_types'}
+
+    # Get all column names that are suitable for grouping
+    metadata_fields = [col for col in df.columns if col not in excluded_fields]
+
+    # Create aggregation data structure for ALL metadata fields
+    # This allows the JavaScript to dynamically generate charts for any field
+    metadata_aggregations = {}
+
+    for field in metadata_fields:
+        # Get all unique values for this field
+        field_values = df[field].dropna()
+        field_values = field_values[field_values != '-']
+        field_values = field_values[field_values != 'Unknown']
+
+        if len(field_values) == 0:
+            continue  # Skip empty fields
+
+        # Aggregate by this field
+        field_data = defaultdict(lambda: {
+            'total_samples': 0,
+            'mdr_samples': 0,
+            'amr_gene_sum': 0,
+            'prophage_sum': 0,
+            'plasmid_sum': 0
+        })
+
+        for _, row in df.iterrows():
+            field_val = row.get(field, '-')
+            if field_val and field_val != '-' and str(field_val) != 'nan' and field_val != 'Unknown':
+                field_val_str = str(field_val)
+                field_data[field_val_str]['total_samples'] += 1
+
+                # Count MDR samples
+                if row.get('mdr_status') == 'Yes':
+                    field_data[field_val_str]['mdr_samples'] += 1
+
+                # Sum AMR genes
+                num_amr = row.get('num_amr_genes', 0)
+                if num_amr and num_amr != '-':
+                    try:
+                        field_data[field_val_str]['amr_gene_sum'] += int(num_amr)
+                    except (ValueError, TypeError):
+                        pass
+
+                # Sum prophages
+                num_prophages = row.get('num_prophages', 0)
+                if num_prophages and num_prophages != '-':
+                    try:
+                        field_data[field_val_str]['prophage_sum'] += int(num_prophages)
+                    except (ValueError, TypeError):
+                        pass
+
+                # Sum plasmids
+                num_plasmids = row.get('num_plasmids', 0)
+                if num_plasmids and num_plasmids != '-':
+                    try:
+                        field_data[field_val_str]['plasmid_sum'] += int(num_plasmids)
+                    except (ValueError, TypeError):
+                        pass
+
+        # Store aggregation for this field
+        # Sort by sample count (descending) and take top 15 for performance
+        sorted_values = sorted(field_data.items(), key=lambda x: x[1]['total_samples'], reverse=True)[:15]
+
+        metadata_aggregations[field] = {
+            'labels': [item[0] for item in sorted_values],
+            'counts': [item[1]['total_samples'] for item in sorted_values],
+            'mdr_counts': [item[1]['mdr_samples'] for item in sorted_values],
+            'amr_gene_sums': [item[1]['amr_gene_sum'] for item in sorted_values],
+            'prophage_sums': [item[1]['prophage_sum'] for item in sorted_values],
+            'plasmid_sums': [item[1]['plasmid_sum'] for item in sorted_values]
+        }
+
+    # Generate dropdown options for metadata field selector
+    metadata_field_options = '\n'.join([
+        f'<option value="{field}">{field.replace("_", " ").title()}</option>'
+        for field in sorted(metadata_aggregations.keys())
+    ])
+
     # Prepare Temporal Analysis data for visualizations
     # Group data by year
     temporal_data = defaultdict(lambda: {
@@ -1151,8 +1238,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <button class="tab-button" onclick="switchTab(event, 'amr-analysis')">AMR Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'plasmid-analysis')">Plasmid Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>
-            <button class="tab-button" onclick="switchTab(event, 'temporal-analysis')">Temporal Analysis</button>
-            <button class="tab-button" onclick="switchTab(event, 'geographic-analysis')">Geographic Analysis</button>
+            <button class="tab-button" onclick="switchTab(event, 'metadata-explorer')">Metadata Explorer</button>
             <button class="tab-button" onclick="switchTab(event, 'strain-typing')">Strain Typing</button>
             <button class="tab-button" onclick="switchTab(event, 'assembly-quality')">Assembly Quality</button>
             <button class="tab-button" onclick="switchTab(event, 'data-table')">Data Table</button>"""
@@ -1331,114 +1417,81 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         </div>
     </div>
 
-    <!-- Temporal Analysis Tab -->
-    <div id="temporal-analysis" class="tab-content">
+    <!-- Metadata Explorer Tab -->
+    <div id="metadata-explorer" class="tab-content">
         <div class="summary-grid" style="margin-bottom: 30px;">
             <div class="summary-card">
-                <h3>Years Analyzed</h3>
-                <div class="value">{len(sorted_years)}</div>
-                <div class="subtext">{'From ' + str(min(sorted_years)) + ' to ' + str(max(sorted_years)) if sorted_years else 'No temporal data'}</div>
+                <h3>Metadata Fields Available</h3>
+                <div class="value">{len(metadata_fields)}</div>
+                <div class="subtext">Attributes for exploration</div>
             </div>
             <div class="summary-card">
                 <h3>Total Samples</h3>
-                <div class="value">{sum(temporal_sample_counts) if temporal_sample_counts else 0}</div>
-                <div class="subtext">Across all years</div>
-            </div>
-            <div class="summary-card {'card-danger' if temporal_mdr_pct and max(temporal_mdr_pct) > 25 else 'card-warning' if temporal_mdr_pct and max(temporal_mdr_pct) > 10 else 'card-success'}">
-                <h3>Peak MDR Rate</h3>
-                <div class="value">{max(temporal_mdr_pct) if temporal_mdr_pct else 0:.1f}%</div>
-                <div class="subtext">{'In ' + str(sorted_years[temporal_mdr_pct.index(max(temporal_mdr_pct))]) if temporal_mdr_pct and max(temporal_mdr_pct) > 0 else 'No MDR detected'}</div>
-            </div>
-            <div class="summary-card">
-                <h3>Trend Direction</h3>
-                <div class="value">{'↑' if len(temporal_mdr_pct) >= 2 and temporal_mdr_pct[-1] > temporal_mdr_pct[0] else '↓' if len(temporal_mdr_pct) >= 2 and temporal_mdr_pct[-1] < temporal_mdr_pct[0] else '→'}</div>
-                <div class="subtext">{'MDR increasing' if len(temporal_mdr_pct) >= 2 and temporal_mdr_pct[-1] > temporal_mdr_pct[0] else 'MDR decreasing' if len(temporal_mdr_pct) >= 2 and temporal_mdr_pct[-1] < temporal_mdr_pct[0] else 'MDR stable'}</div>
-            </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px;">
-            <div class="chart-container">
-                <h2>Sample Collection Over Time</h2>
-                <p style="color: #666; margin-bottom: 20px;">Number of samples collected per year</p>
-                <div class="chart-wrapper">
-                    <canvas id="temporalSamplesChart"></canvas>
-                </div>
-            </div>
-
-            <div class="chart-container">
-                <h2>AMR/MDR Trends</h2>
-                <p style="color: #666; margin-bottom: 20px;">Percentage of samples with AMR genes and MDR over time</p>
-                <div class="chart-wrapper">
-                    <canvas id="temporalAmrMdrChart"></canvas>
-                </div>
-            </div>
-
-            <div class="chart-container">
-                <h2>Prophage Detection Over Time</h2>
-                <p style="color: #666; margin-bottom: 20px;">Total prophages detected per year</p>
-                <div class="chart-wrapper">
-                    <canvas id="temporalProphagesChart"></canvas>
-                </div>
-            </div>
-
-            <div class="chart-container">
-                <h2>Plasmid Detection Over Time</h2>
-                <p style="color: #666; margin-bottom: 20px;">Total plasmids detected per year</p>
-                <div class="chart-wrapper">
-                    <canvas id="temporalPlasmidsChart"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Geographic Analysis Tab -->
-    <div id="geographic-analysis" class="tab-content">
-        <div class="summary-grid" style="margin-bottom: 30px;">
-            <div class="summary-card">
-                <h3>States Analyzed</h3>
-                <div class="value">{num_states}</div>
-                <div class="subtext">Geographic regions with data</div>
-            </div>
-            <div class="summary-card {'card-success' if num_states > 10 else 'card-warning' if num_states > 5 else ''}">
-                <h3>Top State</h3>
-                <div class="value">{state_labels[0] if state_labels else '-'}</div>
-                <div class="subtext">{state_counts[0] if state_counts else 0} samples</div>
-            </div>
-            <div class="summary-card {'card-danger' if max_mdr_state_rate > 30 else 'card-warning' if max_mdr_state_rate > 20 else 'card-success'}">
-                <h3>Highest MDR Rate</h3>
-                <div class="value">{max_mdr_state_rate:.1f}%</div>
-                <div class="subtext">{max_mdr_state_name}</div>
-            </div>
-            <div class="summary-card">
-                <h3>Coverage</h3>
                 <div class="value">{total_samples}</div>
-                <div class="subtext">Samples across {num_states} states</div>
+                <div class="subtext">In current dataset</div>
+            </div>
+            <div class="summary-card card-info">
+                <h3>Explore Your Data</h3>
+                <div class="value">📊</div>
+                <div class="subtext">Select fields below to visualize</div>
             </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px; margin-bottom: 20px;">
-            <div class="chart-container">
-                <h2>Samples by State</h2>
-                <p style="color: #666; margin-bottom: 20px;">Top 15 states by sample count</p>
-                <div class="chart-wrapper">
-                    <canvas id="stateSamplesChart"></canvas>
+        <!-- Controls for dynamic exploration -->
+        <div class="chart-container" style="margin-bottom: 30px;">
+            <h2>Data Exploration Controls</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <label for="metadataFieldSelect" style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
+                        Select Metadata Field:
+                    </label>
+                    <select id="metadataFieldSelect" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; font-size: 14px;">
+                        <option value="">Choose a field...</option>
+                        {metadata_field_options}
+                    </select>
+                </div>
+                <div>
+                    <label for="metadataMetricSelect" style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
+                        Select Metric:
+                    </label>
+                    <select id="metadataMetricSelect" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; font-size: 14px;">
+                        <option value="count">Sample Count</option>
+                        <option value="mdr_rate">MDR Rate (%)</option>
+                        <option value="amr_gene_count">Avg AMR Genes</option>
+                        <option value="prophage_count">Avg Prophages</option>
+                        <option value="plasmid_count">Avg Plasmids</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="metadataChartType" style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
+                        Chart Type:
+                    </label>
+                    <select id="metadataChartType" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; font-size: 14px;">
+                        <option value="bar">Bar Chart</option>
+                        <option value="line">Line Chart</option>
+                        <option value="pie">Pie Chart</option>
+                    </select>
                 </div>
             </div>
-
-            <div class="chart-container">
-                <h2>MDR Rates by State</h2>
-                <p style="color: #666; margin-bottom: 20px;">Multidrug resistance prevalence across states</p>
-                <div class="chart-wrapper">
-                    <canvas id="stateMDRChart"></canvas>
-                </div>
-            </div>
+            <button onclick="updateMetadataChart()" style="padding: 12px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px; font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                📊 Update Chart
+            </button>
         </div>
 
+        <!-- Dynamic chart display -->
         <div class="chart-container">
-            <h2>Regional Comparison</h2>
-            <p style="color: #666; margin-bottom: 20px;">Sample counts vs MDR rates by state</p>
-            <div class="chart-wrapper" style="height: 400px;">
-                <canvas id="regionalComparisonChart"></canvas>
+            <h2 id="metadataChartTitle">Select a field to begin exploration</h2>
+            <p id="metadataChartDescription" style="color: #666; margin-bottom: 20px;">Choose a metadata field and metric above, then click "Update Chart"</p>
+            <div class="chart-wrapper">
+                <canvas id="metadataExplorerChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Summary statistics -->
+        <div id="metadataStats" class="chart-container" style="display: none; margin-top: 20px;">
+            <h2>Field Statistics</h2>
+            <div id="metadataStatsContent" style="padding: 20px; background: #f8f9fa; border-radius: 5px;">
+                <!-- Dynamically populated -->
             </div>
         </div>
     </div>
@@ -2082,6 +2135,194 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             // This function is called by switchTab but charts are pre-rendered
         }
 
+        // ============================================================
+        // METADATA EXPLORER - Dynamic chart generation
+        // ============================================================
+        // Store all metadata aggregations in JavaScript
+        const metadataAggregations = METADATA_AGGREGATIONS_PLACEHOLDER;
+
+        // Keep track of current metadata chart
+        let metadataChart = null;
+
+        function updateMetadataChart() {
+            const fieldSelect = document.getElementById('metadataFieldSelect');
+            const metricSelect = document.getElementById('metadataMetricSelect');
+            const chartTypeSelect = document.getElementById('metadataChartType');
+
+            const selectedField = fieldSelect.value;
+            const selectedMetric = metricSelect.value;
+            const selectedChartType = chartTypeSelect.value;
+
+            if (!selectedField) {
+                alert('Please select a metadata field first!');
+                return;
+            }
+
+            // Get data for selected field
+            const fieldData = metadataAggregations[selectedField];
+            if (!fieldData) {
+                alert('No data available for this field');
+                return;
+            }
+
+            // Prepare data based on selected metric
+            let chartData = [];
+            let metricLabel = '';
+            let yAxisLabel = '';
+
+            switch(selectedMetric) {
+                case 'count':
+                    chartData = fieldData.counts;
+                    metricLabel = 'Sample Count';
+                    yAxisLabel = 'Number of Samples';
+                    break;
+                case 'mdr_rate':
+                    // Calculate MDR percentage
+                    chartData = fieldData.counts.map((count, idx) => {
+                        return count > 0 ? (fieldData.mdr_counts[idx] / count * 100).toFixed(1) : 0;
+                    });
+                    metricLabel = 'MDR Rate';
+                    yAxisLabel = 'MDR Rate (%)';
+                    break;
+                case 'amr_gene_count':
+                    // Calculate average AMR genes per sample
+                    chartData = fieldData.counts.map((count, idx) => {
+                        return count > 0 ? (fieldData.amr_gene_sums[idx] / count).toFixed(1) : 0;
+                    });
+                    metricLabel = 'Avg AMR Genes';
+                    yAxisLabel = 'Average AMR Genes per Sample';
+                    break;
+                case 'prophage_count':
+                    // Calculate average prophages per sample
+                    chartData = fieldData.counts.map((count, idx) => {
+                        return count > 0 ? (fieldData.prophage_sums[idx] / count).toFixed(1) : 0;
+                    });
+                    metricLabel = 'Avg Prophages';
+                    yAxisLabel = 'Average Prophages per Sample';
+                    break;
+                case 'plasmid_count':
+                    // Calculate average plasmids per sample
+                    chartData = fieldData.counts.map((count, idx) => {
+                        return count > 0 ? (fieldData.plasmid_sums[idx] / count).toFixed(1) : 0;
+                    });
+                    metricLabel = 'Avg Plasmids';
+                    yAxisLabel = 'Average Plasmids per Sample';
+                    break;
+            }
+
+            // Update chart title and description
+            const fieldDisplayName = selectedField.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            document.getElementById('metadataChartTitle').textContent = `${metricLabel} by ${fieldDisplayName}`;
+            document.getElementById('metadataChartDescription').textContent = `Showing ${metricLabel.toLowerCase()} grouped by ${fieldDisplayName.toLowerCase()}`;
+
+            // Destroy existing chart if it exists
+            if (metadataChart) {
+                metadataChart.destroy();
+            }
+
+            // Create new chart
+            const ctx = document.getElementById('metadataExplorerChart').getContext('2d');
+
+            // Choose colors based on metric
+            let backgroundColor = '#667eea';
+            let borderColor = '#5568d3';
+            if (selectedMetric === 'mdr_rate') {
+                backgroundColor = '#f56565';
+                borderColor = '#e53e3e';
+            } else if (selectedMetric.includes('amr')) {
+                backgroundColor = '#ed8936';
+                borderColor = '#dd6b20';
+            } else if (selectedMetric.includes('prophage')) {
+                backgroundColor = '#48bb78';
+                borderColor = '#38a169';
+            } else if (selectedMetric.includes('plasmid')) {
+                backgroundColor = '#4299e1';
+                borderColor = '#3182ce';
+            }
+
+            // Chart configuration
+            const config = {
+                type: selectedChartType,
+                data: {
+                    labels: fieldData.labels,
+                    datasets: [{
+                        label: metricLabel,
+                        data: chartData,
+                        backgroundColor: selectedChartType === 'pie' ? [
+                            '#667eea', '#764ba2', '#f56565', '#ed8936', '#ecc94b',
+                            '#48bb78', '#38b2ac', '#4299e1', '#3182ce', '#5a67d8',
+                            '#805ad5', '#d53f8c', '#f687b3', '#fc8181', '#f6ad55'
+                        ] : backgroundColor,
+                        borderColor: selectedChartType === 'pie' ? '#fff' : borderColor,
+                        borderWidth: selectedChartType === 'pie' ? 2 : 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: selectedChartType === 'pie',
+                            position: 'right'
+                        },
+                        title: {
+                            display: false
+                        }
+                    },
+                    scales: selectedChartType === 'pie' ? {} : {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: yAxisLabel
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: fieldDisplayName
+                            }
+                        }
+                    }
+                }
+            };
+
+            metadataChart = new Chart(ctx, config);
+
+            // Show statistics panel
+            const statsDiv = document.getElementById('metadataStats');
+            const statsContent = document.getElementById('metadataStatsContent');
+            statsDiv.style.display = 'block';
+
+            // Calculate statistics
+            const totalValues = fieldData.labels.length;
+            const dataValues = chartData.map(v => parseFloat(v));
+            const maxValue = Math.max(...dataValues);
+            const minValue = Math.min(...dataValues);
+            const avgValue = (dataValues.reduce((a, b) => a + b, 0) / totalValues).toFixed(2);
+
+            statsContent.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                    <div>
+                        <strong>Total Groups:</strong><br>
+                        <span style="font-size: 24px; color: #667eea;">${totalValues}</span>
+                    </div>
+                    <div>
+                        <strong>Maximum:</strong><br>
+                        <span style="font-size: 24px; color: #48bb78;">${maxValue}</span>
+                    </div>
+                    <div>
+                        <strong>Minimum:</strong><br>
+                        <span style="font-size: 24px; color: #f56565;">${minValue}</span>
+                    </div>
+                    <div>
+                        <strong>Average:</strong><br>
+                        <span style="font-size: 24px; color: #4299e1;">${avgValue}</span>
+                    </div>
+                </div>
+            `;
+        }
+
         // AMR Genes Bar Chart
         const amrGeneLabels = AMR_GENE_LABELS_PLACEHOLDER;
         const amrGeneCounts = AMR_GENE_COUNTS_PLACEHOLDER;
@@ -2415,330 +2656,11 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             }
         });
 
-        // Temporal Analysis: Sample Collection Over Time
-        const temporalYears = TEMPORAL_YEARS_PLACEHOLDER;
-        const temporalSampleCounts = TEMPORAL_SAMPLE_COUNTS_PLACEHOLDER;
-
-        const temporalSamplesCtx = document.getElementById('temporalSamplesChart').getContext('2d');
-        const temporalSamplesChart = new Chart(temporalSamplesCtx, {
-            type: 'line',
-            data: {
-                labels: temporalYears,
-                datasets: [{
-                    label: 'Number of Samples',
-                    data: temporalSampleCounts,
-                    borderColor: '#667eea',
-                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                    borderWidth: 3,
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
-                    pointBackgroundColor: '#667eea'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Number of Samples'
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Year'
-                        }
-                    }
-                }
-            }
-        });
-
-        // Temporal Analysis: AMR/MDR Percentage Trends
-        const temporalAmrPct = TEMPORAL_AMR_PCT_PLACEHOLDER;
-        const temporalMdrPct = TEMPORAL_MDR_PCT_PLACEHOLDER;
-
-        const temporalAmrMdrCtx = document.getElementById('temporalAmrMdrChart').getContext('2d');
-        const temporalAmrMdrChart = new Chart(temporalAmrMdrCtx, {
-            type: 'line',
-            data: {
-                labels: temporalYears,
-                datasets: [{
-                    label: 'AMR Positive (%)',
-                    data: temporalAmrPct,
-                    borderColor: '#f59e0b',
-                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                    borderWidth: 3,
-                    fill: false,
-                    tension: 0.4,
-                    pointRadius: 5,
-                    pointHoverRadius: 7
-                }, {
-                    label: 'MDR (%)',
-                    data: temporalMdrPct,
-                    borderColor: '#ef4444',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    borderWidth: 3,
-                    fill: false,
-                    tension: 0.4,
-                    pointRadius: 5,
-                    pointHoverRadius: 7
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100,
-                        title: {
-                            display: true,
-                            text: 'Percentage (%)'
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Year'
-                        }
-                    }
-                }
-            }
-        });
-
-        // Temporal Analysis: Prophage Detection Over Time
-        const temporalProphageCounts = TEMPORAL_PROPHAGE_COUNTS_PLACEHOLDER;
-
-        const temporalProphagesCtx = document.getElementById('temporalProphagesChart').getContext('2d');
-        const temporalProphagesChart = new Chart(temporalProphagesCtx, {
-            type: 'bar',
-            data: {
-                labels: temporalYears,
-                datasets: [{
-                    label: 'Total Prophages',
-                    data: temporalProphageCounts,
-                    backgroundColor: '#36A2EB',
-                    borderColor: '#2e8bc0',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Total Prophages Detected'
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Year'
-                        }
-                    }
-                }
-            }
-        });
-
-        // Temporal Analysis: Plasmid Detection Over Time
-        const temporalPlasmidCounts = TEMPORAL_PLASMID_COUNTS_PLACEHOLDER;
-
-        const temporalPlasmidsCtx = document.getElementById('temporalPlasmidsChart').getContext('2d');
-        const temporalPlasmidsChart = new Chart(temporalPlasmidsCtx, {
-            type: 'bar',
-            data: {
-                labels: temporalYears,
-                datasets: [{
-                    label: 'Total Plasmids',
-                    data: temporalPlasmidCounts,
-                    backgroundColor: '#9966FF',
-                    borderColor: '#8855ee',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Total Plasmids Detected'
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Year'
-                        }
-                    }
-                }
-            }
-        });
-
-        // Geographic Analysis: Samples by State
-        const stateLabels = STATE_LABELS_PLACEHOLDER;
-        const stateCounts = STATE_COUNTS_PLACEHOLDER;
-
-        const stateSamplesCtx = document.getElementById('stateSamplesChart').getContext('2d');
-        const stateSamplesChart = new Chart(stateSamplesCtx, {
-            type: 'bar',
-            data: {
-                labels: stateLabels,
-                datasets: [{
-                    label: 'Number of Samples',
-                    data: stateCounts,
-                    backgroundColor: '#36A2EB',
-                    borderColor: '#2a8fcc',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: 'y',  // Horizontal bar chart
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Number of Samples'
-                        }
-                    }
-                }
-            }
-        });
-
-        // Geographic Analysis: MDR Rates by State
-        const stateMDRRates = STATE_MDR_RATES_PLACEHOLDER;
-
-        const stateMDRCtx = document.getElementById('stateMDRChart').getContext('2d');
-        const stateMDRChart = new Chart(stateMDRCtx, {
-            type: 'bar',
-            data: {
-                labels: stateLabels,
-                datasets: [{
-                    label: 'MDR Rate (%)',
-                    data: stateMDRRates,
-                    backgroundColor: '#ef4444',
-                    borderColor: '#dc2626',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: 'y',  // Horizontal bar chart
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        max: 100,
-                        title: {
-                            display: true,
-                            text: 'MDR Rate (%)'
-                        }
-                    }
-                }
-            }
-        });
-
-        // Geographic Analysis: Regional Comparison (Scatter Plot)
-        const regionalData = stateLabels.map(function(state, i) {
-            return {
-                x: stateCounts[i],
-                y: stateMDRRates[i],
-                label: state
-            };
-        });
-
-        const regionalComparisonCtx = document.getElementById('regionalComparisonChart').getContext('2d');
-        const regionalComparisonChart = new Chart(regionalComparisonCtx, {
-            type: 'scatter',
-            data: {
-                datasets: [{
-                    label: 'States',
-                    data: regionalData,
-                    backgroundColor: '#9966FF',
-                    borderColor: '#7744cc',
-                    pointRadius: 8,
-                    pointHoverRadius: 10
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                var point = context.raw;
-                                return point.label + ': ' + point.x + ' samples, ' + point.y.toFixed(1) + '% MDR';
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Number of Samples'
-                        }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        max: 100,
-                        title: {
-                            display: true,
-                            text: 'MDR Rate (%)'
-                        }
-                    }
-                }
-            }
-        });
+        // ============================================================
+        // OLD TEMPORAL AND GEOGRAPHIC CHARTS REMOVED
+        // Now using dynamic Metadata Explorer tab instead
+        // Hardcoded Year/State charts replaced with flexible field selection
+        // ============================================================
 
         // Strain Typing: MLST Sequence Types
         const mlstSTLabels = MLST_ST_LABELS_PLACEHOLDER;
@@ -3076,6 +2998,9 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 """
 
     # Replace placeholders in JavaScript with actual data
+    # Metadata Explorer data - must be early to avoid conflicts
+    js_code = js_code.replace('METADATA_AGGREGATIONS_PLACEHOLDER', json.dumps(metadata_aggregations))
+
     # AMR data
     js_code = js_code.replace('AMR_GENE_LABELS_PLACEHOLDER', json.dumps(amr_gene_labels))
     js_code = js_code.replace('AMR_GENE_COUNTS_PLACEHOLDER', json.dumps(amr_gene_counts))
@@ -3095,13 +3020,13 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = js_code.replace('SCATTER_PLASMID_X_PLACEHOLDER', json.dumps(scatter_plasmid_x))
     js_code = js_code.replace('SCATTER_AMR_Y_PLACEHOLDER', json.dumps(scatter_amr_y))
 
-    # Temporal analysis data
-    js_code = js_code.replace('TEMPORAL_YEARS_PLACEHOLDER', json.dumps(temporal_years))
-    js_code = js_code.replace('TEMPORAL_SAMPLE_COUNTS_PLACEHOLDER', json.dumps(temporal_sample_counts))
-    js_code = js_code.replace('TEMPORAL_AMR_PCT_PLACEHOLDER', json.dumps(temporal_amr_pct))
-    js_code = js_code.replace('TEMPORAL_MDR_PCT_PLACEHOLDER', json.dumps(temporal_mdr_pct))
-    js_code = js_code.replace('TEMPORAL_PROPHAGE_COUNTS_PLACEHOLDER', json.dumps(temporal_prophage_counts))
-    js_code = js_code.replace('TEMPORAL_PLASMID_COUNTS_PLACEHOLDER', json.dumps(temporal_plasmid_counts))
+    # Temporal analysis data - NO LONGER USED (replaced by Metadata Explorer)
+    # js_code = js_code.replace('TEMPORAL_YEARS_PLACEHOLDER', json.dumps(temporal_years))
+    # js_code = js_code.replace('TEMPORAL_SAMPLE_COUNTS_PLACEHOLDER', json.dumps(temporal_sample_counts))
+    # js_code = js_code.replace('TEMPORAL_AMR_PCT_PLACEHOLDER', json.dumps(temporal_amr_pct))
+    # js_code = js_code.replace('TEMPORAL_MDR_PCT_PLACEHOLDER', json.dumps(temporal_mdr_pct))
+    # js_code = js_code.replace('TEMPORAL_PROPHAGE_COUNTS_PLACEHOLDER', json.dumps(temporal_prophage_counts))
+    # js_code = js_code.replace('TEMPORAL_PLASMID_COUNTS_PLACEHOLDER', json.dumps(temporal_plasmid_counts))
 
     # Assembly quality data
     js_code = js_code.replace('N50_LABELS_PLACEHOLDER', json.dumps(n50_labels))
@@ -3117,10 +3042,10 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = js_code.replace('FUNCTIONAL_LABELS_PLACEHOLDER', json.dumps(functional_labels))
     js_code = js_code.replace('FUNCTIONAL_DATA_PLACEHOLDER', json.dumps(functional_values))
 
-    # Geographic analysis data
-    js_code = js_code.replace('STATE_LABELS_PLACEHOLDER', json.dumps(state_labels))
-    js_code = js_code.replace('STATE_COUNTS_PLACEHOLDER', json.dumps(state_counts))
-    js_code = js_code.replace('STATE_MDR_RATES_PLACEHOLDER', json.dumps(state_mdr_rate_values))
+    # Geographic analysis data - NO LONGER USED (replaced by Metadata Explorer)
+    # js_code = js_code.replace('STATE_LABELS_PLACEHOLDER', json.dumps(state_labels))
+    # js_code = js_code.replace('STATE_COUNTS_PLACEHOLDER', json.dumps(state_counts))
+    # js_code = js_code.replace('STATE_MDR_RATES_PLACEHOLDER', json.dumps(state_mdr_rate_values))
 
     # MLST typing data
     js_code = js_code.replace('MLST_ST_LABELS_PLACEHOLDER', json.dumps(mlst_st_labels))

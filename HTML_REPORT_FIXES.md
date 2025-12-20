@@ -65,6 +65,34 @@
   - Removed duplicate `import sys` inside `generate_html_report()` function
   - Was causing local variable scope issue
 
+#### 5. Tab Reordering - Core Analyses Grouped Together
+- **Goal**: Put AMR, Plasmid, and Prophage tabs next to Overview
+- **Change**: Moved Prophage Functional Diversity from position 9 to position 4
+- **New Order**: Overview → AMR Analysis → Plasmid Analysis → Prophage Functional → Metadata Explorer → Strain Typing → Assembly Quality → Data Table
+- **Rationale**: Core microbiology analyses together for easier navigation
+
+#### 6. Metadata Explorer - Dynamic Data Exploration! 🎉 NEW!
+- **Replaced**: Old Temporal Analysis and Geographic Analysis tabs
+- **New Approach**: Single dynamic tab with dropdown-based exploration
+- **Features**:
+  - Auto-detects ALL available metadata fields from dataset
+  - User selects: Field (any metadata column), Metric (count, MDR rate, avg AMR/prophage/plasmid), Chart Type (bar/line/pie)
+  - Dynamic chart generation with Chart.js
+  - Live statistics panel (total groups, max, min, average)
+  - Works like a pivot table - user-driven exploration
+- **Advantages**:
+  - Not limited to just Year/State (works with ANY metadata field!)
+  - More flexible for different datasets
+  - Compact (1 tab instead of 2+)
+  - Encourages exploration
+- **Technical Details**:
+  - Python aggregation function: Lines 552-637 (generates data for all fields)
+  - JavaScript update function: Lines 2138-2324 (dynamic chart rendering)
+  - Metadata field options: Auto-generated dropdown from dataframe columns
+  - Excluded technical fields: sample_id, assembly_path, num_amr_genes, etc.
+  - Top 15 values per field for performance
+- **Status**: ✅ IMPLEMENTATION COMPLETE - Ready to test!
+
 ### 📋 REMAINING WORK
 
 #### Still To Test:
@@ -72,11 +100,15 @@
    - Should now show functional category pie chart
    - Categories: DNA Packaging, Structural, Lysis, DNA Modification, Regulation, Other
 
+2. **Metadata Explorer Tab** - NEW FEATURE needs first test!
+   - Select a metadata field (organism, source, isolation_type, etc.)
+   - Choose a metric (sample count, MDR rate, etc.)
+   - Verify chart renders correctly
+   - Check statistics panel displays
+
 #### Potentially Still Blank:
-2. **Temporal Analysis Tab** - Need to verify all charts display
 3. **Assembly Quality Tab** - Need to verify QUAST/BUSCO charts
-4. **Geographic Distribution Tab** - Verify state maps/charts
-5. **MLST/Typing Tab** - Verify sequence type and serovar charts
+4. **MLST/Typing Tab** - Verify sequence type and serovar charts
 
 ### 🧪 TEST WORKFLOW
 
@@ -100,9 +132,17 @@ git pull
 - Lines 300-359: VIBRANT annotations parser (fixed glob pattern)
 - Lines 402-409: MDR debug output
 - Lines 518-524: Plasmid debug output
+- **Lines 552-637: NEW - Metadata aggregation function for Explorer**
+- **Lines 1150-1158: Updated tab buttons (removed Temporal/Geographic, added Metadata Explorer)**
+- **Lines 1333-1410: NEW - Metadata Explorer tab HTML/UI**
 - Lines 2057-2062: Removed undefined render functions
+- **Lines 2138-2324: NEW - JavaScript updateMetadataChart() function**
+- **Lines 2659-2663: Removed old Temporal/Geographic chart code**
 - Lines 3063-3079: Fixed placeholder replacement order
-- Line 3192: Removed duplicate sys import
+- **Line 3321: Added METADATA_AGGREGATIONS_PLACEHOLDER replacement**
+- **Lines 3023-3029: Commented out old temporal placeholder replacements**
+- **Lines 3045-3048: Commented out old geographic placeholder replacements**
+- Line 3192: Removed duplicate sys import (earlier fix)
 
 **Test Scripts**:
 - `test_kansas_2021-2025_summary_bulk.sh` - Test on /bulk location
@@ -117,14 +157,43 @@ git pull
 
 ### 🚀 NEXT SESSION TASKS
 
-1. Verify VIBRANT functional annotations working (run test script)
-2. Check all remaining tabs for blank charts
-3. Remove debug output once all charts working
-4. Update main pipeline COMPASS summary module if using different script
-5. Test on a fresh pipeline run to ensure fixes work in production
+#### Immediate Testing:
+1. **Test Metadata Explorer** on Kansas 2021-2025 dataset:
+   ```bash
+   cd /fastscratch/tylerdoe/COMPASS-pipeline
+   git pull
+   ./test_kansas_2021-2025_summary_bulk.sh
+   ```
+   - Open compass_summary_FIXED.html in browser
+   - Click "Metadata Explorer" tab
+   - Try selecting different fields (organism, source, year, state, etc.)
+   - Test different metrics (count, MDR rate, avg AMR genes)
+   - Try all chart types (bar, line, pie)
+   - Verify statistics panel appears and updates
+
+2. **Verify VIBRANT functional annotations** - Check Prophage Functional Diversity tab
+
+#### Code Cleanup:
+3. Remove debug output once all charts working (lines 402-409, 518-524)
+4. OPTIONALLY: Remove commented temporal/geographic code once confirmed working
+5. OPTIONALLY: Remove old temporal/geographic data aggregation code (lines 639-741) to clean up
+
+#### Pipeline Integration:
+6. If using different script in main pipeline, update the COMPASS_SUMMARY module
+7. Test on a fresh pipeline run to ensure fixes work in production
+
+### 💡 NEW KEY LEARNINGS
+
+5. **Dynamic vs Static Tabs**: Metadata Explorer demonstrates pivot-table approach
+   - Better UX for diverse datasets with varying metadata fields
+   - Auto-adapts to available columns instead of hardcoded assumptions
+6. **Data Aggregation Strategy**: Pre-compute all aggregations in Python, send to JavaScript
+   - Avoids client-side heavy processing
+   - Top 15 limit keeps performance good
+7. **JavaScript Chart Destruction**: Must call `chart.destroy()` before creating new chart on same canvas
 
 ---
 
 **Branch**: v1.2-mod
 **Test Dataset**: Kansas 2021-2025 (829 samples)
-**Last Updated**: December 20, 2025 00:30 CST
+**Last Updated**: December 20, 2025 03:00 CST (Metadata Explorer implemented!)

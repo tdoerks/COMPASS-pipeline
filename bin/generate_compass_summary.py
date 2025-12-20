@@ -3189,7 +3189,6 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         organisms_str = ", ".join(organisms_list)
 
     # Add footer as f-string so Python expressions are evaluated
-    import sys
     html += f"""
     <!-- Footer with Report Metadata -->
     <div class="footer">

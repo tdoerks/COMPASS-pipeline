@@ -515,6 +515,14 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     mob_type_labels = [mob for mob, count in mobility_type_counter.most_common()]
     mob_type_counts = [count for mob, count in mobility_type_counter.most_common()]
 
+    # Debug: Print plasmid statistics
+    print(f"\nPlasmid Analysis:", file=sys.stderr)
+    print(f"  Total Inc groups found: {len(inc_group_counter)}", file=sys.stderr)
+    print(f"  Top 15 Inc groups: {inc_group_labels[:5]}..." if len(inc_group_labels) > 5 else f"  Inc groups: {inc_group_labels}", file=sys.stderr)
+    print(f"  Mobility types: {mob_type_labels}", file=sys.stderr)
+    print(f"  Inc group data empty: {len(inc_group_labels) == 0}", file=sys.stderr)
+    print(f"  Mobility data empty: {len(mob_type_labels) == 0}", file=sys.stderr)
+
     # Create plasmid count histogram (0-10 plasmids)
     plasmid_bins = list(range(0, 11))
     if plasmid_count_values:

@@ -180,6 +180,11 @@ def parse_amrfinder(amr_dir):
                     classes = []
                     if 'Class' in df.columns:
                         classes = [c for c in df['Class'].dropna().unique() if str(c) != 'nan']
+                    else:
+                        # Debug: Warn if Class column is missing
+                        if len(amr_data) < 5:  # Only print for first few samples to avoid spam
+                            print(f"Warning: 'Class' column not found in AMRFinder results for {sample_id}", file=sys.stderr)
+                            print(f"  Available columns: {list(df.columns)}", file=sys.stderr)
 
                     # Determine MDR status (≥3 classes)
                     mdr_status = 'Yes' if len(classes) >= 3 else 'No'
@@ -398,6 +403,15 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 
     mdr_samples = len(df[df['mdr_status'] == 'Yes'])
     mdr_pct = (mdr_samples / total_samples * 100) if total_samples > 0 else 0
+
+    # Debug: Print MDR statistics
+    print(f"MDR Analysis:", file=sys.stderr)
+    print(f"  Total samples: {total_samples}", file=sys.stderr)
+    print(f"  MDR samples (≥3 classes): {mdr_samples}", file=sys.stderr)
+    print(f"  Non-MDR samples: {total_samples - mdr_samples}", file=sys.stderr)
+    print(f"  MDR percentage: {mdr_pct:.2f}%", file=sys.stderr)
+    print(f"  MDR status distribution:", file=sys.stderr)
+    print(df['mdr_status'].value_counts().to_dict(), file=sys.stderr)
 
     # Ensure prophage counts are numeric before summing
     total_prophages = int(df['num_prophages'].replace('-', 0).fillna(0).astype(float).sum())

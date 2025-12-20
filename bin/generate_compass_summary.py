@@ -1150,12 +1150,12 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <button class="tab-button active" onclick="switchTab(event, 'overview')">Overview</button>
             <button class="tab-button" onclick="switchTab(event, 'amr-analysis')">AMR Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'plasmid-analysis')">Plasmid Analysis</button>
+            <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>
             <button class="tab-button" onclick="switchTab(event, 'temporal-analysis')">Temporal Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'geographic-analysis')">Geographic Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'strain-typing')">Strain Typing</button>
             <button class="tab-button" onclick="switchTab(event, 'assembly-quality')">Assembly Quality</button>
-            <button class="tab-button" onclick="switchTab(event, 'data-table')">Data Table</button>
-            <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>"""
+            <button class="tab-button" onclick="switchTab(event, 'data-table')">Data Table</button>"""
 
     if has_multiqc:
         html += """

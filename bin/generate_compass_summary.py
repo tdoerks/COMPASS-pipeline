@@ -211,40 +211,52 @@ def parse_mobsuite(mobsuite_dir):
     mobsuite_data = {}
     mobsuite_path = Path(mobsuite_dir)
     if mobsuite_path.exists():
-        for result_file in mobsuite_path.glob('*/mobtyper_results.txt'):
-            sample_id = result_file.parent.name.replace('_mobsuite', '')
+        # Look for sample directories (e.g., SRR123_mobsuite/)
+        for sample_dir in mobsuite_path.glob('*_mobsuite'):
+            sample_id = sample_dir.name.replace('_mobsuite', '')
             try:
-                df = pd.read_csv(result_file, sep='\t')
+                # Read individual plasmid typing files (plasmid_*_typing.txt)
+                plasmid_files = list(sample_dir.glob('plasmid_*_typing.txt'))
 
-                if df.empty:
+                if not plasmid_files:
                     mobsuite_data[sample_id] = {
                         'num_plasmids': 0,
                         'inc_groups': '-',
                         'mob_types': '-'
                     }
                 else:
-                    # Count plasmids
-                    num_plasmids = len(df)
-
-                    # Get incompatibility groups
+                    # Collect data from all plasmid typing files
+                    num_plasmids = len(plasmid_files)
                     inc_groups = []
-                    if 'rep_type(s)' in df.columns:
-                        for reps in df['rep_type(s)'].dropna():
-                            if str(reps) != 'nan' and str(reps) != '-':
-                                inc_groups.extend(str(reps).split(','))
-
-                    # Get MOB types
                     mob_types = []
-                    if 'predicted_mobility' in df.columns:
-                        mob_types = df['predicted_mobility'].dropna().unique().tolist()
+
+                    for plasmid_file in plasmid_files:
+                        df = pd.read_csv(plasmid_file, sep='\t')
+
+                        # Get incompatibility groups from rep_type(s) column
+                        if 'rep_type(s)' in df.columns and not df.empty:
+                            for reps in df['rep_type(s)'].dropna():
+                                if str(reps) != 'nan' and str(reps) != '-':
+                                    # Split on comma and clean up Inc group names
+                                    for rep in str(reps).split(','):
+                                        rep = rep.strip()
+                                        # Extract just the Inc type (e.g., "IncFIB" from full string)
+                                        if rep.startswith('Inc'):
+                                            inc_groups.append(rep)
+
+                        # Get predicted mobility
+                        if 'predicted_mobility' in df.columns and not df.empty:
+                            for mob in df['predicted_mobility'].dropna():
+                                if str(mob) != 'nan' and str(mob) != '-':
+                                    mob_types.append(str(mob))
 
                     mobsuite_data[sample_id] = {
                         'num_plasmids': num_plasmids,
                         'inc_groups': ', '.join(sorted(set(inc_groups))) if inc_groups else '-',
-                        'mob_types': ', '.join(sorted(set(str(m) for m in mob_types))) if mob_types else '-'
+                        'mob_types': ', '.join(sorted(set(mob_types))) if mob_types else '-'
                     }
             except Exception as e:
-                print(f"Warning: Could not parse MOBsuite results for {result_file}: {e}", file=sys.stderr)
+                print(f"Warning: Could not parse MOBsuite results for {sample_id}: {e}", file=sys.stderr)
     return mobsuite_data
 
 def parse_vibrant(vibrant_dir):

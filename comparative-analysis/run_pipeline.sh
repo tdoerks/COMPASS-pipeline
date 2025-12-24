@@ -38,17 +38,19 @@ mkdir -p "$OUTPUT_DIR/results"
 mkdir -p "$OUTPUT_DIR/figures"
 mkdir -p "$OUTPUT_DIR/logs"
 
-# Activate Python environment (adjust path as needed)
-if [[ -d "compass_analysis_env" ]]; then
-    echo "Activating Python environment..."
-    source compass_analysis_env/bin/activate
-else
-    echo "Warning: compass_analysis_env not found"
-    echo "Run: python -m venv compass_analysis_env"
-    echo "Then: source compass_analysis_env/bin/activate"
-    echo "Then: pip install pandas numpy matplotlib seaborn networkx scipy"
+# Load Python module (uses system Python, no virtual env needed)
+module load Python/3.9 2>/dev/null || echo "Warning: Python module not loaded (may already be available)"
+
+# Check if pandas is available
+python -c "import pandas" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "ERROR: pandas not found"
+    echo "Install with: pip install --user pandas numpy"
     exit 1
 fi
+
+echo "Using system Python with pandas"
+echo ""
 
 echo ""
 echo "=============================================="

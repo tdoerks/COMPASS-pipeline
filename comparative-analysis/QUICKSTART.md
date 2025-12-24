@@ -13,21 +13,17 @@ git clone https://github.com/tdoerks/beocat-astronomy.git
 cd beocat-astronomy/comparative-analysis
 ```
 
-### 2. Install Python Dependencies
+### 2. Install Python Dependencies (One-Time)
 
 ```bash
 # Load Python module
 module load Python/3.9
 
-# Create virtual environment
-python -m venv compass_analysis_env
-
-# Activate environment
-source compass_analysis_env/bin/activate
-
-# Install packages
-pip install pandas numpy matplotlib seaborn networkx scipy
+# Install required packages (uses --user to install in your home directory)
+pip install --user pandas numpy
 ```
+
+That's it! No virtual environment needed.
 
 ## Run the Pipeline
 
@@ -37,7 +33,7 @@ Run the master script to process all 3 years at once:
 
 ```bash
 cd /homes/tylerdoe/beocat-astronomy/comparative-analysis
-source compass_analysis_env/bin/activate
+module load Python/3.9
 bash run_pipeline.sh
 ```
 

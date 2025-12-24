@@ -105,26 +105,28 @@ head -20 results/integrated_summary_cooccurrence.csv
 
 ## What You Should See
 
-After successful run:
+After successful run, all results will be in:
 
 ```
-data/
-├── amr_2022.csv           # ~2,800 samples × AMR genes
-├── amr_2023.csv           # ~3,800 samples × AMR genes
-├── amr_2024.csv           # ~XXXX samples × AMR genes
-├── plasmid_2022.csv       # Plasmid replicons
-├── plasmid_2023.csv
-├── plasmid_2024.csv
-├── prophage_2022.csv      # Prophage predictions
-├── prophage_2023.csv
-├── prophage_2024.csv
-├── mlst_2022.csv          # Sequence types
-├── mlst_2023.csv
-└── mlst_2024.csv
-
-results/
-├── integrated_summary.csv              # Main output!
-└── integrated_summary_cooccurrence.csv # Plasmid-AMR associations
+/bulk/tylerdoe/archives/comparative_analysis_results/
+├── data/
+│   ├── amr_2022.csv           # ~2,800 samples × AMR genes
+│   ├── amr_2023.csv           # ~3,800 samples × AMR genes
+│   ├── amr_2024.csv           # ~XXXX samples × AMR genes
+│   ├── plasmid_2022.csv       # Plasmid replicons
+│   ├── plasmid_2023.csv
+│   ├── plasmid_2024.csv
+│   ├── prophage_2022.csv      # Prophage predictions
+│   ├── prophage_2023.csv
+│   ├── prophage_2024.csv
+│   ├── mlst_2022.csv          # Sequence types
+│   ├── mlst_2023.csv
+│   └── mlst_2024.csv
+├── results/
+│   ├── integrated_summary.csv              # Main output!
+│   └── integrated_summary_cooccurrence.csv # Plasmid-AMR associations
+└── logs/
+    └── *.log                   # Processing logs
 ```
 
 ## Explore Your Data
@@ -132,21 +134,24 @@ results/
 ### Look at integrated summary:
 
 ```bash
+# Navigate to results
+cd /bulk/tylerdoe/archives/comparative_analysis_results/results
+
 # How many samples per year?
-cut -d',' -f2 results/integrated_summary.csv | sort | uniq -c
+cut -d',' -f2 integrated_summary.csv | sort | uniq -c
 
 # Top AMR classes
-cut -d',' -f6 results/integrated_summary.csv | head -100
+cut -d',' -f6 integrated_summary.csv | head -100
 
 # Top plasmid types
-cut -d',' -f9 results/integrated_summary.csv | head -100
+cut -d',' -f9 integrated_summary.csv | head -100
 ```
 
 ### Transfer to local machine:
 
 ```bash
 # From your local computer
-scp tylerdoe@beocat.ksu.edu:/homes/tylerdoe/beocat-astronomy/comparative-analysis/results/*.csv ./
+scp tylerdoe@beocat.ksu.edu:/bulk/tylerdoe/archives/comparative_analysis_results/results/*.csv ./
 ```
 
 Open in Excel, R, Python, etc.!

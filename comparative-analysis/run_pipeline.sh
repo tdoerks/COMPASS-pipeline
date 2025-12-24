@@ -27,8 +27,16 @@ if [[ ! -d "/bulk/tylerdoe/archives" ]]; then
     exit 1
 fi
 
-# Create directories
-mkdir -p data results figures logs
+# Define output directory in /bulk/
+OUTPUT_DIR="/bulk/tylerdoe/archives/comparative_analysis_results"
+echo "Output directory: $OUTPUT_DIR"
+echo ""
+
+# Create directories in /bulk/
+mkdir -p "$OUTPUT_DIR/data"
+mkdir -p "$OUTPUT_DIR/results"
+mkdir -p "$OUTPUT_DIR/figures"
+mkdir -p "$OUTPUT_DIR/logs"
 
 # Activate Python environment (adjust path as needed)
 if [[ -d "compass_analysis_env" ]]; then
@@ -67,28 +75,28 @@ for i in "${!YEARS[@]}"; do
     echo "  Parsing AMRFinder results..."
     python scripts/parse_amrfinder.py \
         -i "$BASEPATH/amrfinder" \
-        -o "data/amr_$YEAR.csv" \
+        -o "$OUTPUT_DIR/data/amr_$YEAR.csv" \
         -y "$YEAR" \
-        > "logs/parse_amr_$YEAR.log" 2>&1
-    echo "    ✓ Saved to data/amr_$YEAR.csv"
+        > "$OUTPUT_DIR/logs/parse_amr_$YEAR.log" 2>&1
+    echo "    ✓ Saved to $OUTPUT_DIR/data/amr_$YEAR.csv"
 
     # Parse MOBsuite data
     echo "  Parsing MOBsuite (plasmid) results..."
     python scripts/parse_mobsuite.py \
         -i "$BASEPATH/mobsuite" \
-        -o "data/plasmid_$YEAR.csv" \
+        -o "$OUTPUT_DIR/data/plasmid_$YEAR.csv" \
         -y "$YEAR" \
-        > "logs/parse_plasmid_$YEAR.log" 2>&1
-    echo "    ✓ Saved to data/plasmid_$YEAR.csv"
+        > "$OUTPUT_DIR/logs/parse_plasmid_$YEAR.log" 2>&1
+    echo "    ✓ Saved to $OUTPUT_DIR/data/plasmid_$YEAR.csv"
 
     # Parse VIBRANT data
     echo "  Parsing VIBRANT (prophage) results..."
     python scripts/parse_vibrant.py \
         -i "$BASEPATH/vibrant" \
-        -o "data/prophage_$YEAR.csv" \
+        -o "$OUTPUT_DIR/data/prophage_$YEAR.csv" \
         -y "$YEAR" \
-        > "logs/parse_prophage_$YEAR.log" 2>&1
-    echo "    ✓ Saved to data/prophage_$YEAR.csv"
+        > "$OUTPUT_DIR/logs/parse_prophage_$YEAR.log" 2>&1
+    echo "    ✓ Saved to $OUTPUT_DIR/data/prophage_$YEAR.csv"
 
     # Parse MLST data
     echo "  Parsing MLST results..."
@@ -101,10 +109,10 @@ for i in "${!YEARS[@]}"; do
     if [[ -f "$MLST_FILE" ]]; then
         python scripts/parse_mlst.py \
             -i "$MLST_FILE" \
-            -o "data/mlst_$YEAR.csv" \
+            -o "$OUTPUT_DIR/data/mlst_$YEAR.csv" \
             -y "$YEAR" \
-            > "logs/parse_mlst_$YEAR.log" 2>&1
-        echo "    ✓ Saved to data/mlst_$YEAR.csv"
+            > "$OUTPUT_DIR/logs/parse_mlst_$YEAR.log" 2>&1
+        echo "    ✓ Saved to $OUTPUT_DIR/data/mlst_$YEAR.csv"
     else
         echo "    ⚠ MLST file not found, skipping"
     fi
@@ -118,17 +126,17 @@ echo "=============================================="
 echo ""
 
 python scripts/integrate_data.py \
-    --amr data/amr_2022.csv data/amr_2023.csv data/amr_2024.csv \
-    --plasmids data/plasmid_2022.csv data/plasmid_2023.csv data/plasmid_2024.csv \
-    --prophages data/prophage_2022.csv data/prophage_2023.csv data/prophage_2024.csv \
-    --mlst data/mlst_2022.csv data/mlst_2023.csv data/mlst_2024.csv \
-    --output results/integrated_summary.csv \
-    | tee logs/integrate_data.log
+    --amr "$OUTPUT_DIR/data/amr_2022.csv" "$OUTPUT_DIR/data/amr_2023.csv" "$OUTPUT_DIR/data/amr_2024.csv" \
+    --plasmids "$OUTPUT_DIR/data/plasmid_2022.csv" "$OUTPUT_DIR/data/plasmid_2023.csv" "$OUTPUT_DIR/data/plasmid_2024.csv" \
+    --prophages "$OUTPUT_DIR/data/prophage_2022.csv" "$OUTPUT_DIR/data/prophage_2023.csv" "$OUTPUT_DIR/data/prophage_2024.csv" \
+    --mlst "$OUTPUT_DIR/data/mlst_2022.csv" "$OUTPUT_DIR/data/mlst_2023.csv" "$OUTPUT_DIR/data/mlst_2024.csv" \
+    --output "$OUTPUT_DIR/results/integrated_summary.csv" \
+    | tee "$OUTPUT_DIR/logs/integrate_data.log"
 
 echo ""
 echo "✓ Integration complete!"
-echo "  Output: results/integrated_summary.csv"
-echo "  Output: results/integrated_summary_cooccurrence.csv"
+echo "  Output: $OUTPUT_DIR/results/integrated_summary.csv"
+echo "  Output: $OUTPUT_DIR/results/integrated_summary_cooccurrence.csv"
 echo ""
 
 echo "=============================================="
@@ -149,15 +157,22 @@ echo "=============================================="
 echo "Pipeline Complete!"
 echo "=============================================="
 echo ""
-echo "Results saved to:"
-echo "  - data/ (extracted CSVs)"
-echo "  - results/ (integrated data)"
-echo "  - logs/ (processing logs)"
+echo "All results saved to: $OUTPUT_DIR"
+echo ""
+echo "Directory structure:"
+echo "  $OUTPUT_DIR/data/      - Extracted CSVs (AMR, plasmids, prophages, MLST)"
+echo "  $OUTPUT_DIR/results/   - Integrated summary and co-occurrence matrices"
+echo "  $OUTPUT_DIR/logs/      - Processing logs"
+echo ""
+echo "Key output files:"
+echo "  $OUTPUT_DIR/results/integrated_summary.csv                - Main dataset!"
+echo "  $OUTPUT_DIR/results/integrated_summary_cooccurrence.csv   - Plasmid-AMR associations"
 echo ""
 echo "Next steps:"
-echo "  1. Review results/integrated_summary.csv"
+echo "  1. Review integrated_summary.csv"
 echo "  2. Check sample counts and data quality"
-echo "  3. Run analysis scripts (when available)"
+echo "  3. Download to local machine for analysis:"
+echo "     scp tylerdoe@beocat.ksu.edu:$OUTPUT_DIR/results/*.csv ./"
 echo ""
-echo "Check logs/ directory if any errors occurred"
+echo "Check $OUTPUT_DIR/logs/ if any errors occurred"
 echo ""

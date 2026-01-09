@@ -49,16 +49,11 @@ def parse_metadata(metadata_file):
                 if not sample_id or pd.isna(sample_id):
                     continue
 
-                # Start with backward-compatible core fields (map to standardized names)
-                sample_metadata = {
-                    'organism': row.get('Organism', row.get('organism', '-')),
-                    'state': row.get('geo_loc_name_state_province', row.get('state', '-')),
-                    'year': row.get('Collection_Date', row.get('year', '-')),
-                    'source': row.get('Isolation_source', row.get('source', '-'))
-                }
+                # Pass through ALL columns from metadata CSV
+                # This includes all SRA runinfo fields: Platform, Model, LibraryStrategy,
+                # BioProject, SampleName, organism, source, Year, etc.
+                sample_metadata = {}
 
-                # Add ALL other columns from metadata CSV for dynamic exploration
-                # This enables Metadata Explorer to work with any SRA runinfo field
                 for col in df.columns:
                     # Skip the sample ID column itself
                     if col == sample_id_col:
@@ -67,14 +62,12 @@ def parse_metadata(metadata_file):
                     # Use lowercase column name with underscores for consistency
                     field_name = col.lower().replace(' ', '_')
 
-                    # Don't overwrite the standardized core fields if they exist
-                    if field_name not in sample_metadata:
-                        val = row.get(col, '-')
-                        # Convert to string and handle NaN/None
-                        if pd.isna(val) or val == '' or val is None:
-                            sample_metadata[field_name] = '-'
-                        else:
-                            sample_metadata[field_name] = str(val)
+                    # Get value and handle NaN/None
+                    val = row.get(col, '-')
+                    if pd.isna(val) or val == '' or val is None:
+                        sample_metadata[field_name] = '-'
+                    else:
+                        sample_metadata[field_name] = str(val)
 
                 metadata[sample_id] = sample_metadata
 
@@ -596,14 +589,18 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     # METADATA EXPLORER - Dynamic metadata field aggregation
     # ============================================================
     # Auto-detects ALL metadata fields from SRA runinfo CSV for dynamic exploration
-    # This includes standard fields (organism, state, year, source) PLUS any additional
-    # SRA metadata columns like: host, platform, library_strategy, env_biome, etc.
+    # This includes standard fields (organism, source, year) PLUS any additional
+    # SRA metadata columns like: platform, model, librarystrategy, bioproject, samplename, etc.
     #
-    # Identify all available metadata fields (excluding technical/analysis columns)
+    # Identify all available metadata fields (excluding COMPASS analysis result columns)
+    # We exclude only the columns that are COMPASS outputs, not input metadata
     excluded_fields = {'sample_id', 'assembly_path', 'num_amr_genes', 'num_prophages',
-                       'num_plasmids', 'amr_genes', 'mdr_status', 'n50', 'assembly_length',
-                       'num_contigs', 'busco_completeness', 'mlst_st', 'mlst_scheme',
-                       'serovar', 'inc_groups', 'mobility_types'}
+                       'num_plasmids', 'num_amr_genes', 'num_point_mutations', 'amr_classes',
+                       'top_amr_genes', 'mdr_status', 'n50', 'assembly_length', 'gc_percent',
+                       'num_contigs', 'assembly_quality', 'busco_complete_pct',
+                       'busco_duplicated_pct', 'busco_summary', 'mlst_st', 'mlst_scheme',
+                       'serovar', 'inc_groups', 'mob_types', 'num_lytic', 'num_lysogenic',
+                       'num_prophage_hits', 'top_prophage_matches'}
 
     # Get all column names that are suitable for grouping
     # NOTE: Any column from the metadata CSV will appear here automatically!

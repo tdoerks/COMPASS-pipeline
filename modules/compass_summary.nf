@@ -18,19 +18,34 @@ process COMPASS_SUMMARY {
     path "versions.yml", emit: versions
 
     script:
-    def metadata_arg = metadata.name != 'NO_FILE' ? "--metadata metadata.csv" : ""
     """
-    # Generate comprehensive COMPASS summary
+    echo "==================================================="
+    echo "COMPASS Enhanced Summary Report Generation"
+    echo "==================================================="
+    echo ""
+
+    # Step 1: Recreate filtered metadata from analyzed samples
+    echo "Step 1: Recreating filtered metadata from analyzed samples..."
+    recreate_filtered_metadata.py --outdir ${params.outdir} || {
+        echo "⚠️  WARNING: Metadata recreation failed, continuing anyway..."
+    }
+    echo ""
+
+    # Step 2: Generate comprehensive enhanced HTML report
+    echo "Step 2: Generating enhanced COMPASS summary report..."
     generate_compass_summary.py \\
         --outdir ${params.outdir} \\
+        --metadata ${params.outdir}/filtered_samples/filtered_samples.csv \\
         --output_tsv compass_summary.tsv \\
-        --output_html compass_summary.html \\
-        ${metadata_arg} || {
-            echo "Summary generation failed, creating minimal outputs"
+        --output_html compass_summary.html || {
+            echo "❌ Summary generation failed, creating minimal outputs"
             echo -e "sample_id\\tstatus" > compass_summary.tsv
             echo -e "unknown\\tfailed" >> compass_summary.tsv
             echo "<html><body><h1>Summary generation failed</h1></body></html>" > compass_summary.html
         }
+    echo ""
+    echo "✅ COMPASS summary report complete!"
+    echo ""
 
     cat <<-END_VERSIONS > versions.yml
     "COMPASS_SUMMARY":

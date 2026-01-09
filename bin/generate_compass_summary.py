@@ -22,19 +22,62 @@ def parse_args():
     return parser.parse_args()
 
 def parse_metadata(metadata_file):
-    """Parse metadata CSV if provided"""
+    """Parse metadata CSV if provided - passes through ALL columns for dynamic exploration
+
+    This function now extracts ALL metadata columns from the SRA runinfo CSV file,
+    not just 4 hardcoded fields. This enables the Metadata Explorer to work with
+    any SRA metadata field (platform, instrument, host, library details, etc.)
+    """
     metadata = {}
     if metadata_file and Path(metadata_file).exists():
         try:
             df = pd.read_csv(metadata_file)
+
+            # Identify the sample ID column
+            sample_id_col = None
+            for col in ['Run', 'sample_id', 'sample', 'SampleName']:
+                if col in df.columns:
+                    sample_id_col = col
+                    break
+
+            if not sample_id_col:
+                print(f"Warning: Could not find sample ID column in metadata", file=sys.stderr)
+                return metadata
+
             for _, row in df.iterrows():
-                sample_id = row.get('Run', row.get('sample_id', row.get('sample', '')))
-                metadata[sample_id] = {
+                sample_id = row.get(sample_id_col, '')
+                if not sample_id or pd.isna(sample_id):
+                    continue
+
+                # Start with backward-compatible core fields (map to standardized names)
+                sample_metadata = {
                     'organism': row.get('Organism', row.get('organism', '-')),
                     'state': row.get('geo_loc_name_state_province', row.get('state', '-')),
                     'year': row.get('Collection_Date', row.get('year', '-')),
                     'source': row.get('Isolation_source', row.get('source', '-'))
                 }
+
+                # Add ALL other columns from metadata CSV for dynamic exploration
+                # This enables Metadata Explorer to work with any SRA runinfo field
+                for col in df.columns:
+                    # Skip the sample ID column itself
+                    if col == sample_id_col:
+                        continue
+
+                    # Use lowercase column name with underscores for consistency
+                    field_name = col.lower().replace(' ', '_')
+
+                    # Don't overwrite the standardized core fields if they exist
+                    if field_name not in sample_metadata:
+                        val = row.get(col, '-')
+                        # Convert to string and handle NaN/None
+                        if pd.isna(val) or val == '' or val is None:
+                            sample_metadata[field_name] = '-'
+                        else:
+                            sample_metadata[field_name] = str(val)
+
+                metadata[sample_id] = sample_metadata
+
         except Exception as e:
             print(f"Warning: Could not parse metadata file: {e}", file=sys.stderr)
     return metadata
@@ -552,13 +595,18 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     # ============================================================
     # METADATA EXPLORER - Dynamic metadata field aggregation
     # ============================================================
-    # Identify all available metadata fields (excluding technical columns)
+    # Auto-detects ALL metadata fields from SRA runinfo CSV for dynamic exploration
+    # This includes standard fields (organism, state, year, source) PLUS any additional
+    # SRA metadata columns like: host, platform, library_strategy, env_biome, etc.
+    #
+    # Identify all available metadata fields (excluding technical/analysis columns)
     excluded_fields = {'sample_id', 'assembly_path', 'num_amr_genes', 'num_prophages',
                        'num_plasmids', 'amr_genes', 'mdr_status', 'n50', 'assembly_length',
                        'num_contigs', 'busco_completeness', 'mlst_st', 'mlst_scheme',
                        'serovar', 'inc_groups', 'mobility_types'}
 
     # Get all column names that are suitable for grouping
+    # NOTE: Any column from the metadata CSV will appear here automatically!
     metadata_fields = [col for col in df.columns if col not in excluded_fields]
 
     # Create aggregation data structure for ALL metadata fields
@@ -3218,12 +3266,13 @@ def main():
     for sample in sorted(all_samples):
         row = {'sample_id': sample}
 
-        # Sample metadata (if available)
+        # Sample metadata (if available) - now includes ALL metadata columns dynamically
         if sample in metadata:
-            row['organism'] = metadata[sample].get('organism', '-')
-            row['state'] = metadata[sample].get('state', '-')
-            row['year'] = metadata[sample].get('year', '-')
-            row['source'] = metadata[sample].get('source', '-')
+            # Add all metadata fields for this sample
+            # This allows Metadata Explorer to work with any SRA runinfo field
+            # (organism, state, year, source PLUS platform, host, library details, etc.)
+            for field_name, field_value in metadata[sample].items():
+                row[field_name] = field_value
 
         # Assembly quality metrics
         if sample in quast_data:

@@ -1285,12 +1285,10 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>
             <button class="tab-button" onclick="switchTab(event, 'metadata-explorer')">Metadata Explorer</button>
             <button class="tab-button" onclick="switchTab(event, 'strain-typing')">Strain Typing</button>
-            <button class="tab-button" onclick="switchTab(event, 'assembly-quality')">Assembly Quality</button>
+            <button class="tab-button" onclick="switchTab(event, 'quality-control')">Quality Control</button>
             <button class="tab-button" onclick="switchTab(event, 'data-table')">Data Table</button>"""
 
-    if has_multiqc:
-        html += """
-            <button class="tab-button" onclick="switchTab(event, 'multiqc')">MultiQC Report</button>"""
+    # MultiQC iframe tab removed - MultiQC report is now accessible via link in Quality Control tab
 
     html += f"""
         </div>
@@ -1594,7 +1592,8 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     </div>
 
     <!-- Assembly Quality Tab -->
-    <div id="assembly-quality" class="tab-content">
+    <!-- Quality Control Tab - Comprehensive QC metrics from QUAST and BUSCO -->
+    <div id="quality-control" class="tab-content">
         <div class="summary-grid" style="margin-bottom: 30px;">
             <div class="summary-card">
                 <h3>Assemblies Analyzed</h3>
@@ -1650,6 +1649,88 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     <canvas id="buscoHistChart"></canvas>
                 </div>
             </div>
+        </div>
+
+        <!-- QC Failures Section -->
+        <div style="margin-top: 40px;">
+            <h2 style="margin-bottom: 15px;">⚠️  Quality Control Failures</h2>
+            <p style="color: #666; margin-bottom: 20px;">
+                Samples that did not meet QC thresholds (N50 <10kb, length <1Mb, or >500 contigs)
+            </p>
+            <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                    <thead style="position: sticky; top: 0; background: #667eea; color: white;">
+                        <tr>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Sample ID</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Organism</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Failure Reason</th>
+                            <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd;">N50 (kb)</th>
+                            <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd;">Contigs</th>
+                            <th style="padding: 12px; text-align: right; border-bottom: 2px solid #ddd;">Length (Mb)</th>
+                        </tr>
+                    </thead>
+                    <tbody>"""
+
+    # Add failed QC samples to table
+    failed_samples = []
+    for _, row in df.iterrows():
+        if row.get('assembly_quality', 'Pass').startswith('Fail'):
+            failed_samples.append(row)
+
+    if failed_samples:
+        for row in failed_samples:
+            sample_id = row.get('sample_id', '-')
+            organism = row.get('organism', '-')
+            failure_reason = row.get('assembly_quality', '-').replace('Fail: ', '')
+            n50 = row.get('n50', '-')
+            contigs = row.get('num_contigs', '-')
+            length = row.get('assembly_length', '-')
+
+            # Format values
+            n50_display = f"{float(n50)/1000:.1f}" if n50 != '-' and n50 != '' else '-'
+            length_display = f"{float(length)/1000000:.2f}" if length != '-' and length != '' else '-'
+
+            html += f"""
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 10px;">{sample_id}</td>
+                            <td style="padding: 10px;"><em>{organism}</em></td>
+                            <td style="padding: 10px; color: #d32f2f;">{failure_reason}</td>
+                            <td style="padding: 10px; text-align: right;">{n50_display}</td>
+                            <td style="padding: 10px; text-align: right;">{contigs}</td>
+                            <td style="padding: 10px; text-align: right;">{length_display}</td>
+                        </tr>"""
+    else:
+        html += """
+                        <tr>
+                            <td colspan="6" style="padding: 20px; text-align: center; color: #4caf50;">
+                                ✅ All samples passed quality control!
+                            </td>
+                        </tr>"""
+
+    html += """
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- MultiQC Report Download Section -->
+        <div style="margin-top: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px; color: white;">
+            <h2 style="margin-bottom: 15px; color: white;">📊 Full Quality Control Report</h2>
+            <p style="margin-bottom: 20px; opacity: 0.9;">
+                For detailed read-level QC metrics including FastQC sequence quality, adapter content,
+                and fastp trimming statistics, download the comprehensive MultiQC report.
+            </p>
+            <a href="../multiqc/multiqc_report.html" target="_blank"
+               style="display: inline-block; padding: 15px 30px; background: white; color: #667eea;
+                      text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 1.1em;
+                      box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: transform 0.2s;"
+               onmouseover="this.style.transform='translateY(-2px)'"
+               onmouseout="this.style.transform='translateY(0)'">
+                📥 Open Full MultiQC Report
+            </a>
+            <p style="margin-top: 15px; font-size: 0.9em; opacity: 0.8;">
+                Opens in new tab • Includes FastQC, fastp, QUAST, and BUSCO detailed metrics
+            </p>
         </div>
     </div>
 
@@ -1735,20 +1816,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         </div>
     </div>"""
 
-    if has_multiqc:
-        html += """
-    <!-- MultiQC Report Tab -->
-    <div id="multiqc" class="tab-content">
-        <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <h2 style="margin-bottom: 15px;">Quality Control Report</h2>
-            <p style="color: #666; margin-bottom: 20px;">
-                Comprehensive QC metrics from FastQC, fastp, QUAST, and BUSCO aggregated by MultiQC.
-            </p>
-            <iframe src="../multiqc/multiqc_report.html"
-                    style="width: 100%; height: 1200px; border: none; border-radius: 4px;">
-            </iframe>
-        </div>
-    </div>"""
+    # MultiQC iframe tab removed - link now in Quality Control tab
 
     # Build JavaScript section as regular string, will format with .format() at end
     js_code = """

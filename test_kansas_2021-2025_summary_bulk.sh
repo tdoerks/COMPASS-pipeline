@@ -28,7 +28,12 @@ if [ ! -f "$METADATA" ]; then
     exit 1
 fi
 
-echo "Generating COMPASS summary with fixed HTML..."
+echo "Step 1: Recreating filtered metadata from analyzed samples..."
+echo ""
+./bin/recreate_filtered_metadata.py --outdir $OUTDIR
+
+echo ""
+echo "Step 2: Generating COMPASS summary with enhanced features..."
 echo ""
 
 ./bin/generate_compass_summary.py \

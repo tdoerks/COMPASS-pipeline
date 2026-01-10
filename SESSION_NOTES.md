@@ -385,12 +385,7 @@ module load matplotlib   # ⏸️ NEXT STEP - Need to load this
    # Load required modules
    module load Python
    module load SciPy-bundle
-   module load matplotlib  # <-- Need to find and load this
-
-   # Or check what's available:
-   module avail matplotlib
-   module avail plotting
-   module spider matplotlib
+   module load matplotlib/3.5.2-foss-2022a  # ✅ FOUND! Use this exact version
 
    # Run analysis
    python3 bin/analyze_kansas_narms.py --all \

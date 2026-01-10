@@ -168,23 +168,34 @@ if [ "$AUTO_LINEAGE" = true ]; then
 
         # Download the bacteria placement file package
         # The supermatrix alignment is the large file (~500MB) needed for phylogenetic placement
+        # Files are distributed as .tar.gz archives
         BACTERIA_FILES=(
-            "list_of_reference_markers.bacteria_odb10.2019-12-16.txt"
-            "mapping_taxid-lineage.bacteria_odb10.2019-12-16.txt"
-            "mapping_taxids-busco_dataset_name.bacteria_odb10.2019-12-16.txt"
-            "supermatrix.aln.bacteria_odb10.2019-12-16.faa"
-            "tree.bacteria_odb10.2019-12-16.nwk"
-            "tree_metadata.bacteria_odb10.2019-12-16.txt"
+            "list_of_reference_markers.bacteria_odb10.2019-12-16.txt.tar.gz"
+            "mapping_taxid-lineage.bacteria_odb10.2019-12-16.txt.tar.gz"
+            "mapping_taxids-busco_dataset_name.bacteria_odb10.2019-12-16.txt.tar.gz"
+            "supermatrix.aln.bacteria_odb10.2019-12-16.faa.tar.gz"
+            "tree.bacteria_odb10.2019-12-16.nwk.tar.gz"
+            "tree_metadata.bacteria_odb10.2019-12-16.txt.tar.gz"
         )
 
         DOWNLOAD_FAILED=0
         for file in "${BACTERIA_FILES[@]}"; do
-            if [ -f "$file" ]; then
-                echo -e "${GREEN}✓${NC} $file already exists, skipping"
+            EXTRACTED_FILE="${file%.tar.gz}"  # Remove .tar.gz extension
+            if [ -f "$EXTRACTED_FILE" ]; then
+                echo -e "${GREEN}✓${NC} $EXTRACTED_FILE already exists, skipping"
             else
                 echo -e "${YELLOW}→${NC} Downloading $file..."
-                if wget -q --show-progress "${PLACEMENT_URL}/${file}" 2>&1; then
+                if wget -q --show-progress "${PLACEMENT_URL}/${file}"; then
                     echo -e "${GREEN}✓${NC} Downloaded $file"
+                    # Extract the tar.gz file
+                    echo -e "${YELLOW}→${NC} Extracting $file..."
+                    if tar -xzf "$file"; then
+                        echo -e "${GREEN}✓${NC} Extracted $EXTRACTED_FILE"
+                        rm "$file"  # Remove the compressed file to save space
+                    else
+                        echo -e "${RED}✗${NC} Failed to extract $file"
+                        DOWNLOAD_FAILED=1
+                    fi
                 else
                     echo -e "${RED}✗${NC} Failed to download $file"
                     DOWNLOAD_FAILED=1

@@ -40,7 +40,13 @@ import numpy as np
 # Visualization
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-import seaborn as sns
+
+try:
+    import seaborn as sns
+    SEABORN_AVAILABLE = True
+except ImportError:
+    SEABORN_AVAILABLE = False
+    print("Warning: seaborn not available. Using matplotlib defaults.")
 
 # Statistics
 from scipy import stats

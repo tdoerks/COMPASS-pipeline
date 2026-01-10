@@ -128,20 +128,64 @@ amrfinder --update
 
 ---
 
-### 5. BUSCO Lineage Datasets (Auto-downloaded)
+### 5. BUSCO Lineage Datasets (Recommended: Pre-download)
 
-BUSCO lineage datasets are automatically downloaded on first use.
+BUSCO (Benchmarking Universal Single-Copy Orthologs) assesses genome assembly completeness by searching for conserved genes.
 
-**Manual download (optional):**
+**⚠️  Important**: While BUSCO can auto-download databases, **pre-downloading is strongly recommended** to avoid network issues during pipeline runs.
+
+**Quick Setup Script (Recommended):**
 
 ```bash
-mkdir -p /homes/$USER/databases/busco_downloads
+# Navigate to COMPASS pipeline directory
+cd /path/to/COMPASS-pipeline
 
-# Download bacteria dataset
-busco --download bacteria_odb10 --download_path /homes/$USER/databases/busco_downloads
+# Run the automated setup script
+./bin/setup_busco_databases.sh \
+    --download-path /fastscratch/$USER/databases/busco_downloads \
+    --auto-lineage
+
+# This downloads:
+# - bacteria_odb10 lineage dataset (~1.5 GB)
+# - Placement files for auto-lineage mode (~500 MB)
 ```
 
-**Pipeline parameter**: `--busco_download_path /homes/$USER/databases/busco_downloads`
+**Manual download (alternative):**
+
+```bash
+mkdir -p /fastscratch/$USER/databases/busco_downloads
+
+# Download bacteria dataset
+busco --download bacteria_odb10 --download_path /fastscratch/$USER/databases/busco_downloads
+
+# For auto-lineage mode, run once to download placement files
+# (creates a test genome and runs BUSCO to trigger downloads)
+echo ">test" > test.fasta
+echo "ATCGATCGATCGATCGATCG" >> test.fasta
+busco -i test.fasta -o test_busco -m genome --auto-lineage-prok \
+    --download_path /fastscratch/$USER/databases/busco_downloads --force --quiet
+rm -rf test.fasta test_busco
+```
+
+**Pipeline parameters**:
+
+```bash
+--busco_download_path /fastscratch/$USER/databases/busco_downloads
+--busco_auto_lineage true  # Recommended for accurate completeness assessment
+--skip_busco false
+```
+
+**Auto-lineage vs Fixed Lineage:**
+
+- **Auto-lineage** (default in COMPASS): Analyzes genome and selects best matching lineage (e.g., `enterobacterales_odb10` for *E. coli*)
+  - More accurate completeness scores
+  - Requires placement files (~500 MB additional)
+  - Recommended for production use
+
+- **Fixed lineage**: Uses `bacteria_odb10` for all samples
+  - Faster, less specific
+  - No placement files needed
+  - Good for quick testing
 
 ---
 
@@ -224,12 +268,61 @@ echo "Database check complete!"
 | Prophage proteins (faa.gz) | 1.01 GB | 2.8 GB | - |
 | Prophage DIAMOND (.dmnd) | - | - | ~500 MB |
 | Prophage metadata (.xlsx) | 90 MB | 90 MB | 90 MB |
-| CheckV database | 1.4 GB | 2.6 GB | 2.6 GB |
-| **Total** | | | **~3.2 GB** |
+| BUSCO bacteria_odb10 | - | - | ~1.5 GB |
+| BUSCO placement files | - | - | ~500 MB |
+| AMRFinderPlus database | - | - | ~500 MB |
+| CheckV database (optional) | 1.4 GB | 2.6 GB | 2.6 GB |
+| **Total (required)** | | | **~3.1 GB** |
+| **Total (with CheckV)** | | | **~5.7 GB** |
 
 ---
 
 ## Troubleshooting
+
+### BUSCO Errors
+
+**Error**: `md5 hash is incorrect` or `deleting corrupted file`
+
+**Cause**: Network interruption during download or BUSCO server issues.
+
+**Solution**:
+```bash
+# Remove corrupted files
+rm -rf /fastscratch/$USER/databases/busco_downloads/placement_files/*.tar.gz
+
+# Re-run setup script
+./bin/setup_busco_databases.sh \
+    --download-path /fastscratch/$USER/databases/busco_downloads \
+    --auto-lineage
+```
+
+**Error**: `BUSCO command not found`
+
+**Solution**:
+```bash
+# On HPC with modules
+module load BUSCO
+
+# Or activate conda environment
+conda activate busco-env
+
+# Verify
+busco --version
+```
+
+**Error**: Pipeline fails at BUSCO step with "Not a valid path value"
+
+**Cause**: BUSCO failed and pipeline received a sample ID instead of a file path.
+
+**Solution**: This is now fixed in the pipeline (v1.2-mod). BUSCO failures are gracefully handled and won't crash the pipeline. Update to the latest version:
+```bash
+git pull origin v1.2-mod
+```
+
+**Temporary workaround** (skip BUSCO for testing):
+```bash
+nextflow run main.nf --skip_busco true ...
+```
 
 ### DIAMOND database errors
 

@@ -128,7 +128,7 @@ workflow COMPLETE_PIPELINE {
         PHAGE_ANALYSIS.out.diamond_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect(),
         Channel.empty().collect().ifEmpty([]),  // abricate_summary
         ch_quast_report.collect().ifEmpty([]),  // quast_reports
-        ch_busco_summary.collect().ifEmpty([]), // busco_summaries
+        ch_busco_summary.filter { it instanceof Path || it instanceof java.io.File }.collect().ifEmpty([]), // busco_summaries (filter failed samples)
         TYPING.out.mlst_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect(),     // mlst_results
         TYPING.out.sistr_results.filter { it instanceof List && (it[1] instanceof Path || it[1] instanceof java.io.File) }.map { it[1] }.collect().ifEmpty([]),    // sistr_results (filter skipped non-Salmonella)
         ch_metadata.ifEmpty(file('NO_FILE'))    // metadata
@@ -147,8 +147,9 @@ workflow COMPLETE_PIPELINE {
 
     // Always include assembly QC (BUSCO and QUAST)
     // Use QUAST directories instead of individual report.tsv files to avoid name collisions
+    // Filter BUSCO summaries to exclude any failed samples
     ch_multiqc = ch_multiqc
-        .mix(ch_busco_summary.collect().ifEmpty([]))
+        .mix(ch_busco_summary.filter { it instanceof Path || it instanceof java.io.File }.collect().ifEmpty([]))
         .mix(ch_quast_dirs.collect().ifEmpty([]))
 
     // Run MultiQC to aggregate all QC reports

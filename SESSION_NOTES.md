@@ -311,6 +311,47 @@ When reviewing the 5-sample test report, verify:
    - Database paths incorrect (prophage_db)
    - Insufficient disk space on /fastscratch
    - Nextflow module not loaded
+   - BUSCO database download failures (see below)
+
+### **If BUSCO Fails:**
+
+**Error**: `md5 hash is incorrect` or `deleting corrupted file`
+
+**Cause**: BUSCO placement file download failed/corrupted
+
+**Solution**:
+```bash
+# Set up BUSCO databases properly (one-time)
+cd /fastscratch/tylerdoe/COMPASS-pipeline
+./bin/setup_busco_databases.sh \
+    --download-path /fastscratch/tylerdoe/databases/busco_downloads \
+    --auto-lineage
+
+# Re-run pipeline
+sbatch run_5sample_test.sh
+```
+
+**Error**: `Not a valid path value: 'SRR12345678'`
+
+**Cause**: BUSCO failed and pipeline received sample ID instead of file
+
+**Status**: ✅ **FIXED in v1.2-mod!** BUSCO failures now handled gracefully:
+- Added `errorStrategy = 'ignore'` to BUSCO module
+- Added output filtering in workflow
+- Failed samples skipped, pipeline continues
+
+**Solution**: Already fixed - just pull latest code:
+```bash
+git pull origin v1.2-mod
+```
+
+**Temporary workaround** (if needed):
+```bash
+# Skip BUSCO for testing
+nextflow run main.nf --skip_busco true ...
+```
+
+See [`docs/DATABASE_SETUP.md`](docs/DATABASE_SETUP.md) for comprehensive BUSCO setup guide.
 
 ---
 
@@ -456,12 +497,24 @@ Enhanced COMPASS summary report is now fully integrated as the final automated s
 - `b0972dd` - Integrate enhanced COMPASS summary report as automated final pipeline step
 - `6789f82` - Update test script to reflect integrated report generation
 
+**Recent Git Commits (BUSCO Fixes - January 10, 2026):**
+- Created `bin/setup_busco_databases.sh` - Automated BUSCO database setup script
+- Updated `modules/busco.nf` - Added error handling (`errorStrategy = 'ignore'`, `optional: true`)
+- Updated `workflows/complete_pipeline.nf` - Added BUSCO output filtering
+- Enhanced `docs/DATABASE_SETUP.md` - Comprehensive BUSCO setup instructions
+- Updated `README.md` - Added database setup section with quick start guide
+
 ---
 
-**Ready to test the integrated pipeline! 🚀**
+**Ready to test the integrated pipeline with BUSCO fixes! 🚀**
+
+**What to do now:**
+1. Run the BUSCO setup script (see above)
+2. Re-test the 5-sample pipeline
+3. Verify enhanced report generates successfully
 
 ---
 
-*Last Updated: January 9, 2026*
+*Last Updated: January 10, 2026*
 *Branch: v1.2-mod*
-*Status: ✅ Pipeline integration complete - ready for end-to-end testing*
+*Status: ✅ Pipeline integration complete + BUSCO errors fixed - ready for end-to-end testing*

@@ -83,6 +83,33 @@ git clone https://github.com/tdoerks/COMPASS-pipeline.git
 cd COMPASS-pipeline
 ```
 
+### Database Setup
+
+**IMPORTANT**: Before running the pipeline, set up required databases to avoid runtime download failures.
+
+**Quick Setup (Recommended):**
+
+```bash
+# Set up BUSCO databases (one-time setup, ~15-30 minutes)
+./bin/setup_busco_databases.sh \
+    --download-path /fastscratch/$USER/databases/busco_downloads \
+    --auto-lineage
+
+# Verify prophage database exists (required)
+ls -lh /path/to/prophage_db.dmnd
+```
+
+See [`docs/DATABASE_SETUP.md`](docs/DATABASE_SETUP.md) for comprehensive database setup instructions including:
+- BUSCO lineage datasets and placement files
+- Prophage database (DIAMOND format)
+- AMRFinderPlus database (auto-downloaded)
+- Troubleshooting common issues
+
+**Quick Reference:**
+- **BUSCO**: Pre-download recommended to avoid network issues (`bacteria_odb10` + placement files ~2 GB)
+- **Prophage DB**: Required, must be provided (`prophage_db.dmnd` ~500 MB)
+- **AMRFinder**: Auto-downloads on first run (~500 MB)
+
 ### Basic Usage
 
 COMPASS supports three input modes:
@@ -176,17 +203,26 @@ SRR12345680
 
 ### Database Paths
 
-| Parameter | Description |
-|-----------|-------------|
-| `--amrfinder_db` | AMRFinder+ database directory |
-| `--prophage_db` | Prophage DIAMOND database (.dmnd) |
-| `--busco_download_path` | BUSCO lineage datasets directory |
+| Parameter | Description | Setup |
+|-----------|-------------|-------|
+| `--amrfinder_db` | AMRFinder+ database directory | Auto-downloaded |
+| `--prophage_db` | Prophage DIAMOND database (.dmnd) | See [DATABASE_SETUP.md](docs/DATABASE_SETUP.md) |
+| `--busco_download_path` | BUSCO lineage datasets directory | Run `./bin/setup_busco_databases.sh` |
+
+**Setup Script:**
+```bash
+./bin/setup_busco_databases.sh --download-path /fastscratch/$USER/databases/busco_downloads --auto-lineage
+```
+
+See [`docs/DATABASE_SETUP.md`](docs/DATABASE_SETUP.md) for detailed instructions.
 
 ### BUSCO Parameters
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `--busco_lineage` | BUSCO lineage dataset | `bacteria_odb10` |
+| `--skip_busco` | Skip BUSCO quality assessment | `false` |
+| `--busco_auto_lineage` | Auto-select best lineage for each genome | `true` (recommended) |
+| `--busco_lineage` | Fixed lineage dataset (if auto-lineage=false) | `bacteria_odb10` |
 | `--busco_mode` | BUSCO mode (genome, proteins, transcriptome) | `genome` |
 | `--busco_download_path` | Path for BUSCO lineage datasets | See config |
 

@@ -2,13 +2,14 @@ process BUSCO {
     tag "$sample_id"
     publishDir "${params.outdir}/busco", mode: 'copy', pattern: "${sample_id}_busco"
     container = 'quay.io/biocontainers/busco:5.7.1--pyhdfd78af_0'
+    errorStrategy = 'ignore'  // Continue pipeline even if BUSCO fails
 
     input:
     tuple val(sample_id), path(assembly)
 
     output:
-    path "${sample_id}_busco", emit: results
-    path "${sample_id}_busco/short_summary.*.txt", emit: summary
+    path "${sample_id}_busco", emit: results, optional: true
+    path "${sample_id}_busco/short_summary.*.txt", emit: summary, optional: true
     path "versions.yml", emit: versions
 
     script:

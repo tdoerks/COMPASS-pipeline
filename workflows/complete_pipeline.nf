@@ -14,6 +14,7 @@ include { COMPASS_SUMMARY } from '../modules/compass_summary'
 include { MULTIQC } from '../modules/multiqc'
 include { BUSCO } from '../modules/busco'
 include { QUAST } from '../modules/quast'
+include { CHECK_DATABASES } from '../modules/check_databases'
 
 workflow COMPLETE_PIPELINE {
     take:
@@ -21,6 +22,10 @@ workflow COMPLETE_PIPELINE {
     input_data     // channel: depends on mode
 
     main:
+    // Validate required databases before starting pipeline
+    // Fails fast with helpful error messages if databases are missing
+    CHECK_DATABASES()
+
     ch_assemblies = Channel.empty()
     ch_versions = Channel.empty()
     ch_metadata = Channel.empty()

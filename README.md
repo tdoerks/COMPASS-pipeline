@@ -110,6 +110,9 @@ See [`docs/DATABASE_SETUP.md`](docs/DATABASE_SETUP.md) for comprehensive databas
 - **Prophage DB**: Required, must be provided (`prophage_db.dmnd` ~500 MB)
 - **AMRFinder**: Auto-downloads on first run (~500 MB)
 
+**Automatic Validation:**
+The pipeline automatically validates all required databases before execution. If any databases are missing, it will fail immediately with clear setup instructions, preventing wasted compute time.
+
 ### Basic Usage
 
 COMPASS supports three input modes:

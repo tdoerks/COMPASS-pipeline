@@ -141,34 +141,96 @@ if [ "$AUTO_LINEAGE" = true ]; then
     echo "to automatically select the best matching lineage for each genome."
     echo ""
 
-    # Create a temporary test assembly to trigger placement file downloads
-    TMP_DIR=$(mktemp -d)
-    TMP_FASTA="$TMP_DIR/test_genome.fasta"
+    # Download placement files directly from BUSCO data repository
+    # These are needed for auto-lineage to determine the best taxonomic lineage
+    PLACEMENT_URL="https://busco-data.ezlab.org/v5/data/placement_files"
 
-    # Generate a minimal test genome (just enough to trigger BUSCO)
-    echo ">contig1" > "$TMP_FASTA"
-    echo "ATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG" >> "$TMP_FASTA"
+    if [ -d "placement_files" ] && [ -n "$(ls -A placement_files 2>/dev/null)" ]; then
+        echo -e "${GREEN}✓${NC} Placement files already exist, checking if complete..."
+        SUPERMATRIX_SIZE=$(find placement_files -name "supermatrix.aln.bacteria*.faa" -size +30M 2>/dev/null | wc -l)
+        if [ "$SUPERMATRIX_SIZE" -gt 0 ]; then
+            echo -e "${GREEN}✓${NC} Placement files appear complete, skipping download"
+            echo ""
+        else
+            echo -e "${YELLOW}⚠${NC}  Placement files incomplete, re-downloading..."
+            rm -rf placement_files
+        fi
+    fi
 
-    echo -e "${YELLOW}→${NC} Running BUSCO in auto-lineage mode to trigger placement file downloads..."
-    echo "   (This may take 5-15 minutes on first run)"
-    echo ""
+    if [ ! -d "placement_files" ] || [ -z "$(ls -A placement_files 2>/dev/null)" ]; then
+        mkdir -p placement_files
+        cd placement_files
 
-    # Run BUSCO with auto-lineage to download placement files
-    busco \
-        -i "$TMP_FASTA" \
-        -o busco_auto_lineage_test \
-        -m genome \
-        --auto-lineage-prok \
-        --download_path . \
-        --cpu 2 \
-        --force \
-        --quiet 2>&1 | grep -E "Downloading|Extracting|Download|placement" || true
+        echo -e "${YELLOW}→${NC} Downloading bacteria placement files from BUSCO repository..."
+        echo "   This includes phylogenetic data for auto-lineage selection"
+        echo "   Download size: ~500MB, may take 5-15 minutes"
+        echo ""
 
-    # Clean up test run
-    rm -rf busco_auto_lineage_test "$TMP_DIR"
+        # Download the bacteria placement file package
+        # The supermatrix alignment is the large file (~500MB) needed for phylogenetic placement
+        BACTERIA_FILES=(
+            "list_of_reference_markers.bacteria_odb10.2019-12-16.txt"
+            "mapping_taxid-lineage.bacteria_odb10.2019-12-16.txt"
+            "mapping_taxids-busco_dataset_name.bacteria_odb10.2019-12-16.txt"
+            "supermatrix.aln.bacteria_odb10.2019-12-16.faa"
+            "tree.bacteria_odb10.2019-12-16.nwk"
+            "tree_metadata.bacteria_odb10.2019-12-16.txt"
+        )
 
-    echo ""
-    echo -e "${GREEN}✓${NC} Placement files downloaded"
+        DOWNLOAD_FAILED=0
+        for file in "${BACTERIA_FILES[@]}"; do
+            if [ -f "$file" ]; then
+                echo -e "${GREEN}✓${NC} $file already exists, skipping"
+            else
+                echo -e "${YELLOW}→${NC} Downloading $file..."
+                if wget -q --show-progress "${PLACEMENT_URL}/${file}" 2>&1; then
+                    echo -e "${GREEN}✓${NC} Downloaded $file"
+                else
+                    echo -e "${RED}✗${NC} Failed to download $file"
+                    DOWNLOAD_FAILED=1
+                fi
+            fi
+        done
+
+        cd ..
+
+        if [ $DOWNLOAD_FAILED -eq 1 ]; then
+            echo ""
+            echo -e "${RED}ERROR: Failed to download some placement files${NC}"
+            echo ""
+            echo "This may be due to:"
+            echo "  • Network connectivity issues"
+            echo "  • BUSCO data repository temporarily unavailable"
+            echo ""
+            echo "You can try:"
+            echo "  1. Re-run this script after checking network connection"
+            echo "  2. Use --all-lineages to download specific lineages instead"
+            echo "  3. Or skip BUSCO in pipeline with --skip_busco true"
+            echo ""
+            exit 1
+        fi
+
+        # Verify the critical supermatrix file was downloaded and is the right size
+        SUPERMATRIX_FILE=$(find placement_files -name "supermatrix.aln.bacteria*.faa" 2>/dev/null | head -1)
+        if [ -z "$SUPERMATRIX_FILE" ]; then
+            echo -e "${RED}✗${NC} Supermatrix file not found after download!"
+            echo "Auto-lineage mode will not work without this file."
+            exit 1
+        fi
+
+        SUPERMATRIX_SIZE=$(stat -f%z "$SUPERMATRIX_FILE" 2>/dev/null || stat -c%s "$SUPERMATRIX_FILE" 2>/dev/null || echo "0")
+        if [ "$SUPERMATRIX_SIZE" -lt 30000000 ]; then  # Should be ~37MB
+            echo -e "${RED}✗${NC} Supermatrix file is too small (${SUPERMATRIX_SIZE} bytes)"
+            echo "Expected at least 30MB. Download may have failed."
+            exit 1
+        fi
+
+        echo ""
+        echo -e "${GREEN}✓${NC} Placement files downloaded successfully"
+        SUPERMATRIX_MB=$((SUPERMATRIX_SIZE / 1024 / 1024))
+        echo -e "${GREEN}✓${NC} Supermatrix size: ${SUPERMATRIX_MB} MB"
+    fi
+
     echo ""
 fi
 

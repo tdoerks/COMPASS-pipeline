@@ -58,11 +58,11 @@ nextflow run main.nf \
     --filter_year_end 2025 \
     --max_samples 5 \
     --skip_busco false \
+    --busco_download_path /fastscratch/tylerdoe/databases/busco_downloads \
     --prophage_db /fastscratch/tylerdoe/databases/prophage_db.dmnd \
     --outdir "$OUTDIR" \
     -w work_5sample_test \
-    -name test_5samples_${SLURM_JOB_ID} \
-    -resume
+    -name test_5samples_${SLURM_JOB_ID}
 
 EXIT_CODE=$?
 

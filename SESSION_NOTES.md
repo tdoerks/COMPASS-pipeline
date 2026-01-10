@@ -312,9 +312,168 @@
 
 ---
 
-*Last Updated: January 10, 2026 11:55 PM CST*
+*Last Updated: January 11, 2026 12:30 AM CST*
 *Branch: v1.2-mod*
-*Status: 🔬 5-sample test running - database validation passing - awaiting results for report verification*
+*Status: 🧬 Analysis script created - 5-sample test still running - ready for Kansas publication analysis*
+
+---
+
+## 🎉 TONIGHT'S PROGRESS (January 10-11, 2026)
+
+### ✅ What We Accomplished:
+
+1. **Fixed BUSCO Database Setup** ✅
+   - Issue: Placement files weren't downloading (tried as flat files, actually .tar.gz)
+   - Solution: Updated `bin/setup_busco_databases.sh` to download and extract .tar.gz files
+   - Result: Successfully downloaded 6 bacteria placement files including 36MB supermatrix
+   - Location: `/fastscratch/tylerdoe/databases/busco_downloads/placement_files/`
+   - Total size: 104M (bacteria_odb10 + placement files)
+
+2. **Added Database Validation** ✅
+   - Created `modules/check_databases.nf` for pre-flight validation
+   - Validates BUSCO (bacteria_odb10 + placement files), Prophage DB, AMRFinder
+   - Fails fast with clear error messages and setup instructions
+   - Integrated into `workflows/complete_pipeline.nf` as first step
+
+3. **5-Sample Test Pipeline Running** 🔄
+   - Job: 5716790 on beocat
+   - Status: Running (passed database validation!)
+   - Testing: BUSCO with proper databases, full pipeline, enhanced report auto-generation
+   - Location: `/fastscratch/tylerdoe/test_5samples_v1.2mod/`
+
+4. **Created Unified Analysis Script** ✅ 🎉
+   - Created `bin/analyze_kansas_narms.py` - comprehensive publication analysis tool
+   - Combines all analyses in one modular script:
+     - PhageAnalyzer: Temporal phage diversity, quality distribution, organism patterns
+     - AMRAnalyzer: AMR gene prevalence trends, MDR rates over time
+     - CorrelationAnalyzer: Phage-AMR-plasmid associations, co-occurrence, network analysis
+   - Flexible command-line interface (--all, --phage, --amr, --correlations)
+   - Publication-ready figures (300 DPI PNG)
+   - Statistical analyses (Fisher's exact, correlations)
+   - Organized output structure
+
+5. **Updated Session Notes** ✅
+   - Added comprehensive publication analysis roadmap
+   - Documented 5 major analysis goals (phage phylogeny, AMR trends, correlations, geography, pan-genome)
+   - Listed tools needed and development workflow
+
+### 🚧 Where We Stopped:
+
+**Trying to Run Kansas Analysis Script** - Hit module dependency issue:
+- Script location: `bin/analyze_kansas_narms.py`
+- Data location: `/homes/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod/`
+- Output location: `/bulk/tylerdoe/comparative_analysis_results/results/kansas_2021-2025/`
+- Issue: Missing matplotlib module after loading Python and SciPy-bundle
+
+**Modules loaded so far:**
+```bash
+module load Python      # ✅ Loaded Python 3.12.3
+module load SciPy-bundle  # ✅ Loaded SciPy-bundle/2024.05 (pandas, numpy, scipy)
+module load matplotlib   # ⏸️ NEXT STEP - Need to load this
+```
+
+### 📋 IMMEDIATE NEXT STEPS (Next Session):
+
+1. **Load matplotlib and run Kansas analysis:**
+   ```bash
+   # In screen session
+   screen -S kansas_analysis
+
+   cd /fastscratch/tylerdoe/COMPASS-pipeline
+   git pull origin v1.2-mod
+
+   # Load required modules
+   module load Python
+   module load SciPy-bundle
+   module load matplotlib  # <-- Need to find and load this
+
+   # Or check what's available:
+   module avail matplotlib
+   module avail plotting
+   module spider matplotlib
+
+   # Run analysis
+   python3 bin/analyze_kansas_narms.py --all \
+       --compass-results /homes/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod \
+       --outdir /bulk/tylerdoe/comparative_analysis_results/results/kansas_2021-2025
+   ```
+
+2. **Check 5-sample test results:**
+   ```bash
+   # Check if job completed
+   squeue -u tylerdoe
+
+   # View output
+   tail -50 /homes/tylerdoe/slurm-5716790.out
+
+   # Download enhanced report if complete
+   scp tylerdoe@beocat.ksu.edu:/fastscratch/tylerdoe/test_5samples_v1.2mod/summary/compass_summary.html .
+   ```
+
+3. **Review Kansas analysis output:**
+   - Check `/bulk/tylerdoe/comparative_analysis_results/results/kansas_2021-2025/`
+   - Review figures in `phage_phylogeny/`, `temporal_amr/`, `correlations/`
+   - Examine data tables (CSV files)
+   - Identify interesting patterns for follow-up
+
+4. **Plan next analyses based on findings:**
+   - Geographic patterns (if location data available)
+   - Pan-genome comparative genomics
+   - Enhanced phylogenetic analysis (external tools)
+
+### 🐛 Troubleshooting Notes:
+
+**If matplotlib module not available:**
+- Option 1: Install in user environment
+  ```bash
+  pip install --user matplotlib seaborn
+  ```
+- Option 2: Use conda environment
+  ```bash
+  module load Anaconda3
+  conda create -n compass_analysis python=3.12 pandas matplotlib seaborn scipy networkx biopython
+  conda activate compass_analysis
+  ```
+- Option 3: Load via different module
+  ```bash
+  module spider matplotlib  # Find available versions
+  module load <full_module_name>
+  ```
+
+**If other packages missing:**
+The script needs:
+- ✅ pandas (in SciPy-bundle)
+- ✅ numpy (in SciPy-bundle)
+- ✅ scipy (in SciPy-bundle)
+- ⏸️ matplotlib
+- ⏸️ seaborn (optional, enhances plots)
+- ⏸️ networkx (optional, for network analysis)
+- ⏸️ scikit-learn (optional, for PCA)
+- ⏸️ biopython (optional, for phylogeny)
+
+**Missing packages can be handled:**
+- Script has try/except blocks for optional dependencies
+- Will skip features if packages unavailable
+- Core functionality works with just pandas + matplotlib
+
+### 📊 Kansas 2021-2025 Dataset Info:
+
+**Location:** `/homes/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod/`
+
+**What's there:**
+- Organisms: Campylobacter, Salmonella, E. coli
+- Years: 2021-2025
+- Region: Kansas only
+- Pipeline outputs: assemblies, AMR results, VIBRANT, MOB-suite, MLST, SISTR
+- Summary: `compass_summary_*.tsv/html` (multiple versions)
+
+**Expected sample count:** ~150-300 samples (need to verify in summary)
+
+---
+
+*Last Updated: January 11, 2026 12:30 AM CST*
+*Branch: v1.2-mod*
+*Status: 🧬 Analysis script ready - awaiting matplotlib module load to run Kansas publication analysis*
 
 ---
 

@@ -127,16 +127,17 @@ workflow COMPLETE_PIPELINE {
 
     // Combine all results - runs after all analyses complete
     // Filter out failed samples that emit sample IDs instead of files
+    // Use .ifEmpty() with .first() to handle metadata channel properly (prevents multiple COMBINE_RESULTS executions)
     COMBINE_RESULTS(
-        AMR_ANALYSIS.out.results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect(),
-        PHAGE_ANALYSIS.out.vibrant_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect(),
-        PHAGE_ANALYSIS.out.diamond_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect(),
+        AMR_ANALYSIS.out.results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),
+        PHAGE_ANALYSIS.out.vibrant_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),
+        PHAGE_ANALYSIS.out.diamond_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),
         Channel.empty().collect().ifEmpty([]),  // abricate_summary
         ch_quast_report.collect().ifEmpty([]),  // quast_reports
         ch_busco_summary.filter { it instanceof Path || it instanceof java.io.File }.collect().ifEmpty([]), // busco_summaries (filter failed samples)
-        TYPING.out.mlst_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect(),     // mlst_results
+        TYPING.out.mlst_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),     // mlst_results
         TYPING.out.sistr_results.filter { it instanceof List && (it[1] instanceof Path || it[1] instanceof java.io.File) }.map { it[1] }.collect().ifEmpty([]),    // sistr_results (filter skipped non-Salmonella)
-        ch_metadata.ifEmpty(file('NO_FILE'))    // metadata
+        ch_metadata.ifEmpty(file('NO_FILE')).first()    // metadata (use .first() to ensure single value)
     )
     ch_versions = ch_versions.mix(COMBINE_RESULTS.out.versions)
 

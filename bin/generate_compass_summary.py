@@ -154,19 +154,34 @@ def parse_mlst(mlst_dir):
     """Parse MLST sequence typing results"""
     mlst_data = {}
     mlst_path = Path(mlst_dir)
+
+    print(f"  Searching for MLST files in: {mlst_path}")
+
     if mlst_path.exists():
-        for mlst_file in mlst_path.glob('*_mlst.tsv'):
+        mlst_files = list(mlst_path.glob('*_mlst.tsv'))
+        print(f"  Found {len(mlst_files)} MLST files: {[f.name for f in mlst_files]}")
+
+        for mlst_file in mlst_files:
             sample_id = mlst_file.stem.replace('_mlst', '')
             try:
                 df = pd.read_csv(mlst_file, sep='\t')
+                print(f"    Parsing {mlst_file.name}: {len(df)} rows, columns: {list(df.columns)}")
+
                 if not df.empty:
                     # MLST format: FILE SCHEME ST gene1 gene2 ...
+                    scheme = str(df.iloc[0]['SCHEME']) if 'SCHEME' in df.columns else '-'
+                    st = str(df.iloc[0]['ST']) if 'ST' in df.columns else '-'
                     mlst_data[sample_id] = {
-                        'mlst_scheme': str(df.iloc[0]['SCHEME']) if 'SCHEME' in df.columns else '-',
-                        'mlst_st': str(df.iloc[0]['ST']) if 'ST' in df.columns else '-'
+                        'mlst_scheme': scheme,
+                        'mlst_st': st
                     }
+                    print(f"      → Sample {sample_id}: scheme={scheme}, ST={st}")
             except Exception as e:
                 print(f"Warning: Could not parse MLST results for {mlst_file}: {e}", file=sys.stderr)
+    else:
+        print(f"  MLST directory does not exist: {mlst_path}")
+
+    print(f"  Total MLST data parsed: {len(mlst_data)} samples")
     return mlst_data
 
 def parse_sistr(sistr_dir):
@@ -3282,16 +3297,20 @@ def main():
     outdir = Path(args.outdir)
 
     print(f"Generating comprehensive COMPASS summary from {outdir}")
+    print(f"Metadata file: {args.metadata}")
 
     # Parse optional metadata
     metadata = parse_metadata(args.metadata)
+    print(f"Parsed metadata for {len(metadata)} samples with {len(next(iter(metadata.values()), {}))} fields each" if metadata else "No metadata parsed")
 
     # Parse all result files
     print("Parsing QUAST assembly statistics...")
     quast_data = parse_quast(outdir / 'quast')
+    print(f"  → Found QUAST data for {len(quast_data)} samples")
 
     print("Parsing BUSCO completeness metrics...")
     busco_data = parse_busco(outdir / 'busco')
+    print(f"  → Found BUSCO data for {len(busco_data)} samples")
 
     print("Parsing MLST typing results...")
     mlst_data = parse_mlst(outdir / 'mlst')

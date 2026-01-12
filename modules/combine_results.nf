@@ -7,7 +7,7 @@ process COMBINE_RESULTS {
     path vibrant_results
     path diamond_results
     path abricate_summary, stageAs: 'abricate_summary.tsv'
-    path quast_reports
+    path quast_reports, stageAs: 'quast_*.tsv'
     path busco_summaries
     path mlst_results
     path sistr_results

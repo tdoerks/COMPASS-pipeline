@@ -35,7 +35,7 @@ process COMPASS_SUMMARY {
     echo "Step 2: Generating enhanced COMPASS summary report..."
     generate_compass_summary.py \\
         --outdir ${params.outdir} \\
-        --metadata ${params.outdir}/filtered_samples/filtered_samples.csv \\
+        --metadata metadata.csv \\
         --output_tsv compass_summary.tsv \\
         --output_html compass_summary.html || {
             echo "❌ Summary generation failed, creating minimal outputs"

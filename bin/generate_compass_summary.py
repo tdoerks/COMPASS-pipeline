@@ -3319,12 +3319,13 @@ def main():
     diamond_data = parse_diamond_prophage(outdir / 'diamond_prophage')
 
     # Combine all data
+    # Only count samples that were actually processed (have core analysis results)
+    # Don't count samples that only exist in metadata but weren't processed
     all_samples = set()
-    for data_dict in [quast_data, busco_data, mlst_data, sistr_data, amr_data,
-                     mobsuite_data, vibrant_data, diamond_data, metadata]:
+    for data_dict in [quast_data, amr_data]:  # Use only core result files that all samples should have
         all_samples.update(data_dict.keys())
 
-    print(f"Found {len(all_samples)} total samples")
+    print(f"Found {len(all_samples)} processed samples (not counting metadata-only samples)")
 
     # Build comprehensive summary table
     summary_data = []

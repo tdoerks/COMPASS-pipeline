@@ -15,6 +15,7 @@ workflow DATA_ACQUISITION {
     ch_reads = Channel.empty()
     ch_metadata = Channel.empty()
     ch_metadata_file = Channel.empty()
+    ch_sra_runinfo = Channel.empty()
     ch_versions = Channel.empty()
 
     if (mode == 'metadata') {
@@ -22,8 +23,11 @@ workflow DATA_ACQUISITION {
         DOWNLOAD_NARMS_METADATA()
         FILTER_NARMS_SAMPLES(DOWNLOAD_NARMS_METADATA.out.metadata)
 
-        // Save the filtered CSV file for COMPASS_SUMMARY
+        // Save the filtered CSV file for internal use
         ch_metadata_file = FILTER_NARMS_SAMPLES.out.filtered
+
+        // Keep the full SRA runinfo CSV for COMPASS_SUMMARY (has all 40+ metadata fields)
+        ch_sra_runinfo = DOWNLOAD_NARMS_METADATA.out.metadata
 
         // Create metadata map for downstream processes
         ch_metadata = FILTER_NARMS_SAMPLES.out.filtered
@@ -54,5 +58,6 @@ workflow DATA_ACQUISITION {
     reads = ch_reads                 // channel: [sample_id, reads]
     metadata = ch_metadata           // channel: [sample_id, organism]
     metadata_file = ch_metadata_file // path: filtered_samples.csv
+    sra_runinfo = ch_sra_runinfo     // path: full SRA runinfo CSV with all metadata fields
     versions = ch_versions
 }

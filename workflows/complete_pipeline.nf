@@ -28,7 +28,6 @@ workflow COMPLETE_PIPELINE {
 
     ch_assemblies = Channel.empty()
     ch_versions = Channel.empty()
-    ch_metadata = Channel.empty()
     ch_metadata_file = Channel.empty()
 
     ch_qc_outputs = Channel.empty()
@@ -73,7 +72,6 @@ workflow COMPLETE_PIPELINE {
         ch_busco_summary = ASSEMBLY.out.busco_summary
         ch_quast_report = ASSEMBLY.out.quast_report
         ch_quast_dirs = ASSEMBLY.out.quast_dirs  // Use directories for MultiQC
-        ch_metadata = DATA_ACQUISITION.out.metadata
         ch_metadata_file = DATA_ACQUISITION.out.metadata_file
         ch_versions = ch_versions.mix(DATA_ACQUISITION.out.versions)
         ch_versions = ch_versions.mix(ASSEMBLY.out.versions.first())
@@ -127,7 +125,6 @@ workflow COMPLETE_PIPELINE {
 
     // Combine all results - runs after all analyses complete
     // Filter out failed samples that emit sample IDs instead of files
-    // Use .ifEmpty() with .first() to handle metadata channel properly (prevents multiple COMBINE_RESULTS executions)
     COMBINE_RESULTS(
         AMR_ANALYSIS.out.results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),
         PHAGE_ANALYSIS.out.vibrant_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),
@@ -137,7 +134,7 @@ workflow COMPLETE_PIPELINE {
         ch_busco_summary.filter { it instanceof Path || it instanceof java.io.File }.collect().ifEmpty([]), // busco_summaries (filter failed samples)
         TYPING.out.mlst_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),     // mlst_results
         TYPING.out.sistr_results.filter { it instanceof List && (it[1] instanceof Path || it[1] instanceof java.io.File) }.map { it[1] }.collect().ifEmpty([]),    // sistr_results (filter skipped non-Salmonella)
-        ch_metadata.ifEmpty(file('NO_FILE')).first()    // metadata (use .first() to ensure single value)
+        ch_metadata_file.ifEmpty(file('NO_FILE'))    // metadata file (single path)
     )
     ch_versions = ch_versions.mix(COMBINE_RESULTS.out.versions)
 

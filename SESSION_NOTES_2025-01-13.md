@@ -212,3 +212,39 @@ A: No - this only affects new runs. Old runs with 27-column TSVs won't be retroa
 **Session End**: January 13, 2025 ~12:00 AM
 **Status**: Critical bug fixed, ready for testing tomorrow
 **Next Step**: Pull latest code and run full pipeline test
+
+## E. coli 2020 Run - Cancelled for Testing
+
+**Job Details:**
+- **Job ID**: 5681279
+- **Job Name**: compass_ecoli_2020
+- **Script**: `/fastscratch/tylerdoe/COMPASS-pipeline/run_ecoli_2020_fastscratch.sh`
+- **Started**: January 13, 2026 at 10:27 AM
+- **Runtime when cancelled**: 1 day, 2 hours, 36 minutes
+- **Progress when cancelled**: 
+  - 2264 samples downloaded (9 failed)
+  - 383 of 2255 samples assembled (17%)
+  - 119 QUAST, 123 AMRFinder, 461 ABRicate completed
+  - Still in assembly/annotation phase
+
+**Reason for Cancellation**: 
+Need to test metadata columns fix with 5-sample test run before continuing large production run.
+
+**To Resume After Test:**
+```bash
+cd /fastscratch/tylerdoe/COMPASS-pipeline
+git pull origin v1.2-mod  # Get latest fixes
+sbatch run_ecoli_2020_fastscratch.sh  # Will use -resume to continue from sample 383
+```
+
+**Work Directory**: Will be preserved for -resume
+- Location: `/fastscratch/tylerdoe/COMPASS-pipeline/work_*` (check script for exact name)
+- Contains: Cached results for first 383 assembled samples
+- Will NOT need to re-download or re-assemble those samples
+
+**SLURM Logs**:
+- Output: `/homes/tylerdoe/slurm-5681279.out`
+- Error: `/homes/tylerdoe/slurm-5681279.err`
+
+---
+

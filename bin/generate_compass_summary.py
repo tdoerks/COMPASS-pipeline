@@ -3457,9 +3457,11 @@ def main():
         'num_prophages', 'num_lytic', 'num_lysogenic', 'num_prophage_hits', 'top_prophage_matches'
     ])
 
-    # Only include columns that exist
+    # Reorder columns: put known analysis columns first, then append ALL remaining columns (metadata)
+    # This preserves all SRA metadata fields (Platform, Model, LibraryStrategy, BioProject, etc.)
     column_order = [col for col in column_order if col in df.columns]
-    df = df[column_order]
+    other_columns = [col for col in df.columns if col not in column_order]
+    df = df[column_order + other_columns]  # Keep ALL columns!
 
     # Create output directories if they don't exist
     import os

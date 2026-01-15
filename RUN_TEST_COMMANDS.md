@@ -9,12 +9,12 @@ cd /fastscratch/tylerdoe/COMPASS-pipeline
 # 2. Pull latest code (has QC tab fix, metadata fix, debug output)
 git pull origin v1.2-mod
 
-# 3. Verify we have the latest commit (2a31c21)
+# 3. Verify we have the latest commit (58f6e47)
 git log --oneline -3
 # Should show:
+#   58f6e47 Improve COMPASS HTML report: metadata fields, MultiQC link, and empty MLST handling
+#   172d69f (commit from other source - may vary)
 #   2a31c21 Add native MultiQC charts to Quality Control tab
-#   622f5f6 Evening update: Metadata fix verified working!
-#   aa36358 Add comprehensive debug output for max_samples filtering
 
 # 4. Submit test run
 sbatch run_5sample_test.sh
@@ -29,20 +29,29 @@ tail -f /homes/tylerdoe/slurm-XXXXX.out
 
 ## What This Test Will Verify:
 
-### ✅ Metadata Columns Fix (from previous session)
-- **Expected**: compass_summary.tsv should have ~76 columns (not 27)
-- **Expected**: HTML Metadata Explorer dropdown should show 40+ fields
-- **Expected**: Fields like Platform, Model, LibraryStrategy, BioProject visible
+### ✅ Metadata Field Filtering (NEW - commit 58f6e47)
+- **Expected**: Metadata Explorer dropdown shows ~18 useful fields (not 49)
+- **Expected**: Fields shown: Run, BioSample, BioProject, Platform, Model, Organism, host, geo_loc_name, etc.
+- **Expected**: Unused fields removed: MBases, MBytes, download_path, etc.
 
-### ✅ Quality Control Tab Enhancement (NEW - this session)
+### ✅ MultiQC Link Removal (NEW - commit 58f6e47)
+- **Expected**: No broken "../multiqc/multiqc_report.html" link in Quality Control tab
+- **Expected**: Informative note about multiqc/ directory location
+- **Expected**: All key QC metrics already embedded in native charts
+
+### ✅ MLST Empty Data Handling (NEW - commit 58f6e47)
+- **Expected**: If MLST data missing, shows "No MLST data available" message instead of blank chart
+- **Expected**: Same for MLST schemes and serovars
+- **Expected**: User can distinguish between missing data vs. rendering error
+
+### ✅ Quality Control Tab Enhancement (from commit 2a31c21)
 - **Expected**: Read Quality Scores chart displays (FastQC data)
 - **Expected**: Read Processing Summary chart displays (read counts)
-- **Expected**: "Open Full MultiQC Report" link works
 - **Expected**: All existing QC charts still work (N50, Length, Contigs, BUSCO)
 
-### 🔍 max_samples Debug (in progress)
-- **Expected**: Debug output shows sample count at each step
-- **Will reveal**: Why 6 samples selected instead of 5
+### ✅ Metadata Columns Fix (from commit 622f5f6)
+- **Expected**: compass_summary.tsv should have ~76 columns (not 27)
+- **Expected**: Fields like Platform, Model, LibraryStrategy, BioProject present in TSV
 
 ## After Test Completes:
 
@@ -64,9 +73,9 @@ grep -A 10 "Total filtered samples before max limit" /homes/tylerdoe/slurm-XXXXX
 # Download HTML report to review
 scp tylerdoe@beocat.ksu.edu:/fastscratch/tylerdoe/test_5samples_v1.2mod/summary/compass_summary.html .
 # Open in browser and verify:
-#   1. Metadata Explorer has 40+ field options
-#   2. Quality Control tab shows new Read QC charts
-#   3. MultiQC link works
+#   1. Metadata Explorer has ~18 field options (not 49)
+#   2. Quality Control tab shows native Read QC charts (no broken MultiQC link)
+#   3. MLST tab shows data or friendly "No data available" message
 ```
 
 ## Expected Test Duration:

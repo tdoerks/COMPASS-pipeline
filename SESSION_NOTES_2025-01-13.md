@@ -248,3 +248,82 @@ sbatch run_ecoli_2020_fastscratch.sh  # Will use -resume to continue from sample
 
 ---
 
+
+## Evening Session Update - January 14, 2026
+
+### MAJOR SUCCESS! ✅
+
+**Metadata Fix VERIFIED WORKING!**
+- Job 5746923 completed successfully
+- Report now shows metadata fields are working!
+- All 40+ SRA fields available in Metadata Explorer dropdown
+- The critical column filtering bug fix (commit ecaf3d6) works perfectly!
+
+### Test Run Results (Job 5746923)
+
+**Pipeline Status:**
+- ✅ All processes completed successfully
+- ✅ COMPASS_SUMMARY generated enhanced report
+- ✅ Metadata fields now showing correctly (40+ fields available)
+- ⚠️ Minor issue: 6 samples selected instead of 5 (max_samples bug)
+
+**Samples Processed:**
+All 6 samples are Campylobacter from Kansas 2025:
+- SRR35618478 (25KS06CB02-C1) - C. jejuni
+- SRR35618477 (25KS08CL01-C1) - C. jejuni  
+- SRR34943031 (25KS04CG01-C1) - C. jejuni
+- SRR33812636 (25KS05CG01-C1) - C. coli
+- SRR33812635 (25KS05CL01-C1) - C. jejuni
+- SRR33447934 (25KS04CB01-C1) - C. jejuni
+
+### max_samples Bug Investigation
+
+**Issue:** `--max_samples 5` resulted in 6 samples in filtered_samples.csv
+
+**Debug Added (Commit aa36358):**
+Enhanced `modules/metadata_filtering.nf` with comprehensive debug output:
+- Shows max_samples parameter value
+- Shows sample count before/after `.head()` application  
+- Shows final count before and after CSV write
+- Will reveal exactly where 6th sample appears on next run
+
+**Next Steps:**
+On next test run, check SLURM log for output like:
+```
+Total filtered samples before max limit: X
+max_samples parameter: 5
+Current sample count: X
+Applying .head(5) to limit samples
+After .head(): Y samples  ← Should be 5
+Final sample count before writing: Z samples  ← Should be 5
+CSV written with Z data rows  ← Should be 5
+```
+
+If bug persists, the debug output will show the exact step where the count changes from 5 to 6.
+
+### E. coli 2020 Run Resumed
+
+**Status:** Successfully resumed after testing
+- Resubmitted `run_ecoli_2020_fastscratch.sh`
+- Will continue from sample 383 (17% complete when cancelled)
+- Using `-resume` to preserve 26 hours of completed work
+- Now running with metadata fix included
+
+### Summary of Tonight's Accomplishments
+
+1. ✅ **Fixed critical metadata bug** - All 49 SRA fields now preserved
+2. ✅ **Verified fix works** - Test run completed with metadata working
+3. ✅ **Resumed E. coli run** - Production run continuing with fix
+4. 🔍 **Added debug for max_samples** - Will diagnose minor filtering issue
+5. 📝 **Documented everything** - Session notes updated
+
+### Outstanding Items
+
+1. **max_samples filtering** - Debug added, needs next test to diagnose
+2. **MLST display** - Files exist with valid data, but not showing in report (debug output added in earlier session, needs verification)
+
+---
+
+**Session End**: January 14, 2026 ~8:00 PM
+**Status**: Metadata fix verified working! E. coli run resumed with fix.
+**Next Step**: Check E. coli run progress, verify MLST shows in that report

@@ -1,8 +1,8 @@
 # Searching for AMR Genes in VIBRANT Prophage Annotations
 
-## Two Complementary Approaches
+## Three Complementary Approaches
 
-We have two different methods to find AMR genes in prophages:
+We have three different methods to find AMR genes in prophages:
 
 ### 1. Coordinate-Based Method (`analyze_true_amr_prophage_colocation.py`)
 - Parses AMRFinderPlus coordinates (contig, start, end)
@@ -11,112 +11,204 @@ We have two different methods to find AMR genes in prophages:
 - **Pro**: Precise physical co-location
 - **Con**: Requires exact contig name matching
 
-### 2. Annotation-Based Method (`search_amr_in_vibrant_annotations.py`) ⭐ **NEW**
+### 2. Annotation-Based Method (`search_amr_in_vibrant_annotations.py`)
 - Gets AMR gene names from AMRFinderPlus
 - Searches VIBRANT's annotation files for those gene names
 - If VIBRANT annotated the same gene in a prophage → it's co-located!
 - **Pro**: Uses VIBRANT's own gene annotations
-- **Con**: Relies on consistent gene naming
+- **Con**: Relies on consistent gene naming (VIBRANT uses VOG/KEGG IDs, not AMR gene names)
 
-## Why Use the Annotation-Based Method?
+### 3. Direct AMRFinder Scan ⭐ **RECOMMENDED** (`run_amrfinder_on_prophages.py`)
+- Extracts prophage sequences identified by VIBRANT
+- Runs AMRFinderPlus **directly on prophage DNA**
+- Most definitive approach - uses AMR-specific tool on phage-specific sequences
+- **Pro**: Definitive answer - does prophage DNA contain AMR genes?
+- **Con**: Computationally expensive (~1-2 minutes per sample)
 
-If the coordinate-based method returns 0 results, the annotation-based method can help determine:
+## Which Method Should I Use?
 
-1. **True negative**: AMR genes are truly not in prophages (both methods return 0)
-2. **Naming mismatch**: AMR genes ARE in prophages but coordinate matching failed (annotation method finds them)
-3. **Different annotation**: VIBRANT detected the genes but named them differently
+### For Most Users: Method 3 (Direct AMRFinder Scan) ⭐
+**Use this when**: You want a definitive answer about AMR genes in prophages
+```bash
+# Test single sample first (takes 1-2 minutes)
+./bin/run_amrfinder_on_prophages.py \
+    /bulk/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod \
+    SRR13928113
+```
 
-## Usage
+**Why this is best**:
+- Most direct: Scans prophage DNA with AMR detection tool
+- No coordinate matching issues
+- No annotation format dependencies
+- Definitive biological answer
 
-### Test Single Sample
+**Limitation**: Slow for large datasets (1-2 min per sample)
+
+### For Quick Analysis: Method 1 (Coordinate-Based)
+**Use this when**: You need results across many samples quickly
+```bash
+./bin/analyze_true_amr_prophage_colocation.py \
+    /bulk/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod
+```
+
+**Why use this**:
+- Very fast (seconds for hundreds of samples)
+- Uses existing AMRFinder results
+- No re-computation needed
+
+**Limitation**: Requires coordinate matching (may miss edge cases)
+
+### For Troubleshooting: Method 2 (Annotation Search)
+**Use this when**: Method 1 returns 0 but you suspect AMR genes exist
+- Helps diagnose if issue is annotation format vs. true negative
+- **Note**: Generally returns 0 because VIBRANT doesn't use AMR gene names
+
+## Usage Examples
+
+### Method 3: Direct AMRFinder Scan (Recommended)
+
+#### Test Single Sample
 ```bash
 cd /fastscratch/tylerdoe/COMPASS-pipeline
 
 # Test on one sample
+./bin/run_amrfinder_on_prophages.py \
+    /bulk/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod \
+    SRR13928113
+```
+
+#### Run on All Samples (WARNING: Takes hours!)
+```bash
+# This will run AMRFinderPlus on every sample's prophage sequences
+# Expect ~1-2 minutes per sample
+./bin/run_amrfinder_on_prophages.py \
+    /bulk/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod
+```
+
+### Method 1: Coordinate-Based (Fast)
+```bash
+# Single sample
+./bin/analyze_true_amr_prophage_colocation.py \
+    /bulk/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod
+
+# Outputs CSV + HTML report
+```
+
+### Method 2: Annotation Search (For troubleshooting)
+```bash
+# Single sample
 ./bin/search_amr_in_vibrant_annotations.py \
     /bulk/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod \
     SRR13928113
 ```
 
-### Search All Samples
-```bash
-# Search all samples in the results directory
-./bin/search_amr_in_vibrant_annotations.py \
-    /bulk/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod
-```
+## Output Examples
 
-This will:
-1. Find all samples with AMR results
-2. Extract AMR gene names (mdtM, tet(A), etc.)
-3. Search VIBRANT annotation files for those genes
-4. Report matches
-
-## Output
-
-### Console Output
+### Method 3: Direct AMRFinder Scan Output
 ```
 ================================================================================
 ANALYZING SAMPLE: SRR13928113
 ================================================================================
-  Found 4 AMR genes in AMRFinderPlus results:
-    - mdtM (EFFLUX)
-    - aac(3)-IId (AMINOGLYCOSIDE)
-    - tet(A) (TETRACYCLINE)
-    - blaCTX-M-15 (BETA-LACTAM)
 
-  Searching VIBRANT annotations for these genes...
-  Searching 47 VIBRANT annotation files...
-    ✓ Found 'tet(A)' in VIBRANT_annotations_SRR13928113_contigs.tsv
-    ✓ Found 'tet(A)' in VIBRANT_phages_SRR13928113_contigs.fasta
+  📊 Whole-genome AMRFinder: 4 AMR genes detected
+     Sample genes: mdtM, aac(3)-IId, tet(A), blaCTX-M-15
 
-  ✅ Found 2 matches in VIBRANT annotations!
+  🦠 VIBRANT identified 8 prophage/phage regions
+     Prophage sequences: /path/to/SRR13928113_phages.fna
+
+  🔍 Running AMRFinderPlus on prophage sequences...
+     (This may take 1-2 minutes per sample)
+
+  ✅ AMRFinder on prophage DNA: 1 AMR genes detected
+
+  🎯 AMR GENES FOUND IN PROPHAGES:
+     • tet(A) (TETRACYCLINE) - BLAST
+
+  📊 COMPARISON:
+     Whole genome: 4 AMR genes
+     Prophage DNA: 1 AMR genes
+     Prophage carries 25.0% of total AMR genes
 ```
 
 ### CSV Export
-File: `~/amr_in_vibrant_annotations.csv`
-
-Columns:
+**Method 3**: `~/prophage_amr_direct_scan.csv`
 - `sample`: Sample ID
-- `gene`: AMR gene name
-- `class`: Drug class (from AMRFinderPlus)
-- `file`: VIBRANT file where gene was found
-- `prophage_id`: Prophage/phage ID
-- `amr_contig`: Original contig from AMRFinderPlus
-- `amr_start`, `amr_end`: Coordinates from AMRFinderPlus
-- `file_path`: Full path to VIBRANT file
+- `gene`: AMR gene name detected in prophage
+- `class`: Drug class
+- `method`: Detection method (BLAST/HMM)
+- `prophage_contig`: Prophage sequence ID
+- `whole_genome_amr_count`: Total AMR genes in whole genome
+- `prophage_count`: Number of prophages identified
+
+**Method 1**: `~/true_amr_prophage_colocation.csv` + HTML report
+- Detailed coordinate-based co-location results
+
+**Method 2**: `~/amr_in_vibrant_annotations.csv`
+- Gene name search results (typically empty)
 
 ## Interpreting Results
 
-### Scenario 1: Both Methods Find 0 Co-locations
-**Interpretation**: AMR genes are truly not located in prophage regions in this dataset
-**Conclusion**: Real biological result - prophages don't carry AMR genes here
+### Scenario 1: Direct Scan (Method 3) Finds AMR Genes in Prophages
+**Result**: `AMRFinder on prophage DNA: 5 AMR genes detected`
 
-### Scenario 2: Coordinate Method = 0, Annotation Method > 0
-**Interpretation**: AMR genes ARE in prophages, but coordinate matching failed
-**Possible causes**:
-- Contig names don't match between AMRFinder and VIBRANT
-- Different coordinate systems
-- Different assembly versions
+**Interpretation**: ✅ **Definitive positive** - Prophages DO carry AMR genes
+- AMR detection tool found resistance genes when scanning prophage DNA directly
+- These genes are potentially mobile with the prophage
+- High confidence result
 
-**Action**: Investigate contig naming and coordinate systems
+**Next steps**:
+- Examine which AMR genes are in prophages
+- Analyze drug classes affected
+- Consider temporal/geographic trends
 
-### Scenario 3: Both Methods Find Co-locations
-**Interpretation**: High confidence - AMR genes confirmed in prophages by both methods
-**Conclusion**: Strong evidence of prophage-mediated AMR gene mobility
+### Scenario 2: All Methods Find 0 Co-locations
+**Result**: All three methods return 0 AMR genes in prophages
 
-## Next Steps
+**Interpretation**: ✅ **Definitive negative** - Prophages don't carry AMR genes
+- Coordinate matching found no overlap
+- Direct AMR scanning found nothing in prophage DNA
+- Real biological finding for this dataset
 
-After running both scripts:
+**Biological implications**:
+- AMR genes in this dataset are chromosomal, not prophage-mediated
+- Resistance spread likely via other mechanisms (plasmids, conjugation)
+- Still scientifically valuable finding!
 
-1. **Compare results**: How many samples show co-location in each method?
-2. **Investigate discrepancies**: If results differ, check contig naming
-3. **Biological interpretation**: What does it mean if prophages don't carry AMR?
+### Scenario 3: Method 1 = 0, Method 3 > 0
+**Result**: Coordinate method found 0, but direct scan found AMR genes
+
+**Interpretation**: ⚠️ **Technical issue with coordinate matching**
+- AMR genes ARE in prophages (confirmed by Method 3)
+- Coordinate-based method missed them due to:
+  - Contig naming differences
+  - Coordinate system issues
+  - Edge cases in boundary detection
+
+**Action**: Use Method 3 results as definitive answer
+
+### Scenario 4: Method 1 > 0, Method 3 = 0
+**Result**: Coordinate method found co-locations, but direct scan found nothing
+
+**Interpretation**: ⚠️ **Rare - likely false positives in coordinate matching**
+- Direct scan is more definitive
+- May indicate annotation artifacts
+- Use Method 3 results as final answer
+
+## Recommendation: Start with Method 3
+
+For new analyses, we recommend:
+1. **Test Method 3 on a few samples first** (5-10 samples)
+2. If you find AMR genes in prophages → Great! Run on more samples
+3. If you find 0 AMR genes → Confirms Method 1 result, true negative
+4. Method 3 gives most confidence in your conclusions
 
 ## Files
 
-- `bin/analyze_true_amr_prophage_colocation.py` - Coordinate-based method
-- `bin/search_amr_in_vibrant_annotations.py` - Annotation-based method (NEW)
-- `bin/debug_colocation.py` - Troubleshooting tool
+- `bin/run_amrfinder_on_prophages.py` - **Direct AMRFinder scan (RECOMMENDED)**
+- `bin/analyze_true_amr_prophage_colocation.py` - Coordinate-based method (fast)
+- `bin/search_amr_in_vibrant_annotations.py` - Annotation search (troubleshooting)
+- `bin/search_amr_keywords_in_vibrant.py` - Keyword search (troubleshooting)
+- `bin/debug_colocation.py` - Debugging tool
 
 ---
 

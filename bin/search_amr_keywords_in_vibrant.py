@@ -22,41 +22,114 @@ from pathlib import Path
 from collections import defaultdict, Counter
 import re
 
-# AMR-related keywords to search for
-AMR_KEYWORDS = [
-    # General resistance terms
-    'resistance', 'resistant', 'antibiotic', 'antimicrobial',
-    'multidrug', 'MDR',
+# AMR-related keywords to search for (with patterns to avoid false positives)
+AMR_KEYWORDS = {
+    # General resistance terms (word boundaries)
+    'resistance': r'\bresistance\b',
+    'resistant': r'\bresistant\b',
+    'antibiotic': r'\bantibiotic',
+    'antimicrobial': r'\bantimicrobial',
+    'multidrug': r'\bmultidrug',
+    'MDR': r'\bMDR\b',
 
     # Mechanisms
-    'efflux', 'pump',
-    'beta-lactam', 'betalactam', 'β-lactam',
-    'lactamase',
+    'efflux pump': r'efflux[\s_-]?pump',
+    'drug efflux': r'drug[\s_-]?efflux',
+    'beta-lactamase': r'beta[\s_-]?lactam',
+    'betalactamase': r'betalactam',
 
-    # Drug classes
-    'tetracycline', 'aminoglycoside', 'fluoroquinolone', 'quinolone',
-    'macrolide', 'sulfonamide', 'trimethoprim', 'chloramphenicol',
-    'fosfomycin', 'rifampin', 'colistin', 'polymyxin',
+    # Drug classes (word boundaries)
+    'tetracycline': r'\btetracycline',
+    'aminoglycoside': r'\baminoglycoside',
+    'fluoroquinolone': r'\bfluoroquinolone',
+    'macrolide': r'\bmacrolide',
+    'sulfonamide': r'\bsulfonamide',
+    'trimethoprim': r'\btrimethoprim',
+    'chloramphenicol': r'\bchloramphenicol',
+    'fosfomycin': r'\bfosfomycin',
+    'rifampin': r'\brifamp',
+    'colistin': r'\bcolistin',
+    'polymyxin': r'\bpolymyxin',
+    'vancomycin': r'\bvancomycin',
 
-    # Specific mechanisms
-    'acetyltransferase', 'methyltransferase', 'phosphotransferase',
-    'nucleotidyltransferase',
+    # Specific transferases (word boundaries to avoid false matches)
+    'aminoglycoside acetyltransferase': r'aminoglycoside.*acetyltransferase',
+    'aminoglycoside phosphotransferase': r'aminoglycoside.*phosphotransferase',
 
-    # Gene families
-    'tet(', 'aac(', 'aph(', 'ant(',  # Common AMR gene prefixes
-    'bla', 'CTX-M', 'NDM', 'KPC', 'OXA',  # Beta-lactamases
-    'qnr', 'gyr', 'par',  # Quinolone resistance
-    'erm', 'mef', 'mph',  # Macrolide resistance
-    'sul', 'dfr',  # Sulfonamide/trimethoprim
-    'mcr',  # Colistin resistance
+    # Gene family prefixes (must be followed by specific characters)
+    'tet(': r'\btet\([A-Z]\)',  # tet(A), tet(B), etc.
+    'tetA': r'\btetA\b',
+    'tetM': r'\btetM\b',
+    'aac(': r'\baac\(\d+\)',  # aac(3), aac(6'), etc.
+    'aph(': r'\baph\(\d+\)',
+    'ant(': r'\bant\(\d+\)',
+
+    # Beta-lactamases (specific gene names)
+    'blaCTX-M': r'\bblaCTX-M',
+    'blaNDM': r'\bblaNDM',
+    'blaKPC': r'\bblaKPC',
+    'blaOXA': r'\bblaOXA',
+    'blaTEM': r'\bblaTEM',
+    'blaSHV': r'\bblaSHV',
+    'blaIMP': r'\bblaIMP',
+    'blaVIM': r'\bblaVIM',
+
+    # Quinolone resistance (specific genes)
+    'qnrA': r'\bqnrA',
+    'qnrB': r'\bqnrB',
+    'qnrS': r'\bqnrS',
+
+    # Macrolide resistance (avoid 'erm' substring matches)
+    'ermA': r'\bermA\b',
+    'ermB': r'\bermB\b',
+    'ermC': r'\bermC\b',
+    'mefA': r'\bmefA\b',
+    'mphA': r'\bmphA\b',
+
+    # Sulfonamide (avoid 'sul' substring matches)
+    'sul1': r'\bsul1\b',
+    'sul2': r'\bsul2\b',
+    'sul3': r'\bsul3\b',
+    'dfrA': r'\bdfrA',
+
+    # Colistin resistance
+    'mcr-1': r'\bmcr-1',
+    'mcr-': r'\bmcr-\d+',
+
+    # Other specific genes
+    'fosA': r'\bfosA',
+    'catA': r'\bcatA',
+    'floR': r'\bfloR\b',
+    'arr': r'\barr-\d+',
+    'cfr': r'\bcfr\b',
+}
+
+# False positive patterns to exclude
+FALSE_POSITIVE_PATTERNS = [
+    r'\bpartition\b',  # "par" = partition, not AMR
+    r'\bparA\b',
+    r'\bparB\b',
+    r'\bpermease\b',  # Contains "erm" but not resistance
+    r'\bterminator\b',  # Contains "erm"
+    r'\bresult\b',  # Contains "sul"
+    r'\bcapsule\b',  # Contains "sul"
+    r'\binsul\w+',  # insulin, etc.
 ]
+
+
+def is_false_positive(line):
+    """Check if line matches false positive patterns"""
+    for pattern in FALSE_POSITIVE_PATTERNS:
+        if re.search(pattern, line, re.IGNORECASE):
+            return True
+    return False
 
 
 def search_vibrant_for_amr_keywords(vibrant_dir, sample_id):
     """
     Search all VIBRANT annotation files for AMR-related keywords
 
-    Returns: list of matches with {keyword, line, file, context}
+    Returns: list of matches with {keyword, line, file, context, matched_text}
     """
     matches = []
 
@@ -70,30 +143,42 @@ def search_vibrant_for_amr_keywords(vibrant_dir, sample_id):
     annotation_files = []
     annotation_files.extend(sample_vibrant_dir.glob("**/*.tsv"))
     annotation_files.extend(sample_vibrant_dir.glob("**/*.txt"))
-    annotation_files.extend(sample_vibrant_dir.glob("**/*.gff"))
 
     print(f"  Searching {len(annotation_files)} VIBRANT files for AMR keywords...")
 
     keyword_counts = Counter()
+    false_positive_count = 0
 
     for annot_file in annotation_files:
         try:
             with open(annot_file, 'r', encoding='utf-8', errors='ignore') as f:
                 for line_num, line in enumerate(f, 1):
-                    line_lower = line.lower()
+                    # Skip header lines
+                    if line_num == 1 and '\t' in line:
+                        continue
 
-                    # Check each keyword
-                    for keyword in AMR_KEYWORDS:
-                        if keyword.lower() in line_lower:
+                    # Check for false positives first
+                    if is_false_positive(line):
+                        false_positive_count += 1
+                        continue
+
+                    # Check each keyword with regex pattern
+                    for keyword_name, pattern in AMR_KEYWORDS.items():
+                        match = re.search(pattern, line, re.IGNORECASE)
+                        if match:
+                            matched_text = match.group(0)
+
                             matches.append({
                                 'sample': sample_id,
-                                'keyword': keyword,
+                                'keyword': keyword_name,
+                                'matched_text': matched_text,
                                 'file': annot_file.name,
                                 'line_number': line_num,
-                                'context': line.strip()[:200],  # First 200 chars
+                                'context': line.strip()[:250],  # Increased to 250 chars
                                 'file_path': str(annot_file.relative_to(vibrant_dir))
                             })
-                            keyword_counts[keyword] += 1
+                            keyword_counts[keyword_name] += 1
+                            break  # Only count once per line
 
         except Exception as e:
             print(f"    ⚠️  Could not read {annot_file.name}: {e}")
@@ -103,6 +188,7 @@ def search_vibrant_for_amr_keywords(vibrant_dir, sample_id):
         print(f"\n  ✅ Found AMR-related keywords:")
         for keyword, count in keyword_counts.most_common(10):
             print(f"    - '{keyword}': {count} occurrences")
+        print(f"\n  🚫 Filtered out {false_positive_count} false positives (partition, permease, etc.)")
 
     return matches
 
@@ -129,8 +215,8 @@ def analyze_sample(results_dir, sample_id, show_details=True):
     if show_details:
         print(f"\n  📝 Sample matches (showing first 20):")
         for i, match in enumerate(matches[:20], 1):
-            print(f"    {i}. Keyword: '{match['keyword']}' in {match['file']}")
-            print(f"       Context: {match['context'][:120]}...")
+            print(f"    {i}. Keyword: '{match['keyword']}' → Matched: '{match['matched_text']}' in {match['file']}")
+            print(f"       Context: {match['context'][:150]}...")
 
     return matches
 
@@ -140,7 +226,7 @@ def export_to_csv(matches, output_file):
     import csv
 
     with open(output_file, 'w', newline='') as f:
-        fieldnames = ['sample', 'keyword', 'file', 'line_number', 'context', 'file_path']
+        fieldnames = ['sample', 'keyword', 'matched_text', 'file', 'line_number', 'context', 'file_path']
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(matches)

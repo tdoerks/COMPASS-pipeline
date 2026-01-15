@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
 """
-True AMR-Prophage Co-location Analysis (Distance-Based)
+True AMR-Prophage Co-location Analysis (Within Boundaries Only)
 
-This script performs accurate physical co-location analysis by:
+This script performs physical co-location analysis by:
 1. Parsing exact prophage coordinates from VIBRANT outputs
 2. Parsing exact AMR gene coordinates from AMRFinder
-3. Calculating physical distances between AMR genes and prophage regions
-4. Categorizing co-location based on distance thresholds
+3. Identifying AMR genes physically located WITHIN prophage boundaries
 
-Co-location Categories:
-- within_prophage: AMR gene inside prophage region boundaries
-- proximal_10kb: Within 10kb of prophage boundaries
-- proximal_50kb: Within 50kb of prophage boundaries
-- same_contig_distant: On same contig but >50kb away
-- different_contig: AMR and prophage on different contigs
+Focus: Only reports AMR genes that are truly inside prophage regions.
+This ensures we're only identifying resistance genes carried by mobile prophage elements.
 """
 
 import sys
@@ -222,24 +217,17 @@ def categorize_colocation(distance):
     """
     Categorize co-location based on distance
 
-    Categories:
-    - within_prophage: Distance = 0 (inside prophage)
-    - proximal_10kb: Distance 1-10,000 bp
-    - proximal_50kb: Distance 10,001-50,000 bp
-    - same_contig_distant: Distance >50,000 bp
-    - different_contig: On different contigs
+    Simplified categories:
+    - within_prophage: Distance = 0 (inside prophage) - TRUE CO-LOCATION
+    - outside_prophage: Any distance > 0 - NOT CO-LOCATED
     """
     if distance == 'different_contig':
-        return 'different_contig'
+        return 'outside_prophage'
 
     if distance == 0:
         return 'within_prophage'
-    elif distance <= 10000:
-        return 'proximal_10kb'
-    elif distance <= 50000:
-        return 'proximal_50kb'
     else:
-        return 'same_contig_distant'
+        return 'outside_prophage'
 
 
 def find_nearest_prophage(amr_gene, prophage_regions):
@@ -424,44 +412,20 @@ def print_colocation_report(stats, detailed_results):
     print(f"  Total AMR genes: {stats['total_amr_genes']}")
     print(f"  Total prophage regions: {stats['total_prophage_regions']}")
 
-    print(f"\n🎯 Co-location Categories:")
+    print(f"\n🎯 Co-location Results:")
     print(f"  {'Category':<25} {'Count':<10} {'Percentage'}")
     print("  " + "-"*60)
 
     total = sum(stats['colocation_categories'].values())
+    within = stats['colocation_categories'].get('within_prophage', 0)
+    outside = stats['colocation_categories'].get('outside_prophage', 0) + stats['colocation_categories'].get('no_prophage', 0)
 
-    category_order = [
-        'within_prophage',
-        'proximal_10kb',
-        'proximal_50kb',
-        'same_contig_distant',
-        'different_contig',
-        'no_prophage'
-    ]
+    print(f"  {'🔴 Inside Prophage':<25} {within:<10} {(within/total*100 if total > 0 else 0):>6.2f}%")
+    print(f"  {'⚪ Outside Prophage':<25} {outside:<10} {(outside/total*100 if total > 0 else 0):>6.2f}%")
 
-    category_labels = {
-        'within_prophage': '🔴 Inside Prophage',
-        'proximal_10kb': '🟠 Within 10kb',
-        'proximal_50kb': '🟡 Within 50kb',
-        'same_contig_distant': '🔵 Same Contig (>50kb)',
-        'different_contig': '⚪ Different Contig',
-        'no_prophage': '⚫ No Prophage Found'
-    }
-
-    for category in category_order:
-        count = stats['colocation_categories'].get(category, 0)
-        pct = (count / total * 100) if total > 0 else 0
-        label = category_labels.get(category, category)
-        print(f"  {label:<25} {count:<10} {pct:>6.2f}%")
-
-    # True co-location (within prophage)
-    true_coloc = stats['colocation_categories'].get('within_prophage', 0)
-    print(f"\n✨ TRUE CO-LOCATION (inside prophage): {true_coloc} / {total} ({true_coloc/total*100:.2f}%)")
-
-    # Proximal (within 50kb)
-    proximal = (stats['colocation_categories'].get('proximal_10kb', 0) +
-                stats['colocation_categories'].get('proximal_50kb', 0))
-    print(f"   Proximal co-location (within 50kb): {proximal} / {total} ({proximal/total*100:.2f}%)")
+    print(f"\n✨ AMR GENES CARRIED BY PROPHAGES:")
+    print(f"   {within} out of {total} AMR genes ({within/total*100:.2f}%) are physically located")
+    print(f"   inside prophage regions - potentially mobile with the prophage!")
 
     print(f"\n🧬 Top AMR Genes Inside Prophages:")
     print(f"  {'Gene':<25} {'Count'}")
@@ -475,25 +439,25 @@ def print_colocation_report(stats, detailed_results):
     for drug_class, count in stats['classes_by_category']['within_prophage'].most_common(10):
         print(f"  {drug_class:<40} {count}")
 
-    print(f"\n🦠 Co-location by Organism:")
-    print(f"  {'Organism':<20} {'Inside':<10} {'Proximal':<12} {'Total AMR'}")
-    print("  " + "-"*60)
+    print(f"\n🦠 Prophage-Carried AMR by Organism:")
+    print(f"  {'Organism':<20} {'Inside Prophage':<15} {'Total AMR':<12} {'% Prophage-Carried'}")
+    print("  " + "-"*70)
     for organism in sorted(stats['organism_colocation'].keys()):
         org_stats = stats['organism_colocation'][organism]
         inside = org_stats.get('within_prophage', 0)
-        proximal = org_stats.get('proximal_10kb', 0) + org_stats.get('proximal_50kb', 0)
         total_org = sum(org_stats.values())
-        print(f"  {organism:<20} {inside:<10} {proximal:<12} {total_org}")
+        pct = (inside / total_org * 100) if total_org > 0 else 0
+        print(f"  {organism:<20} {inside:<15} {total_org:<12} {pct:>6.2f}%")
 
-    print(f"\n📅 Co-location by Year:")
-    print(f"  {'Year':<8} {'Inside':<10} {'Proximal':<12} {'Total AMR'}")
+    print(f"\n📅 Prophage-Carried AMR by Year:")
+    print(f"  {'Year':<8} {'Inside Prophage':<15} {'Total AMR':<12} {'% Prophage-Carried'}")
     print("  " + "-"*50)
     for year in sorted(stats['year_colocation'].keys()):
         year_stats = stats['year_colocation'][year]
         inside = year_stats.get('within_prophage', 0)
-        proximal = year_stats.get('proximal_10kb', 0) + year_stats.get('proximal_50kb', 0)
         total_year = sum(year_stats.values())
-        print(f"  {year:<8} {inside:<10} {proximal:<12} {total_year}")
+        pct = (inside / total_year * 100) if total_year > 0 else 0
+        print(f"  {year:<8} {inside:<15} {total_year:<12} {pct:>6.2f}%")
 
     print("\n" + "="*80 + "\n")
 

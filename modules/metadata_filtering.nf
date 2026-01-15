@@ -209,16 +209,22 @@ process FILTER_NARMS_SAMPLES {
         max_samples = "${params.max_samples}"
         if max_samples and max_samples != "null":
             max_samples = int(max_samples)
+            print(f"  max_samples parameter: {max_samples}")
+            print(f"  Current sample count: {len(combined)}")
             if len(combined) > max_samples:
-                print(f"  Limiting to first {max_samples} samples")
+                print(f"  Applying .head({max_samples}) to limit samples")
                 combined = combined.head(max_samples)
+                print(f"  After .head(): {len(combined)} samples")
+            else:
+                print(f"  No limiting needed ({len(combined)} <= {max_samples})")
 
-        print(f"\\nTotal samples to process: {len(combined)}")
+        print(f"\\nFinal sample count before writing: {len(combined)}")
         for org in combined['organism'].unique():
             count = len(combined[combined['organism'] == org])
             print(f"  {org}: {count}")
 
         combined.to_csv('filtered_samples.csv', index=False)
+        print(f"CSV written with {len(combined)} data rows")
 
         with open('srr_accessions.txt', 'w') as f:
             for srr in combined['Run']:

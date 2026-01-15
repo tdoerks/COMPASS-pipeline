@@ -46,19 +46,73 @@ def extract_prophage_sequences(vibrant_dir, sample_id):
     return None
 
 
-def run_amrfinder_on_fasta(fasta_file, output_file, organism='Salmonella'):
+def find_amrfinder_database():
     """
-    Run AMRFinderPlus on a FASTA file
+    Try to find AMRFinder database from common locations
+
+    Returns: Path to database or None
+    """
+    # Common database locations
+    possible_paths = [
+        Path.home() / "databases/amrfinder",
+        Path.home() / ".amrfinder",
+        Path("/homes") / Path.home().name / "databases/amrfinder",
+    ]
+
+    for db_path in possible_paths:
+        if db_path.exists():
+            # Look for AMRProt file which indicates valid database
+            amrprot_files = list(db_path.rglob("AMRProt"))
+            if amrprot_files:
+                # Return the directory containing AMRProt
+                return amrprot_files[0].parent
+
+    return None
+
+
+def run_amrfinder_on_fasta(fasta_file, output_file, organism='Salmonella', amrfinder_db=None):
+    """
+    Run AMRFinderPlus on a FASTA file using Apptainer container
+
+    This mimics how the COMPASS pipeline runs AMRFinder
 
     Returns: True if successful, False otherwise
     """
-    cmd = [
+    # AMRFinder container used by COMPASS pipeline
+    container = 'quay.io/biocontainers/ncbi-amrfinderplus:3.12.8--h283d18e_0'
+
+    # Get absolute paths for volume mounting
+    fasta_abs = Path(fasta_file).resolve()
+    output_abs = Path(output_file).resolve()
+    work_dir = output_abs.parent
+
+    # Build apptainer command
+    cmd = ['apptainer', 'exec']
+
+    # Add volume mounts
+    cmd.extend(['--bind', f'{fasta_abs.parent}:{fasta_abs.parent}'])
+    cmd.extend(['--bind', f'{work_dir}:{work_dir}'])
+
+    # Mount database if provided
+    if amrfinder_db:
+        db_path = Path(amrfinder_db).resolve()
+        cmd.extend(['--bind', f'{db_path}:{db_path}'])
+
+    # Add container image
+    cmd.append(container)
+
+    # Add AMRFinder command
+    cmd.extend([
         'amrfinder',
-        '--nucleotide', str(fasta_file),
+        '--nucleotide', str(fasta_abs),
         '--organism', organism,
         '--plus',
-        '--output', str(output_file)
-    ]
+        '--output', str(output_abs)
+    ])
+
+    # Add database path if provided
+    if amrfinder_db:
+        cmd.extend(['--database', str(db_path)])
 
     try:
         result = subprocess.run(
@@ -78,7 +132,8 @@ def run_amrfinder_on_fasta(fasta_file, output_file, organism='Salmonella'):
         print(f"    ⚠️  AMRFinder timed out after 5 minutes")
         return False
     except FileNotFoundError:
-        print(f"    ❌ AMRFinder not found - is it installed and in PATH?")
+        print(f"    ❌ Apptainer not found - is it installed and in PATH?")
+        print(f"    💡 Try: module load Apptainer")
         return False
     except Exception as e:
         print(f"    ⚠️  Error running AMRFinder: {e}")
@@ -147,7 +202,7 @@ def get_whole_genome_amr(amr_dir, sample_id):
     return parse_amrfinder_results(amr_file)
 
 
-def analyze_sample(results_dir, sample_id, temp_dir):
+def analyze_sample(results_dir, sample_id, temp_dir, amrfinder_db=None):
     """
     Analyze a single sample:
     1. Extract prophage sequences
@@ -190,9 +245,11 @@ def analyze_sample(results_dir, sample_id, temp_dir):
     prophage_amr_output = Path(temp_dir) / f"{sample_id}_prophage_amr.tsv"
 
     print(f"\n  🔍 Running AMRFinderPlus on prophage sequences...")
-    print(f"     (This may take 1-2 minutes per sample)")
+    print(f"     (Using Apptainer container - this may take 1-2 minutes)")
+    if amrfinder_db:
+        print(f"     Database: {amrfinder_db}")
 
-    success = run_amrfinder_on_fasta(prophage_fasta, prophage_amr_output)
+    success = run_amrfinder_on_fasta(prophage_fasta, prophage_amr_output, amrfinder_db=amrfinder_db)
 
     if not success:
         print(f"  ❌ AMRFinder failed on prophage sequences")
@@ -362,6 +419,15 @@ def main():
         print(f"❌ Error: VIBRANT directory not found: {vibrant_dir}")
         sys.exit(1)
 
+    # Find AMRFinder database
+    print(f"\n🔍 Looking for AMRFinder database...")
+    amrfinder_db = find_amrfinder_database()
+    if amrfinder_db:
+        print(f"   ✅ Found AMRFinder database: {amrfinder_db}")
+    else:
+        print(f"   ⚠️  AMRFinder database not found in common locations")
+        print(f"   Will try to use container's built-in database")
+
     # Create temporary directory for AMRFinder outputs
     temp_dir = tempfile.mkdtemp(prefix="prophage_amr_")
     print(f"\n📁 Temporary AMRFinder outputs: {temp_dir}")
@@ -371,7 +437,7 @@ def main():
     # Single sample mode
     if len(sys.argv) > 2:
         sample_id = sys.argv[2]
-        result = analyze_sample(results_dir, sample_id, temp_dir)
+        result = analyze_sample(results_dir, sample_id, temp_dir, amrfinder_db=amrfinder_db)
         all_results.append(result)
 
     # All samples mode
@@ -394,7 +460,7 @@ def main():
 
             print(f"\n[{i}/{len(phage_files)}] Processing {sample_id}...")
 
-            result = analyze_sample(results_dir, sample_id, temp_dir)
+            result = analyze_sample(results_dir, sample_id, temp_dir, amrfinder_db=amrfinder_db)
             all_results.append(result)
 
     # Print summary

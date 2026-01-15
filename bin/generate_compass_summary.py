@@ -156,33 +156,83 @@ def parse_mlst(mlst_dir):
     mlst_data = {}
     mlst_path = Path(mlst_dir)
 
+    print(f"\n{'='*60}")
+    print(f"MLST PARSING DEBUG")
+    print(f"{'='*60}")
     print(f"  Searching for MLST files in: {mlst_path}")
+    print(f"  Directory exists: {mlst_path.exists()}")
 
     if mlst_path.exists():
+        # List ALL files in directory for debugging
+        all_files = list(mlst_path.glob('*'))
+        print(f"  Total files in MLST directory: {len(all_files)}")
+        if all_files:
+            print(f"  All files: {[f.name for f in all_files[:10]]}")  # Show first 10
+
         mlst_files = list(mlst_path.glob('*_mlst.tsv'))
-        print(f"  Found {len(mlst_files)} MLST files: {[f.name for f in mlst_files]}")
+        print(f"  Found {len(mlst_files)} MLST TSV files: {[f.name for f in mlst_files]}")
+
+        if len(mlst_files) == 0:
+            print(f"  ⚠️  WARNING: No *_mlst.tsv files found!")
+            print(f"  Expected pattern: SAMPLEID_mlst.tsv")
 
         for mlst_file in mlst_files:
             sample_id = mlst_file.stem.replace('_mlst', '')
+            print(f"\n  Processing: {mlst_file.name}")
+            print(f"    Full path: {mlst_file}")
+            print(f"    File size: {mlst_file.stat().st_size} bytes")
+
             try:
+                # Read raw content for debugging
+                with open(mlst_file, 'r') as f:
+                    first_lines = [f.readline().strip() for _ in range(3)]
+                print(f"    First 3 lines of file:")
+                for i, line in enumerate(first_lines, 1):
+                    print(f"      {i}: {line[:100]}")  # Truncate long lines
+
                 df = pd.read_csv(mlst_file, sep='\t')
-                print(f"    Parsing {mlst_file.name}: {len(df)} rows, columns: {list(df.columns)}")
+                print(f"    Parsed dataframe: {len(df)} rows, {len(df.columns)} columns")
+                print(f"    Column names: {list(df.columns)}")
 
                 if not df.empty:
                     # MLST format: FILE SCHEME ST gene1 gene2 ...
+                    print(f"    First row data:")
+                    for col in df.columns[:5]:  # Show first 5 columns
+                        print(f"      {col}: {df.iloc[0][col]}")
+
                     scheme = str(df.iloc[0]['SCHEME']) if 'SCHEME' in df.columns else '-'
                     st = str(df.iloc[0]['ST']) if 'ST' in df.columns else '-'
+
+                    # Check if we actually got valid data
+                    if scheme == '-' or st == '-':
+                        print(f"    ⚠️  WARNING: Missing SCHEME or ST column!")
+
                     mlst_data[sample_id] = {
                         'mlst_scheme': scheme,
                         'mlst_st': st
                     }
-                    print(f"      → Sample {sample_id}: scheme={scheme}, ST={st}")
-            except Exception as e:
-                print(f"Warning: Could not parse MLST results for {mlst_file}: {e}", file=sys.stderr)
-    else:
-        print(f"  MLST directory does not exist: {mlst_path}")
+                    print(f"    ✓ Successfully parsed: Sample={sample_id}, Scheme={scheme}, ST={st}")
+                else:
+                    print(f"    ⚠️  WARNING: Dataframe is empty!")
 
-    print(f"  Total MLST data parsed: {len(mlst_data)} samples")
+            except Exception as e:
+                print(f"    ❌ ERROR parsing {mlst_file.name}: {e}")
+                import traceback
+                traceback.print_exc()
+    else:
+        print(f"  ❌ MLST directory does not exist: {mlst_path}")
+
+    print(f"\n{'='*60}")
+    print(f"  MLST PARSING SUMMARY")
+    print(f"  Total samples with MLST data: {len(mlst_data)}")
+    if mlst_data:
+        print(f"  Samples: {list(mlst_data.keys())}")
+        print(f"  Schemes found: {set(d['mlst_scheme'] for d in mlst_data.values())}")
+        print(f"  STs found: {set(d['mlst_st'] for d in mlst_data.values())}")
+    else:
+        print(f"  ⚠️  No MLST data found - charts will show 'No data available' message")
+    print(f"{'='*60}\n")
+
     return mlst_data
 
 def parse_sistr(sistr_dir):
@@ -1853,12 +1903,63 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             </div>
         </div>
 
-        <!-- Note about Quality Control data -->
-        <div style="margin-top: 30px; padding: 20px; background: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 8px;">
-            <p style="margin: 0; color: #1e40af;">
-                <strong>ℹ️ Note:</strong> All key quality control metrics from MultiQC have been integrated into the charts above.
-                The original MultiQC HTML report is available in the <code>multiqc/</code> directory alongside this summary file.
+        <!-- Smart MultiQC Link with JavaScript detection -->
+        <div id="multiqcLinkContainer" style="margin-top: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px; color: white;">
+            <h2 style="margin-bottom: 15px; color: white;">📊 Full Quality Control Report</h2>
+            <p style="margin-bottom: 20px; opacity: 0.9;">
+                For detailed read-level QC metrics including FastQC sequence quality, adapter content,
+                and fastp trimming statistics, view the comprehensive MultiQC report.
             </p>
+
+            <!-- This will be populated by JavaScript based on file existence -->
+            <div id="multiqcLinkContent"></div>
+
+            <script>
+                // Check if MultiQC report exists using a simple fetch test
+                async function checkMultiQCExists() {
+                    const multiqcPath = '../multiqc/multiqc_report.html';
+                    const container = document.getElementById('multiqcLinkContent');
+
+                    try {
+                        const response = await fetch(multiqcPath, { method: 'HEAD' });
+                        if (response.ok) {
+                            // File exists - show working link
+                            container.innerHTML = `
+                                <a href="${multiqcPath}" target="_blank"
+                                   style="display: inline-block; padding: 15px 30px; background: white; color: #667eea;
+                                          text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 1.1em;
+                                          box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: transform 0.2s;"
+                                   onmouseover="this.style.transform='translateY(-2px)'"
+                                   onmouseout="this.style.transform='translateY(0)'">
+                                    ✅ Open Full MultiQC Report
+                                </a>
+                                <p style="margin-top: 15px; font-size: 0.9em; opacity: 0.8;">
+                                    Opens in new tab • Includes FastQC, fastp, QUAST, and BUSCO detailed metrics
+                                </p>`;
+                        } else {
+                            throw new Error('File not found');
+                        }
+                    } catch (error) {
+                        // File doesn't exist - show helpful message
+                        container.innerHTML = `
+                            <div style="padding: 20px; background: rgba(255,255,255,0.2); border-radius: 8px;">
+                                <p style="margin: 0; font-size: 1.1em;">
+                                    <strong>ℹ️ MultiQC Report Location</strong>
+                                </p>
+                                <p style="margin-top: 10px; opacity: 0.9;">
+                                    The MultiQC report is available in the <code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px;">multiqc/</code>
+                                    directory alongside this summary file.
+                                </p>
+                                <p style="margin-top: 10px; opacity: 0.8; font-size: 0.9em;">
+                                    To view it: Download the entire output directory and open <code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px;">multiqc/multiqc_report.html</code> in your browser.
+                                </p>
+                            </div>`;
+                    }
+                }
+
+                // Check when page loads
+                checkMultiQCExists();
+            </script>
         </div>"""
 
     html += """

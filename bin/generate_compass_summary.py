@@ -683,9 +683,29 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                        'serovar', 'inc_groups', 'mob_types', 'num_lytic', 'num_lysogenic',
                        'num_prophage_hits', 'top_prophage_matches'}
 
-    # Get all column names that are suitable for grouping
-    # NOTE: Any column from the metadata CSV will appear here automatically!
-    metadata_fields = [col for col in df.columns if col not in excluded_fields]
+    # Whitelist of useful metadata fields to display (instead of all 49 SRA fields)
+    # This keeps the dropdown manageable and focused on relevant information
+    metadata_whitelist = {
+        # Sample identifiers
+        'Run', 'BioSample', 'BioProject', 'SampleName',
+        # Platform information
+        'Platform', 'Model', 'LibraryStrategy', 'LibrarySource', 'LibraryLayout',
+        # Organism information
+        'Organism', 'ScientificName',
+        # Source/isolation details
+        'source_type', 'isolation_source', 'host', 'geo_loc_name',
+        # Temporal information
+        'Collection_Date', 'year',
+        # Sequencing metrics
+        'spots', 'bases', 'avgLength',
+        # Dates
+        'ReleaseDate', 'LoadDate'
+    }
+
+    # Get metadata field names that are both in our whitelist AND in the dataframe
+    # NOTE: Only whitelisted metadata fields will appear in the Metadata Explorer dropdown
+    metadata_fields = [col for col in df.columns
+                      if col not in excluded_fields and col in metadata_whitelist]
 
     # Create aggregation data structure for ALL metadata fields
     # This allows the JavaScript to dynamically generate charts for any field
@@ -1831,28 +1851,13 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     </tbody>
                 </table>
             </div>
-        </div>"""
+        </div>
 
-    # Add MultiQC Report Download Section (only if MultiQC report exists)
-    if multiqc_path and Path(multiqc_path).exists():
-        html += """
-        <!-- MultiQC Report Download Section -->
-        <div style="margin-top: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px; color: white;">
-            <h2 style="margin-bottom: 15px; color: white;">📊 Full Quality Control Report</h2>
-            <p style="margin-bottom: 20px; opacity: 0.9;">
-                For detailed read-level QC metrics including FastQC sequence quality, adapter content,
-                and fastp trimming statistics, view the comprehensive MultiQC report.
-            </p>
-            <a href="../multiqc/multiqc_report.html" target="_blank"
-               style="display: inline-block; padding: 15px 30px; background: white; color: #667eea;
-                      text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 1.1em;
-                      box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: transform 0.2s;"
-               onmouseover="this.style.transform='translateY(-2px)'"
-               onmouseout="this.style.transform='translateY(0)'">
-                📥 Open Full MultiQC Report
-            </a>
-            <p style="margin-top: 15px; font-size: 0.9em; opacity: 0.8;">
-                Opens in new tab • Includes FastQC, fastp, QUAST, and BUSCO detailed metrics
+        <!-- Note about Quality Control data -->
+        <div style="margin-top: 30px; padding: 20px; background: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 8px;">
+            <p style="margin: 0; color: #1e40af;">
+                <strong>ℹ️ Note:</strong> All key quality control metrics from MultiQC have been integrated into the charts above.
+                The original MultiQC HTML report is available in the <code>multiqc/</code> directory alongside this summary file.
             </p>
         </div>"""
 
@@ -2904,111 +2909,132 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         const mlstSTLabels = MLST_ST_LABELS_PLACEHOLDER;
         const mlstSTCounts = MLST_ST_COUNTS_PLACEHOLDER;
 
-        const mlstSTCtx = document.getElementById('mlstSTChart').getContext('2d');
-        const mlstSTChart = new Chart(mlstSTCtx, {
-            type: 'bar',
-            data: {
-                labels: mlstSTLabels,
-                datasets: [{
-                    label: 'Number of Samples',
-                    data: mlstSTCounts,
-                    backgroundColor: '#22c55e',
-                    borderColor: '#16a34a',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: 'y',  // Horizontal bar chart
-                plugins: {
-                    legend: {
-                        display: false
-                    }
+        // Check if we have MLST data, otherwise show empty message
+        const mlstSTCanvas = document.getElementById('mlstSTChart');
+        if (mlstSTLabels.length > 0) {
+            const mlstSTCtx = mlstSTCanvas.getContext('2d');
+            const mlstSTChart = new Chart(mlstSTCtx, {
+                type: 'bar',
+                data: {
+                    labels: mlstSTLabels,
+                    datasets: [{
+                        label: 'Number of Samples',
+                        data: mlstSTCounts,
+                        backgroundColor: '#22c55e',
+                        borderColor: '#16a34a',
+                        borderWidth: 1
+                    }]
                 },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Number of Samples'
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',  // Horizontal bar chart
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Samples'
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
+        } else {
+            // Display empty state message
+            mlstSTCanvas.parentElement.innerHTML = '<div style="padding: 40px; text-align: center; color: #999;"><p style="font-size: 1.2em;">📊 No MLST data available</p><p style="margin-top: 10px;">None of the samples have MLST sequence types assigned.</p></div>';
+        }
 
         // Strain Typing: MLST Scheme Distribution
         const mlstSchemeLabels = MLST_SCHEME_LABELS_PLACEHOLDER;
         const mlstSchemeCounts = MLST_SCHEME_COUNTS_PLACEHOLDER;
 
-        const mlstSchemeCtx = document.getElementById('mlstSchemeChart').getContext('2d');
-        const mlstSchemeChart = new Chart(mlstSchemeCtx, {
-            type: 'pie',
-            data: {
-                labels: mlstSchemeLabels,
-                datasets: [{
-                    data: mlstSchemeCounts,
-                    backgroundColor: [
-                        '#22c55e',
-                        '#10b981',
-                        '#14b8a6',
-                        '#06b6d4',
-                        '#0ea5e9',
-                        '#3b82f6'
-                    ],
-                    borderWidth: 2,
-                    borderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'right'
+        // Check if we have MLST scheme data, otherwise show empty message
+        const mlstSchemeCanvas = document.getElementById('mlstSchemeChart');
+        if (mlstSchemeLabels.length > 0) {
+            const mlstSchemeCtx = mlstSchemeCanvas.getContext('2d');
+            const mlstSchemeChart = new Chart(mlstSchemeCtx, {
+                type: 'pie',
+                data: {
+                    labels: mlstSchemeLabels,
+                    datasets: [{
+                        data: mlstSchemeCounts,
+                        backgroundColor: [
+                            '#22c55e',
+                            '#10b981',
+                            '#14b8a6',
+                            '#06b6d4',
+                            '#0ea5e9',
+                            '#3b82f6'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        }
                     }
                 }
-            }
-        });
+            });
+        } else {
+            // Display empty state message
+            mlstSchemeCanvas.parentElement.innerHTML = '<div style="padding: 40px; text-align: center; color: #999;"><p style="font-size: 1.2em;">📊 No MLST scheme data available</p><p style="margin-top: 10px;">None of the samples have MLST typing schemes assigned.</p></div>';
+        }
 
         // Strain Typing: Serovar Distribution (Salmonella)
         const serovarLabels = SEROVAR_LABELS_PLACEHOLDER;
         const serovarCounts = SEROVAR_COUNTS_PLACEHOLDER;
 
-        const serovarCtx = document.getElementById('serovarChart').getContext('2d');
-        const serovarChart = new Chart(serovarCtx, {
-            type: 'bar',
-            data: {
-                labels: serovarLabels,
-                datasets: [{
-                    label: 'Number of Samples',
-                    data: serovarCounts,
-                    backgroundColor: '#f59e0b',
-                    borderColor: '#d97706',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: 'y',  // Horizontal bar chart
-                plugins: {
-                    legend: {
-                        display: false
-                    }
+        // Check if we have serovar data, otherwise show empty message
+        const serovarCanvas = document.getElementById('serovarChart');
+        if (serovarLabels.length > 0) {
+            const serovarCtx = serovarCanvas.getContext('2d');
+            const serovarChart = new Chart(serovarCtx, {
+                type: 'bar',
+                data: {
+                    labels: serovarLabels,
+                    datasets: [{
+                        label: 'Number of Samples',
+                        data: serovarCounts,
+                        backgroundColor: '#f59e0b',
+                        borderColor: '#d97706',
+                        borderWidth: 1
+                    }]
                 },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Number of Samples'
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',  // Horizontal bar chart
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Samples'
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
+        } else {
+            // Display empty state message
+            serovarCanvas.parentElement.innerHTML = '<div style="padding: 40px; text-align: center; color: #999;"><p style="font-size: 1.2em;">📊 No serovar data available</p><p style="margin-top: 10px;">None of the samples have Salmonella serovar predictions (SISTR is Salmonella-specific).</p></div>';
+        }
 
         // N50 Distribution Histogram
         const n50Labels = N50_LABELS_PLACEHOLDER;

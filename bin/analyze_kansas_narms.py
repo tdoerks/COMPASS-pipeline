@@ -118,9 +118,44 @@ class DataLoader:
         df = pd.read_csv(self.summary_file, sep='\t')
         logger.info(f"Loaded {len(df)} samples with {len(df.columns)} columns")
 
-        # Add year column if not present (extract from releasedate or other date fields)
-        if 'Year' not in df.columns and 'releasedate' in df.columns:
-            df['Year'] = pd.to_datetime(df['releasedate'], errors='coerce').dt.year
+        # Try to load metadata to get organism and year info
+        metadata_file = self.results_dir / "filtered_samples" / "filtered_samples.csv"
+        if metadata_file.exists():
+            logger.info("Loading metadata from filtered_samples.csv...")
+            metadata = pd.read_csv(metadata_file)
+
+            # Merge organism and year if available
+            merge_cols = []
+            if 'organism' in metadata.columns:
+                merge_cols.append('organism')
+            if 'Organism' in metadata.columns:
+                metadata.rename(columns={'Organism': 'organism'}, inplace=True)
+                merge_cols.append('organism')
+            if 'Year' in metadata.columns:
+                merge_cols.append('Year')
+
+            # Extract year from date fields if not present
+            if 'Year' not in metadata.columns:
+                for date_col in ['ReleaseDate', 'releasedate', 'LoadDate', 'collection_date']:
+                    if date_col in metadata.columns:
+                        metadata['Year'] = pd.to_datetime(metadata[date_col], errors='coerce').dt.year
+                        merge_cols.append('Year')
+                        break
+
+            # Merge on sample_id (or Run column from metadata)
+            if 'Run' in metadata.columns:
+                metadata_merge = metadata[['Run'] + [col for col in merge_cols if col in metadata.columns]].copy()
+                metadata_merge.rename(columns={'Run': 'sample_id'}, inplace=True)
+                df = df.merge(metadata_merge, on='sample_id', how='left')
+                logger.info(f"Merged metadata: added {len(merge_cols)} columns")
+
+        # Add placeholder columns if still missing
+        if 'organism' not in df.columns:
+            df['organism'] = 'Unknown'
+            logger.warning("No organism information available - using 'Unknown'")
+        if 'Year' not in df.columns:
+            df['Year'] = 2023  # Default year
+            logger.warning("No year information available - using default")
 
         return df
 
@@ -227,13 +262,24 @@ class PhageAnalyzer:
         logger.info("Extracting prophage statistics...")
 
         # Get phage-related columns from summary
-        phage_cols = [col for col in self.df.columns if 'phage' in col.lower() or 'vibrant' in col.lower()]
+        phage_cols = [col for col in self.df.columns if 'phage' in col.lower() or 'vibrant' in col.lower() or 'lytic' in col.lower() or 'lysogenic' in col.lower()]
 
-        stats_df = self.df[['sample_id', 'organism', 'Year'] + phage_cols].copy()
+        # Build list of required columns that exist
+        required_cols = ['sample_id']
+        if 'organism' in self.df.columns:
+            required_cols.append('organism')
+        if 'Year' in self.df.columns:
+            required_cols.append('Year')
 
-        # Parse num_phages if exists
-        if 'num_phages' in stats_df.columns:
+        stats_df = self.df[required_cols + phage_cols].copy()
+
+        # Use num_prophages as the main count
+        if 'num_prophages' in stats_df.columns:
+            stats_df['num_phages'] = pd.to_numeric(stats_df['num_prophages'], errors='coerce').fillna(0)
+        elif 'num_phages' in stats_df.columns:
             stats_df['num_phages'] = pd.to_numeric(stats_df['num_phages'], errors='coerce').fillna(0)
+        else:
+            stats_df['num_phages'] = 0
 
         return stats_df
 
@@ -393,8 +439,14 @@ class AMRAnalyzer:
 
         matrix_df = pd.DataFrame(matrix_data)
 
-        # Merge with metadata
-        matrix_df = matrix_df.merge(self.df[['sample_id', 'organism', 'Year']], on='sample_id', how='left')
+        # Merge with metadata (only if columns exist)
+        merge_cols = ['sample_id']
+        if 'organism' in self.df.columns:
+            merge_cols.append('organism')
+        if 'Year' in self.df.columns:
+            merge_cols.append('Year')
+
+        matrix_df = matrix_df.merge(self.df[merge_cols], on='sample_id', how='left')
 
         logger.info(f"AMR matrix: {len(matrix_df)} samples x {len(all_genes)} genes")
         return matrix_df
@@ -518,11 +570,19 @@ class CorrelationAnalyzer:
         logger.info("Building combined feature matrix...")
 
         # Start with sample IDs
-        matrix = self.df[['sample_id', 'organism']].copy()
+        base_cols = ['sample_id']
+        if 'organism' in self.df.columns:
+            base_cols.append('organism')
+
+        matrix = self.df[base_cols].copy()
 
         # Add phage counts
-        if 'num_phages' in self.df.columns:
+        if 'num_prophages' in self.df.columns:
+            matrix['has_prophages'] = (self.df['num_prophages'] > 0).astype(int)
+            matrix['num_prophages'] = self.df['num_prophages']
+        elif 'num_phages' in self.df.columns:
             matrix['has_prophages'] = (self.df['num_phages'] > 0).astype(int)
+            matrix['num_prophages'] = self.df['num_phages']
 
         # Add AMR gene counts
         if 'num_amr_genes' in self.df.columns:
@@ -531,6 +591,7 @@ class CorrelationAnalyzer:
         # Add plasmid presence
         if 'num_plasmids' in self.df.columns:
             matrix['has_plasmids'] = (self.df['num_plasmids'] > 0).astype(int)
+            matrix['num_plasmids'] = self.df['num_plasmids']
 
         # Add MDR status
         if 'mdr_status' in self.df.columns:

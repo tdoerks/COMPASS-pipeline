@@ -6,6 +6,7 @@ Aggregates results from all pipeline modules into comprehensive summary with vis
 
 import argparse
 import pandas as pd
+import numpy as np
 import json
 from pathlib import Path
 import sys
@@ -447,12 +448,77 @@ def parse_diamond_prophage(diamond_dir):
                 print(f"Warning: Could not parse DIAMOND results for {diamond_file}: {e}", file=sys.stderr)
     return diamond_data
 
+def parse_multiqc_data(multiqc_dir):
+    """Parse MultiQC JSON data to extract key QC metrics for visualization
+
+    Args:
+        multiqc_dir: Path to directory containing MultiQC report (should have multiqc_data/ subdirectory)
+
+    Returns:
+        dict with parsed QC data including FastQC, fastp, QUAST, BUSCO metrics
+    """
+    if not multiqc_dir or not Path(multiqc_dir).exists():
+        return None
+
+    # MultiQC stores data in multiqc_data/multiqc_data.json
+    json_path = Path(multiqc_dir).parent / 'multiqc_data' / 'multiqc_data.json'
+    if not json_path.exists():
+        print(f"⚠️  MultiQC JSON data not found at {json_path}")
+        return None
+
+    try:
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+
+        parsed = {
+            'fastqc': {},
+            'fastp': {},
+            'quast': {},
+            'busco': {}
+        }
+
+        # Extract FastQC data (per-base sequence quality, per-sequence quality scores, etc.)
+        if 'report_plot_data' in data:
+            plot_data = data['report_plot_data']
+
+            # FastQC: Per-base sequence quality
+            if 'fastqc_per_base_sequence_quality_plot' in plot_data:
+                parsed['fastqc']['per_base_quality'] = plot_data['fastqc_per_base_sequence_quality_plot']
+
+            # FastQC: Per-sequence quality scores
+            if 'fastqc_per_sequence_quality_scores_plot' in plot_data:
+                parsed['fastqc']['per_seq_quality'] = plot_data['fastqc_per_sequence_quality_scores_plot']
+
+            # FastQC: Sequence length distribution
+            if 'fastqc_sequence_length_distribution_plot' in plot_data:
+                parsed['fastqc']['seq_length_dist'] = plot_data['fastqc_sequence_length_distribution_plot']
+
+            # fastp: filtered reads stats
+            if 'fastp-insert-size-plot' in plot_data:
+                parsed['fastp']['insert_size'] = plot_data['fastp-insert-size-plot']
+
+            if 'fastp_filtered_reads_plot' in plot_data:
+                parsed['fastp']['filtered_reads'] = plot_data['fastp_filtered_reads_plot']
+
+        # Extract general stats table (has summary metrics per sample)
+        if 'report_general_stats_data' in data:
+            parsed['general_stats'] = data['report_general_stats_data']
+
+        return parsed
+
+    except Exception as e:
+        print(f"⚠️  Error parsing MultiQC JSON: {e}")
+        return None
+
 def generate_html_report(df, output_file, functional_diversity=None, multiqc_path=None, generation_time=None):
     """Generate interactive multi-tab HTML report with visualizations"""
 
     # Get generation time
     if generation_time is None:
         generation_time = datetime.now()
+
+    # Parse MultiQC data if available
+    multiqc_data = parse_multiqc_data(multiqc_path) if multiqc_path else None
 
     # Calculate summary statistics
     total_samples = len(df)
@@ -1664,7 +1730,46 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     <canvas id="buscoHistChart"></canvas>
                 </div>
             </div>
-        </div>
+        </div>"""
+
+    # Add Read QC section if MultiQC data is available
+    if multiqc_data and (multiqc_data.get('fastqc') or multiqc_data.get('fastp')):
+        html += """
+        <!-- Read Quality Metrics from MultiQC -->
+        <div style="margin-top: 40px;">
+            <h2 style="margin-bottom: 15px;">📊 Read Quality Metrics</h2>
+            <p style="color: #666; margin-bottom: 20px;">
+                Quality metrics from FastQC and fastp read processing
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px;">"""
+
+        # FastQC per-sequence quality chart
+        if multiqc_data.get('fastqc', {}).get('per_seq_quality'):
+            html += """
+                <div class="chart-container">
+                    <h2>Read Quality Scores</h2>
+                    <p style="color: #666; margin-bottom: 20px;">Distribution of mean quality scores per read (FastQC)</p>
+                    <div class="chart-wrapper">
+                        <canvas id="fastqcQualityChart"></canvas>
+                    </div>
+                </div>"""
+
+        # General stats summary if available
+        if multiqc_data.get('general_stats'):
+            html += """
+                <div class="chart-container">
+                    <h2>Read Processing Summary</h2>
+                    <p style="color: #666; margin-bottom: 20px;">Read counts and quality filtering statistics</p>
+                    <div class="chart-wrapper">
+                        <canvas id="readStatsChart"></canvas>
+                    </div>
+                </div>"""
+
+        html += """
+            </div>
+        </div>"""
+
+    html += """
 
         <!-- QC Failures Section -->
         <div style="margin-top: 40px;">
@@ -1726,14 +1831,17 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     </tbody>
                 </table>
             </div>
-        </div>
+        </div>"""
 
+    # Add MultiQC Report Download Section (only if MultiQC report exists)
+    if multiqc_path and Path(multiqc_path).exists():
+        html += """
         <!-- MultiQC Report Download Section -->
         <div style="margin-top: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px; color: white;">
             <h2 style="margin-bottom: 15px; color: white;">📊 Full Quality Control Report</h2>
             <p style="margin-bottom: 20px; opacity: 0.9;">
                 For detailed read-level QC metrics including FastQC sequence quality, adapter content,
-                and fastp trimming statistics, download the comprehensive MultiQC report.
+                and fastp trimming statistics, view the comprehensive MultiQC report.
             </p>
             <a href="../multiqc/multiqc_report.html" target="_blank"
                style="display: inline-block; padding: 15px 30px; background: white; color: #667eea;
@@ -1746,7 +1854,9 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <p style="margin-top: 15px; font-size: 0.9em; opacity: 0.8;">
                 Opens in new tab • Includes FastQC, fastp, QUAST, and BUSCO detailed metrics
             </p>
-        </div>
+        </div>"""
+
+    html += """
     </div>
 
     <!-- Data Table Tab -->
@@ -3072,6 +3182,9 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             }
         });
 
+        // MultiQC Read Quality Charts (if data available)
+        MULTIQC_CHARTS_PLACEHOLDER
+
         // Prophage Functional Diversity Pie Chart
         const functionalLabels = FUNCTIONAL_LABELS_PLACEHOLDER;
         const functionalData = FUNCTIONAL_DATA_PLACEHOLDER;
@@ -3165,6 +3278,136 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = js_code.replace('CONTIG_COUNTS_PLACEHOLDER', json.dumps(contig_counts))
     js_code = js_code.replace('BUSCO_LABELS_PLACEHOLDER', json.dumps(busco_labels))
     js_code = js_code.replace('BUSCO_COUNTS_PLACEHOLDER', json.dumps(busco_counts))
+
+    # MultiQC Read Quality Charts
+    multiqc_charts_js = ""
+    if multiqc_data:
+        # FastQC per-sequence quality scores chart
+        if multiqc_data.get('fastqc', {}).get('per_seq_quality'):
+            quality_data = multiqc_data['fastqc']['per_seq_quality']
+            # Aggregate data across all samples for summary chart
+            all_quality_values = []
+            for sample_data in quality_data.values():
+                if isinstance(sample_data, dict) and 'data' in sample_data:
+                    for x, y in sample_data['data']:
+                        all_quality_values.extend([x] * int(y))  # Repeat quality score by count
+
+            if all_quality_values:
+                # Create histogram bins
+                quality_hist, quality_bins = np.histogram(all_quality_values, bins=20)
+                quality_labels = [f"{quality_bins[i]:.0f}-{quality_bins[i+1]:.0f}" for i in range(len(quality_bins)-1)]
+
+                multiqc_charts_js += f"""
+        // FastQC Read Quality Distribution
+        const fastqcQualityCtx = document.getElementById('fastqcQualityChart');
+        if (fastqcQualityCtx) {{
+            const fastqcQualityChart = new Chart(fastqcQualityCtx.getContext('2d'), {{
+                type: 'bar',
+                data: {{
+                    labels: {json.dumps(quality_labels)},
+                    datasets: [{{
+                        label: 'Read Count',
+                        data: {json.dumps(quality_hist.tolist())},
+                        backgroundColor: '#FF6B6B',
+                        borderColor: '#EE5A52',
+                        borderWidth: 1
+                    }}]
+                }},
+                options: {{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {{
+                        legend: {{
+                            display: false
+                        }},
+                        title: {{
+                            display: false
+                        }}
+                    }},
+                    scales: {{
+                        y: {{
+                            beginAtZero: true,
+                            title: {{
+                                display: true,
+                                text: 'Number of Reads'
+                            }}
+                        }},
+                        x: {{
+                            title: {{
+                                display: true,
+                                text: 'Mean Quality Score (Phred)'
+                            }}
+                        }}
+                    }}
+                }}
+            }});
+        }}
+"""
+
+        # Read Processing Summary chart from general stats
+        if multiqc_data.get('general_stats'):
+            gen_stats = multiqc_data['general_stats']
+            samples = []
+            read_counts = []
+
+            for stats_group in gen_stats:
+                for sample, stats in stats_group.items():
+                    samples.append(sample[:20])  # Truncate long sample names
+                    # Look for common read count fields
+                    read_count = stats.get('total_sequences', stats.get('Total Sequences',
+                                           stats.get('reads', stats.get('Reads', 0))))
+                    read_counts.append(read_count)
+
+            if samples and read_counts:
+                multiqc_charts_js += f"""
+        // Read Processing Summary
+        const readStatsCtx = document.getElementById('readStatsChart');
+        if (readStatsCtx) {{
+            const readStatsChart = new Chart(readStatsCtx.getContext('2d'), {{
+                type: 'bar',
+                data: {{
+                    labels: {json.dumps(samples[:30])},  // Limit to 30 samples for visibility
+                    datasets: [{{
+                        label: 'Total Reads',
+                        data: {json.dumps(read_counts[:30])},
+                        backgroundColor: '#4ECDC4',
+                        borderColor: '#44B8B0',
+                        borderWidth: 1
+                    }}]
+                }},
+                options: {{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {{
+                        legend: {{
+                            display: false
+                        }}
+                    }},
+                    scales: {{
+                        y: {{
+                            beginAtZero: true,
+                            title: {{
+                                display: true,
+                                text: 'Read Count'
+                            }}
+                        }},
+                        x: {{
+                            title: {{
+                                display: true,
+                                text: 'Sample'
+                            }},
+                            ticks: {{
+                                maxRotation: 90,
+                                minRotation: 45
+                            }}
+                        }}
+                    }}
+                }}
+            }});
+        }}
+"""
+
+    js_code = js_code.replace('MULTIQC_CHARTS_PLACEHOLDER', multiqc_charts_js)
 
     # Prophage functional diversity data
     js_code = js_code.replace('FUNCTIONAL_LABELS_PLACEHOLDER', json.dumps(functional_labels))

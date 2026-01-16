@@ -33,8 +33,8 @@ echo ""
 # Load required modules
 echo "Loading required modules..."
 module load MAFFT || echo "⚠️  MAFFT module not found, trying system install"
+module load Biopython/1.79-foss-2022a || echo "⚠️  Biopython module not found"
 module load IQ-TREE || echo "⚠️  IQ-TREE module not found, trying system install"
-module load Python || echo "⚠️  Python module not found, using system python"
 
 # Check if tools are available
 echo ""

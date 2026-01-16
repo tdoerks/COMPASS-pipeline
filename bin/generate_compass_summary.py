@@ -739,22 +739,27 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 
     # Whitelist of useful metadata fields to display (instead of all 49 SRA fields)
     # This keeps the dropdown manageable and focused on relevant information
-    # NOTE: Field names are case-sensitive and must match CSV column names exactly!
+    # IMPORTANT: Field names must match what parse_metadata() creates (lowercase with underscores)
+    # The parser converts "BioProject" → "bioproject", "SampleName" → "samplename", etc.
     metadata_whitelist = {
         # Sample identifiers
-        'Run', 'BioSample', 'BioProject', 'SampleName',
+        'run', 'biosample', 'bioproject', 'samplename',
         # Platform information
-        'Platform', 'Model', 'LibraryStrategy', 'LibrarySource', 'LibraryLayout',
-        # Organism information (lowercase 'o' to match CSV!)
-        'organism', 'ScientificName',
+        'platform', 'model', 'librarystrategy', 'librarysource', 'librarylayout',
+        # Organism information
+        'organism', 'scientificname',
         # Source/isolation details
         'source_type', 'isolation_source', 'host', 'geo_loc_name',
-        # Temporal information (capital 'Y' to match CSV!)
-        'Collection_Date', 'Year',
+        # Temporal information
+        'collection_date', 'year',
         # Sequencing metrics
-        'spots', 'bases', 'avgLength', 'spots_with_mates',
+        'spots', 'bases', 'avglength', 'spots_with_mates',
         # Dates
-        'ReleaseDate', 'LoadDate'
+        'releasedate', 'loaddate',
+        # Additional useful fields
+        'center_name', 'instrument', 'libraryselection',
+        'bioproject_biosample', 'consent', 'datastore_filetype',
+        'datastore_provider', 'datastore_region'
     }
 
     # Get metadata field names that are both in our whitelist AND in the dataframe

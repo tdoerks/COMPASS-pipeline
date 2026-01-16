@@ -1,309 +1,246 @@
-# COMPASS Analysis Tools - Quick Reference
+# Kansas 2021-2025 NARMS Analysis Guide
 
-This document provides a quick overview of all analysis and reporting tools available in the COMPASS pipeline.
+## Overview
 
----
+This guide explains how to run AMR-prophage analysis on your Kansas 2021-2025 NARMS dataset located at:
+```
+/fastscratch/tylerdoe/kansas_2021-2025_all_narms_v1.2mod/
+```
 
-## 🎯 What Do You Want to Do?
+## What the Analysis Does
 
-### Generate a Pipeline Execution Report
-**"I want a comprehensive HTML report showing what the pipeline did at each step"**
+The analysis scripts investigate the relationship between **antimicrobial resistance (AMR) genes** and **prophages** in your bacterial genomes. Key analyses include:
+
+1. **Gene Enrichment**: Which AMR genes show highest % on prophage contigs?
+2. **Deep Dive**: Detailed characteristics of AMR genes on prophage contigs
+3. **Specific Investigations**: dfrA51 (trimethoprim resistance), mdsA+mdsB co-occurrence
+4. **Comprehensive Report**: Combined HTML report with all findings
+5. **Mobile Elements**: Associations with plasmids, integrases, transposases
+
+## Quick Start
+
+### Step 1: Check if your data has required files
 
 ```bash
-python3 bin/generate_pipeline_report.py /path/to/results
+cd /fastscratch/tylerdoe/COMPASS-pipeline
+bash prepare_analysis_data.sh
 ```
 
-**Output**: Beautiful HTML report with statistics from all 11 pipeline steps
-**Documentation**: `docs/PIPELINE_REPORT.md`
+This will check if you have:
+- `amr_combined.tsv` (combined AMRFinder results)
+- `vibrant_combined.tsv` (combined VIBRANT prophage results)
 
----
+### Step 2: Run all analyses
 
-### Analyze AMR-Prophage Associations
-**"I want to see which AMR genes are enriched on prophage contigs"**
-
-#### Quick Analysis (10 seconds)
-```bash
-python3 bin/analyze_enriched_amr_genes.py /path/to/results
-```
-**Output**: Gene enrichment statistics, top enriched genes
-**Files**: `amr_enrichment_analysis.csv`, `highly_enriched_amr_occurrences.csv`
-
-#### Deep Dive (30 seconds)
-```bash
-# Auto-detect Kansas results and run all analyses
-./quick_dig_kansas.sh
-
-# OR manually specify path
-bash analysis/RUN_ALL_ANALYSES.sh /path/to/results
-```
-**Output**: 4+ analysis scripts, comprehensive CSV files
-**Documentation**: `analysis/ANALYSIS_OVERVIEW.md`, `analysis/QUICK_START.md`
-
----
-
-### Investigate Specific Genes
-**"Why is dfrA51 so highly enriched on prophage contigs?"**
+If the files exist, submit the analysis job:
 
 ```bash
-python3 bin/investigate_dfra51.py /path/to/results
+cd /fastscratch/tylerdoe/COMPASS-pipeline
+sbatch run_kansas_2021-2025_analyses.sh
 ```
-**Output**: All dfrA51 occurrences with prophage details, patterns by year/source
-**File**: `dfra51_investigation.csv`
 
-**"Why do mdsA and mdsB always co-occur?"**
+This will run all 6 analysis scripts and save results to your data directory.
+
+## Expected Outputs
+
+After the analysis completes, you'll find these files in your data directory:
+
+### CSV Files (raw data)
+- `amr_enrichment_analysis.csv` - Gene enrichment statistics
+- `highly_enriched_amr_occurrences.csv` - Individual occurrences of enriched genes
+- `dfra51_investigation.csv` - dfrA51 deep dive (if present in data)
+- `mdsa_mdsb_investigation.csv` - mdsA+mdsB co-occurrence analysis
+- `kansas_amr_prophage_contigs_DEEP_DIVE.csv` - Detailed contig-level analysis
+- `amr_mobile_element_analysis.csv` - Mobile element associations
+
+### HTML Report
+- `kansas_comprehensive_amr_analysis.html` - Interactive report with plots and tables
+
+### Log Files
+All logs saved to: `analysis_results/*.log`
+
+## What If Files Are Missing?
+
+If `prepare_analysis_data.sh` reports missing `amr_combined.tsv` or `vibrant_combined.tsv`, you have a few options:
+
+### Option 1: Check if pipeline already created them
+```bash
+cd /fastscratch/tylerdoe/kansas_2021-2025_all_narms_v1.2mod
+ls -lh *_combined.tsv
+```
+
+### Option 2: Create them from individual results
+
+The pipeline generated individual result files in subdirectories:
+- AMRFinder results: `amrfinder/*_amr.tsv`
+- VIBRANT results: `vibrant/*_vibrant/`
+
+You'll need to combine these into single TSV files. Let me know if you need a script to do this!
+
+## Checking Job Status
 
 ```bash
-python3 bin/investigate_mdsa_mdsb.py /path/to/results
+# Check if job is running
+squeue -u tylerdoe | grep kansas_amr
+
+# View output in real-time
+tail -f kansas_analysis_*.out
+
+# Check for errors
+tail -f kansas_analysis_*.err
 ```
-**Output**: Gene distance analysis, operon structure detection
-**File**: `mdsa_mdsb_investigation.csv`
 
----
+## Expected Findings (from Kansas E. coli pilot data)
 
-### Get Detailed AMR-Prophage Breakdown
-**"Show me every AMR gene on prophage contigs"**
+Based on similar Kansas E. coli analyses, you might see:
+
+- **~10% of AMR genes** on prophage-containing contigs
+- **dfrA51** (trimethoprim): High enrichment on prophage contigs (80%+)
+- **Fosfomycin resistance genes**: 30%+ enrichment
+- **mdsA + mdsB**: Frequent co-occurrence on same prophage contig
+- **Ground Beef**: May show highest AMR-prophage associations
+- **Temporal trends**: Year-to-year variation
+
+## Manual Analysis (Run Scripts Individually)
+
+If you prefer to run scripts one at a time:
 
 ```bash
-python3 bin/dig_amr_prophage_contigs.py /path/to/results
+cd /fastscratch/tylerdoe/COMPASS-pipeline
+DATA="/fastscratch/tylerdoe/kansas_2021-2025_all_narms_v1.2mod"
+
+# 1. Start with enrichment analysis (fastest, most informative)
+python3 bin/analyze_enriched_amr_genes.py $DATA
+
+# 2. Deep dive into contigs
+python3 bin/dig_amr_prophage_contigs.py $DATA
+
+# 3. Investigate specific genes
+python3 bin/investigate_dfra51.py $DATA
+python3 bin/investigate_mdsa_mdsb.py $DATA
+
+# 4. Generate comprehensive HTML report
+python3 bin/comprehensive_amr_analysis.py $DATA
+
+# 5. Mobile elements analysis
+python3 bin/analyze_amr_mobile_elements.py $DATA
 ```
-**Output**: All 419 AMR genes on prophage contigs with metadata
-**File**: `kansas_amr_prophage_contigs_DEEP_DIVE.csv`
 
----
+## Viewing Results
 
-### Analyze Mobile Elements
-**"How are AMR genes associated with plasmids, integrases, transposons?"**
-
+### On the cluster:
 ```bash
-python3 bin/analyze_amr_mobile_elements.py /path/to/results
+cd /fastscratch/tylerdoe/kansas_2021-2025_all_narms_v1.2mod
+head -20 amr_enrichment_analysis.csv
 ```
-**Output**: AMR-plasmid associations, AMR near mobile elements
-**File**: `amr_mobile_element_analysis.csv`
 
----
-
-### Generate Comprehensive AMR Analysis
-**"I want an interactive HTML report with all AMR-phage patterns"**
-
+### Download to your local machine:
 ```bash
-python3 bin/comprehensive_amr_analysis.py /path/to/results
-```
-**Output**: HTML dashboard with interactive plots and statistics
-**File**: `kansas_comprehensive_amr_analysis.html`
+# From your local computer:
+scp tylerdoe@icr-helios:"/fastscratch/tylerdoe/kansas_2021-2025_all_narms_v1.2mod/*.csv" .
+scp tylerdoe@icr-helios:"/fastscratch/tylerdoe/kansas_2021-2025_all_narms_v1.2mod/*.html" .
 
----
-
-## 📁 Tool Categories
-
-### 🔬 Analysis Scripts
-
-| Script | Purpose | Output | Run Time |
-|--------|---------|--------|----------|
-| `analyze_enriched_amr_genes.py` | Gene enrichment statistics | 2 CSV files | ~10 sec |
-| `investigate_dfra51.py` | dfrA51 deep dive | 1 CSV file | ~5 sec |
-| `investigate_mdsa_mdsb.py` | mdsA+mdsB analysis | 1 CSV file | ~5 sec |
-| `dig_amr_prophage_contigs.py` | All AMR on prophage contigs | 1 CSV file | ~15 sec |
-| `analyze_amr_mobile_elements.py` | Mobile element associations | 1 CSV file | ~20 sec |
-| `comprehensive_amr_analysis.py` | Interactive HTML dashboard | 1 HTML file | ~30 sec |
-
-### 📊 Reporting Scripts
-
-| Script | Purpose | Output | Run Time |
-|--------|---------|--------|----------|
-| `generate_pipeline_report.py` | Full pipeline execution report | 1 HTML file | ~30 sec |
-| `generate_summary_report.py` | High-level summary (STUB) | 1 HTML file | N/A |
-
-### 🚀 Helper Scripts
-
-| Script | Purpose |
-|--------|---------|
-| `quick_dig_kansas.sh` | Auto-detect and run all deep dive analyses |
-| `analysis/RUN_ALL_ANALYSES.sh` | Run all 4 core analyses with logging |
-
----
-
-## 📚 Documentation Files
-
-| File | Content |
-|------|---------|
-| `analysis/ANALYSIS_OVERVIEW.md` | Complete overview of AMR-phage analysis suite |
-| `analysis/QUICK_START.md` | Fast reference for running each analysis |
-| `analysis/ENRICHMENT_ANALYSIS_INSTRUCTIONS.md` | Detailed enrichment analysis guide |
-| `docs/PIPELINE_REPORT.md` | Pipeline execution report documentation |
-| `FEATURE_IDEAS.md` | Enhancement ideas and TODO tracking |
-| `SESSION_SUMMARY.md` | Summary of work completed this session |
-
----
-
-## 🎓 Recommended Workflow
-
-### For Initial Data Review
-
-1. **Generate pipeline report** to see overall statistics
-   ```bash
-   python3 bin/generate_pipeline_report.py /path/to/results
-   ```
-
-2. **Run enrichment analysis** to identify interesting patterns
-   ```bash
-   python3 bin/analyze_enriched_amr_genes.py /path/to/results
-   ```
-
-3. **Review CSVs** to see top enriched genes
-   ```bash
-   head -20 amr_enrichment_analysis.csv | column -t -s,
-   ```
-
-### For Deep Investigation
-
-4. **Run deep dive analyses** on patterns of interest
-   ```bash
-   ./quick_dig_kansas.sh  # Runs all 4 deep dive scripts
-   ```
-
-5. **Investigate specific genes** that show high enrichment
-   ```bash
-   python3 bin/investigate_dfra51.py /path/to/results
-   ```
-
-6. **Generate comprehensive report** for publication/sharing
-   ```bash
-   python3 bin/comprehensive_amr_analysis.py /path/to/results
-   ```
-
----
-
-## 💡 Tips
-
-### Multi-Year Analysis
-All scripts automatically detect year directories and combine data:
-```
-results/
-├── 2021/
-│   ├── amr_combined.tsv
-│   └── vibrant_combined.tsv
-├── 2022/
-├── 2023/
-└── ...
+# Then open HTML report in browser
 ```
 
-Just point to the parent directory!
+## Comparing v1.2-stable vs v1.2-mod
 
-### Parallel Execution
-Run multiple analyses simultaneously on different datasets:
+You mentioned running analyses on both branches. To do this:
+
+### For v1.2-stable:
 ```bash
-# Terminal 1
-python3 bin/generate_pipeline_report.py /path/to/2024_results &
-
-# Terminal 2
-python3 bin/analyze_enriched_amr_genes.py /path/to/2024_results &
+cd /fastscratch/tylerdoe/COMPASS-pipeline
+git checkout v1.2-stable
+sbatch run_kansas_2021-2025_analyses.sh
 ```
 
-### Output Organization
-All scripts save output files to the same directory as input results, making them easy to find:
-```
-results/
-├── amr_combined.tsv
-├── vibrant_combined.tsv
-├── pipeline_execution_report.html  ← Generated
-├── amr_enrichment_analysis.csv     ← Generated
-└── dfra51_investigation.csv        ← Generated
-```
-
-### Quick Viewing
+### For v1.2-mod:
 ```bash
-# View CSV in terminal
-head -20 file.csv | column -t -s,
-
-# Copy to local machine for Excel
-scp user@server:/path/to/*.csv .
+git checkout v1.2-mod
+sbatch run_kansas_2021-2025_analyses.sh
 ```
 
----
-
-## 🐛 Troubleshooting
-
-### "Script not found"
+The outputs will be created in the same directory but you can rename them to compare:
 ```bash
-# Make sure you're in the pipeline directory
-cd /path/to/compass-pipeline
-
-# Check script exists
-ls bin/analyze_enriched_amr_genes.py
+mv amr_enrichment_analysis.csv amr_enrichment_v1.2-stable.csv
+# Run again with v1.2-mod
+# Then compare the two CSV files
 ```
 
-### "Results directory not found"
-```bash
-# Check path is correct
-ls /path/to/results
+## Available Analysis Scripts
 
-# For multi-year, check year directories exist
-ls /path/to/results/202*
+Full list of 50+ scripts in `bin/`:
+
+### Core analyses (recommended):
+- `analyze_enriched_amr_genes.py` - **START HERE**
+- `dig_amr_prophage_contigs.py`
+- `comprehensive_amr_analysis.py`
+- `analyze_amr_mobile_elements.py`
+
+### Specialized investigations:
+- `investigate_dfra51.py` - Trimethoprim resistance
+- `investigate_mdsa_mdsb.py` - Multidrug efflux pumps
+- `analyze_phage_diversity.py` - Prophage diversity
+- `analyze_mlst_strain_patterns.py` - Strain typing patterns
+- `analyze_temporal_source_stratification.py` - Time and source trends
+
+### Publication-ready outputs:
+- `generate_compass_summary.py` - Overall summary
+- `generate_publication_figures.py` - Figures for papers
+- `generate_executive_summary_dashboard.py` - Dashboard
+
+## Troubleshooting
+
+### "Module not found" errors
+```bash
+module load Python/3.9
+# or
+module load Anaconda3
 ```
 
-### "No data in output"
+### "File not found" errors
+Make sure you're in the COMPASS-pipeline directory:
 ```bash
-# Check combined files exist
-ls /path/to/results/amr_combined.tsv
-ls /path/to/results/vibrant_combined.tsv
-
-# Check files aren't empty
-wc -l /path/to/results/*.tsv
+cd /fastscratch/tylerdoe/COMPASS-pipeline
+ls bin/  # Should show all analysis scripts
 ```
 
-### "Permission denied"
+### Permission denied
 ```bash
-# Make scripts executable
 chmod +x bin/*.py
 chmod +x *.sh
 ```
 
----
-
-## 📞 Getting Help
-
-1. **Check documentation**:
-   - `analysis/QUICK_START.md` - Fast reference
-   - `analysis/ANALYSIS_OVERVIEW.md` - Complete overview
-   - `docs/PIPELINE_REPORT.md` - Report generator guide
-
-2. **Check inline help**:
-   ```bash
-   python3 bin/analyze_enriched_amr_genes.py --help
-   ```
-
-3. **Review examples** in documentation files
-
-4. **Check `FEATURE_IDEAS.md`** for planned enhancements
-
----
-
-## 🔄 Staying Up to Date
-
+### Python package errors
+If pandas or other packages are missing:
 ```bash
-# Pull latest analysis scripts
-git pull origin v1.2-dev
-
-# Check what's new
-git log --oneline -10
-
-# See changed files
-git diff --name-only HEAD~5
+pip install --user pandas matplotlib seaborn scipy
 ```
 
+## Getting Help
+
+- **Analysis documentation**: `analysis/QUICK_START.md`
+- **Detailed overview**: `analysis/ANALYSIS_OVERVIEW.md`
+- **Enrichment details**: `analysis/ENRICHMENT_ANALYSIS_INSTRUCTIONS.md`
+- **Script comments**: Each Python script has detailed docstrings
+
+## Next Steps After Analysis
+
+1. Review enrichment CSV to identify top genes
+2. Check HTML report for visualizations
+3. Investigate highly enriched genes (>30%)
+4. Compare with other species/years
+5. Prepare findings for publication
+
+## Contact
+
+For questions about the pipeline or analysis:
+- Check inline documentation in scripts
+- Review analysis/*.md files
+- Consult COMPASS pipeline README.md
+
 ---
 
-## 🎯 Next Steps
-
-After running analyses, consider:
-
-1. **Validate findings** on larger datasets (E. coli 2024 national data)
-2. **Investigate mechanisms** behind enriched genes (prophage integration sites?)
-3. **Compare organisms** (Salmonella vs E. coli patterns?)
-4. **Publish results** using HTML reports as supplementary materials
-
----
-
-**Last Updated**: 2025-11-07
-**Branch**: v1.2-dev
-**Total Scripts**: 8 analysis + 2 reporting + 2 helpers = 12 tools ready to use
+**Data**: Kansas 2021-2025 NARMS v1.2mod
+**Pipeline**: COMPASS v1.2
+**Created**: December 2024

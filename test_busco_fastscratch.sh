@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=test_busco
-#SBATCH --output=/fastscratch/tylerdoe/test_busco_%j.out
-#SBATCH --error=/fastscratch/tylerdoe/test_busco_%j.err
+#SBATCH --output=/homes/tylerdoe/test_busco_%j.out
+#SBATCH --error=/homes/tylerdoe/test_busco_%j.err
 #SBATCH --time=4:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G

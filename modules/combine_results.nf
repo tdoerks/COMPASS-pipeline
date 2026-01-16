@@ -7,7 +7,7 @@ process COMBINE_RESULTS {
     path vibrant_results
     path diamond_results
     path abricate_summary, stageAs: 'abricate_summary.tsv'
-    path quast_reports
+    path quast_reports, stageAs: 'quast_*.tsv'
     path busco_summaries
     path mlst_results
     path sistr_results
@@ -20,27 +20,27 @@ process COMBINE_RESULTS {
 
     script:
     """
-    #!/usr/bin/env python3
-    import pandas as pd
-    import glob
-    from pathlib import Path
+#!/usr/bin/env python3
+import pandas as pd
+import glob
+from pathlib import Path
 
-    # Generate combined summary TSV
-    print("Generating COMPASS pipeline summary...")
+# Generate combined summary TSV
+print("Generating COMPASS pipeline summary...")
 
-    # Collect AMR results
-    amr_files = glob.glob("*.tsv")
-    if amr_files:
-        print(f"Found {len(amr_files)} AMR result files")
+# Collect AMR results
+amr_files = glob.glob("*.tsv")
+if amr_files:
+    print(f"Found {len(amr_files)} AMR result files")
 
-    # Create basic summary
-    with open("combined_analysis_summary.tsv", 'w') as f:
-        f.write("Pipeline\\tStatus\\n")
-        f.write("COMPASS\\tCompleted\\n")
+# Create basic summary
+with open("combined_analysis_summary.tsv", 'w') as f:
+    f.write("Pipeline\\tStatus\\n")
+    f.write("COMPASS\\tCompleted\\n")
 
-    # Create basic HTML report
-    with open("combined_analysis_report.html", 'w') as f:
-        f.write('''<!DOCTYPE html>
+# Create basic HTML report
+with open("combined_analysis_report.html", 'w') as f:
+    f.write('''<!DOCTYPE html>
 <html>
 <head><title>COMPASS Pipeline Report</title></head>
 <body>
@@ -50,10 +50,10 @@ process COMBINE_RESULTS {
 </html>
 ''')
 
-    # Versions
-    with open("versions.yml", 'w') as f:
-        f.write('"COMBINE_RESULTS": {"version": "1.0.0"}\\n')
+# Versions
+with open("versions.yml", 'w') as f:
+    f.write('"COMBINE_RESULTS": {"version": "1.0.0"}\\n')
 
-    print("Summary generation complete!")
+print("Summary generation complete!")
     """
 }

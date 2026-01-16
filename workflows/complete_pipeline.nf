@@ -10,9 +10,11 @@ include { PHAGE_ANALYSIS } from '../subworkflows/phage_analysis'
 include { TYPING } from '../subworkflows/typing'
 include { MOBILE_ELEMENTS } from '../subworkflows/mobile_elements'
 include { COMBINE_RESULTS } from '../modules/combine_results'
+include { COMPASS_SUMMARY } from '../modules/compass_summary'
 include { MULTIQC } from '../modules/multiqc'
 include { BUSCO } from '../modules/busco'
 include { QUAST } from '../modules/quast'
+include { CHECK_DATABASES } from '../modules/check_databases'
 
 workflow COMPLETE_PIPELINE {
     take:
@@ -20,9 +22,14 @@ workflow COMPLETE_PIPELINE {
     input_data     // channel: depends on mode
 
     main:
+    // Validate required databases before starting pipeline
+    // Fails fast with helpful error messages if databases are missing
+    CHECK_DATABASES()
+
     ch_assemblies = Channel.empty()
     ch_versions = Channel.empty()
-    ch_metadata = Channel.empty()
+    ch_metadata_file = Channel.empty()
+    ch_sra_runinfo = Channel.empty()
 
     ch_qc_outputs = Channel.empty()
     ch_has_assembly_qc = false
@@ -66,7 +73,8 @@ workflow COMPLETE_PIPELINE {
         ch_busco_summary = ASSEMBLY.out.busco_summary
         ch_quast_report = ASSEMBLY.out.quast_report
         ch_quast_dirs = ASSEMBLY.out.quast_dirs  // Use directories for MultiQC
-        ch_metadata = DATA_ACQUISITION.out.metadata
+        ch_metadata_file = DATA_ACQUISITION.out.metadata_file
+        ch_sra_runinfo = DATA_ACQUISITION.out.sra_runinfo  // Full SRA runinfo CSV for COMPASS_SUMMARY
         ch_versions = ch_versions.mix(DATA_ACQUISITION.out.versions)
         ch_versions = ch_versions.mix(ASSEMBLY.out.versions.first())
 
@@ -118,16 +126,17 @@ workflow COMPLETE_PIPELINE {
     ch_versions = ch_versions.mix(MOBILE_ELEMENTS.out.versions)
 
     // Combine all results - runs after all analyses complete
+    // Filter out failed samples that emit sample IDs instead of files
     COMBINE_RESULTS(
-        AMR_ANALYSIS.out.results.map { it[1] }.collect(),
-        PHAGE_ANALYSIS.out.vibrant_results.map { it[1] }.collect(),
-        PHAGE_ANALYSIS.out.diamond_results.map { it[1] }.collect(),
+        AMR_ANALYSIS.out.results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),
+        PHAGE_ANALYSIS.out.vibrant_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),
+        PHAGE_ANALYSIS.out.diamond_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),
         Channel.empty().collect().ifEmpty([]),  // abricate_summary
         ch_quast_report.collect().ifEmpty([]),  // quast_reports
-        ch_busco_summary.collect().ifEmpty([]), // busco_summaries
-        TYPING.out.mlst_results.map { it[1] }.collect(),     // mlst_results
-        TYPING.out.sistr_results.map { it[1] }.collect(),    // sistr_results
-        ch_metadata.ifEmpty(file('NO_FILE'))    // metadata
+        ch_busco_summary.filter { it instanceof Path || it instanceof java.io.File }.collect().ifEmpty([]), // busco_summaries (filter failed samples)
+        TYPING.out.mlst_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),     // mlst_results
+        TYPING.out.sistr_results.filter { it instanceof List && (it[1] instanceof Path || it[1] instanceof java.io.File) }.map { it[1] }.collect().ifEmpty([]),    // sistr_results (filter skipped non-Salmonella)
+        ch_metadata_file.ifEmpty(file('NO_FILE'))    // metadata file (single path)
     )
     ch_versions = ch_versions.mix(COMBINE_RESULTS.out.versions)
 
@@ -143,8 +152,9 @@ workflow COMPLETE_PIPELINE {
 
     // Always include assembly QC (BUSCO and QUAST)
     // Use QUAST directories instead of individual report.tsv files to avoid name collisions
+    // Filter BUSCO summaries to exclude any failed samples
     ch_multiqc = ch_multiqc
-        .mix(ch_busco_summary.collect().ifEmpty([]))
+        .mix(ch_busco_summary.filter { it instanceof Path || it instanceof java.io.File }.collect().ifEmpty([]))
         .mix(ch_quast_dirs.collect().ifEmpty([]))
 
     // Run MultiQC to aggregate all QC reports
@@ -152,13 +162,28 @@ workflow COMPLETE_PIPELINE {
     ch_versions = ch_versions.mix(MULTIQC.out.versions)
     ch_multiqc_report = MULTIQC.out.report
 
+    // Generate comprehensive COMPASS summary after all analyses complete
+    // Wait for COMBINE_RESULTS and MultiQC to finish before generating summary
+    ch_summary_ready = COMBINE_RESULTS.out.summary
+        .concat(ch_multiqc_report)
+        .collect()
+        .map { 'ready' }
+
+    COMPASS_SUMMARY(
+        ch_sra_runinfo.ifEmpty(file('NO_FILE')),  // Pass full SRA runinfo CSV (40+ fields) not filtered_samples.csv
+        ch_summary_ready
+    )
+    ch_versions = ch_versions.mix(COMPASS_SUMMARY.out.versions)
+
     emit:
     summary = COMBINE_RESULTS.out.summary
     report = COMBINE_RESULTS.out.report
+    compass_summary_tsv = COMPASS_SUMMARY.out.tsv
+    compass_summary_html = COMPASS_SUMMARY.out.html
     amr_results = AMR_ANALYSIS.out.results
     phage_results = PHAGE_ANALYSIS.out.vibrant_results
     diamond_results = PHAGE_ANALYSIS.out.diamond_results
-    checkv_results = PHAGE_ANALYSIS.out.checkv_results
+    // checkv_results = PHAGE_ANALYSIS.out.checkv_results  // CheckV not currently emitted by PHAGE_ANALYSIS
     phanotate_results = PHAGE_ANALYSIS.out.phanotate_results
     mlst_results = TYPING.out.mlst_results
     sistr_results = TYPING.out.sistr_results

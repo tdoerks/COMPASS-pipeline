@@ -7,14 +7,16 @@ An integrated Nextflow pipeline for comprehensive bacterial genomic analysis com
 ## Overview
 
 COMPASS automates the analysis of bacterial genomes, providing:
+
+**Important:** This pipeline is designed for **Illumina short-read sequencing data** from **pure bacterial isolates only**. Metagenomic, transcriptomic, and long-read data (PacBio, Oxford Nanopore) are not supported.
 - **Quality Control**: FastQC, fastp, BUSCO, QUAST, and MultiQC for comprehensive QC
 - **Assembly Statistics**: Detailed metrics on assembly quality and contiguity
 - **Strain Typing**: MLST for sequence type determination across 100+ species
 - **Serotyping**: SISTR for Salmonella serovar prediction
 - **Plasmid Detection**: MOB-suite for identifying and typing mobile genetic elements
 - **AMR Detection**: AMRFinder+ and ABRicate for multi-database resistance screening
-- **Phage Identification**: VIBRANT for prophage detection and lifestyle prediction
-- **Prophage Analysis**: DIAMOND database comparison and CheckV quality assessment
+- **Phage Identification**: VIBRANT for prophage detection and lifestyle prediction (includes quality assessment)
+- **Prophage Analysis**: DIAMOND database comparison for prophage classification
 - **Gene Prediction**: PHANOTATE for ORF calling in phage sequences
 - **Integrated Reporting**: MultiQC aggregation and COMPASS summary TSV with all metrics
 
@@ -49,9 +51,8 @@ COMPASS uses a modular architecture with the following components:
    - Antimicrobial resistance gene detection
 
 4. **Phage Analysis** (`subworkflows/phage_analysis.nf`)
-   - VIBRANT prophage detection
+   - VIBRANT prophage detection (with quality assessment)
    - DIAMOND prophage classification
-   - CheckV quality assessment
    - PHANOTATE gene annotation
 
 5. **Typing** (`subworkflows/typing.nf`)
@@ -81,6 +82,36 @@ COMPASS uses a modular architecture with the following components:
 git clone https://github.com/tdoerks/COMPASS-pipeline.git
 cd COMPASS-pipeline
 ```
+
+### Database Setup
+
+**IMPORTANT**: Before running the pipeline, set up required databases to avoid runtime download failures.
+
+**Quick Setup (Recommended):**
+
+```bash
+# Set up BUSCO databases (one-time setup, ~15-30 minutes)
+./bin/setup_busco_databases.sh \
+    --download-path /fastscratch/$USER/databases/busco_downloads \
+    --auto-lineage
+
+# Verify prophage database exists (required)
+ls -lh /path/to/prophage_db.dmnd
+```
+
+See [`docs/DATABASE_SETUP.md`](docs/DATABASE_SETUP.md) for comprehensive database setup instructions including:
+- BUSCO lineage datasets and placement files
+- Prophage database (DIAMOND format)
+- AMRFinderPlus database (auto-downloaded)
+- Troubleshooting common issues
+
+**Quick Reference:**
+- **BUSCO**: Pre-download recommended to avoid network issues (`bacteria_odb10` + placement files ~2 GB)
+- **Prophage DB**: Required, must be provided (`prophage_db.dmnd` ~500 MB)
+- **AMRFinder**: Auto-downloads on first run (~500 MB)
+
+**Automatic Validation:**
+The pipeline automatically validates all required databases before execution. If any databases are missing, it will fail immediately with clear setup instructions, preventing wasted compute time.
 
 ### Basic Usage
 
@@ -112,6 +143,7 @@ Download and filter NARMS BioProject data automatically:
 ```bash
 nextflow run main.nf \
     --input_mode metadata \
+    --bioproject "PRJNA292661,PRJNA292663,PRJNA292664" \
     --filter_state "KS" \
     --filter_year_start 2020 \
     --outdir results
@@ -121,6 +153,8 @@ nextflow run main.nf \
 - **Campylobacter**: PRJNA292664
 - **Salmonella**: PRJNA292661
 - **E. coli**: PRJNA292663
+
+**Note:** If no `--bioproject` parameter is specified, all three NARMS BioProjects are downloaded by default for backward compatibility.
 
 #### 3. SRA List Mode
 Process samples from a list of SRA accessions:
@@ -153,26 +187,45 @@ SRR12345680
 
 | Parameter | Description | Default | Example |
 |-----------|-------------|---------|---------|
-| `--filter_state` | State code (2-letter) | `KS` | `KS`, `CA`, `TX` |
+| `--bioproject` | BioProject ID(s) - comma-separated | `null` (NARMS defaults) | `PRJNA292661`, `PRJNA123456,PRJNA789012` |
+| `--species` | Species name filter (searches all SRA) | `null` | `Listeria`, `Campylobacter` |
+| `--all_bacterial` | Download all bacterial samples (use with caution!) | `false` | `true` |
+| `--filter_platform` | Sequencing platform filter (Illumina only) | `ILLUMINA` | `ILLUMINA` |
+| `--filter_library_source` | Library source filter (isolates vs metagenomic) | `GENOMIC` | `GENOMIC`, `METAGENOMIC` |
+| `--filter_state` | State code (2-letter) | `null` | `KS`, `CA`, `TX` |
 | `--filter_year_start` | Minimum year | `null` | `2020` |
 | `--filter_year_end` | Maximum year | `null` | `2023` |
 | `--filter_source` | Source keyword | `null` | `chicken`, `clinical` |
 | `--max_samples` | Maximum samples to process | `10000` | `5000`, `50000` |
 
+**Important Notes:**
+- **Platform Filtering**: The pipeline is designed for **Illumina short reads only**. By default, only ILLUMINA platform data is processed. Long-read platforms (PacBio, Oxford Nanopore) are automatically excluded.
+- **Isolate Filtering**: By default, only **GENOMIC** library sources are processed (pure bacterial isolates). This automatically excludes metagenomic, transcriptomic, and environmental samples that are unsuitable for genome assembly. Set `--filter_library_source null` to disable this filter.
+- **BioProject vs Species**: Use `--bioproject` for specific projects, or `--species` to search across all SRA data for a particular organism.
+- **Default Behavior**: If no `--bioproject`, `--species`, or `--all_bacterial` is specified, the pipeline defaults to downloading all three NARMS BioProjects (Campylobacter, Salmonella, E. coli).
+
 ### Database Paths
 
-| Parameter | Description |
-|-----------|-------------|
-| `--amrfinder_db` | AMRFinder+ database directory |
-| `--prophage_db` | Prophage DIAMOND database (.dmnd) |
-| `--checkv_db` | CheckV database directory |
-| `--busco_download_path` | BUSCO lineage datasets directory |
+| Parameter | Description | Setup |
+|-----------|-------------|-------|
+| `--amrfinder_db` | AMRFinder+ database directory | Auto-downloaded |
+| `--prophage_db` | Prophage DIAMOND database (.dmnd) | See [DATABASE_SETUP.md](docs/DATABASE_SETUP.md) |
+| `--busco_download_path` | BUSCO lineage datasets directory | Run `./bin/setup_busco_databases.sh` |
+
+**Setup Script:**
+```bash
+./bin/setup_busco_databases.sh --download-path /fastscratch/$USER/databases/busco_downloads --auto-lineage
+```
+
+See [`docs/DATABASE_SETUP.md`](docs/DATABASE_SETUP.md) for detailed instructions.
 
 ### BUSCO Parameters
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `--busco_lineage` | BUSCO lineage dataset | `bacteria_odb10` |
+| `--skip_busco` | Skip BUSCO quality assessment | `false` |
+| `--busco_auto_lineage` | Auto-select best lineage for each genome | `true` (recommended) |
+| `--busco_lineage` | Fixed lineage dataset (if auto-lineage=false) | `bacteria_odb10` |
 | `--busco_mode` | BUSCO mode (genome, proteins, transcriptome) | `genome` |
 | `--busco_download_path` | Path for BUSCO lineage datasets | See config |
 
@@ -213,12 +266,10 @@ results/
 ├── amrfinder/                   # AMR detection results
 │   ├── *_amr.tsv
 │   └── *_mutations.tsv
-├── vibrant/                     # Phage identification
+├── vibrant/                     # Phage identification (includes quality assessment)
 │   └── *_vibrant/
 ├── diamond_prophage/            # Prophage comparisons
 │   └── *_diamond_results.tsv
-├── checkv/                      # Quality assessment
-│   └── *_checkv/
 ├── phanotate/                   # Gene predictions
 │   └── *_phanotate.gff
 ├── multiqc/                     # Comprehensive QC report
@@ -314,15 +365,105 @@ These complementary tools provide before/after quality assessment for read trimm
 | SISTR | 1.1.1 | Salmonella serotyping |
 | MOB-suite | 3.1.9 | Plasmid detection and typing |
 | AMRFinder+ | 3.12.8 | AMR gene detection |
-| VIBRANT | 4.0 | Phage identification |
+| VIBRANT | 4.0 | Phage identification and quality assessment |
 | DIAMOND | 2.0 | Prophage database search |
-| CheckV | 1.0.2 | Phage quality assessment |
 | PHANOTATE | 1.6.7 | Gene prediction |
 | MultiQC | 1.25.1 | Aggregate QC reporting |
 
 ## Usage Examples
 
-### Example 1: Pre-assembled FASTA files (default mode)
+### NARMS-Specific Examples
+
+These examples show how to work with NARMS surveillance data for common use cases:
+
+#### Example 1: Kansas NARMS 2024 - All Three Organisms
+
+Download all NARMS data (E. coli, Salmonella, Campylobacter) from Kansas for 2024:
+
+```bash
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292663,PRJNA292661,PRJNA292664" \
+    --filter_state "KS" \
+    --filter_year_start 2024 \
+    --filter_year_end 2024 \
+    --outdir results_ks_narms_2024
+```
+
+#### Example 2: Kansas NARMS 2024 - E. coli Only
+
+Download only E. coli NARMS samples from Kansas for 2024:
+
+```bash
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292663" \
+    --filter_state "KS" \
+    --filter_year_start 2024 \
+    --filter_year_end 2024 \
+    --outdir results_ks_ecoli_2024
+```
+
+#### Example 3: Kansas NARMS 2024 - Salmonella Only
+
+Download only Salmonella NARMS samples from Kansas for 2024:
+
+```bash
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292661" \
+    --filter_state "KS" \
+    --filter_year_start 2024 \
+    --filter_year_end 2024 \
+    --outdir results_ks_salmonella_2024
+```
+
+#### Example 4: Kansas NARMS 2024 - Campylobacter Only
+
+Download only Campylobacter NARMS samples from Kansas for 2024:
+
+```bash
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292664" \
+    --filter_state "KS" \
+    --filter_year_start 2024 \
+    --filter_year_end 2024 \
+    --outdir results_ks_campy_2024
+```
+
+#### Example 5: California NARMS Salmonella - Clinical Sources
+
+Download NARMS Salmonella from California, filtering for clinical isolates:
+
+```bash
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292661" \
+    --filter_state "CA" \
+    --filter_source "clinical" \
+    --outdir results_ca_salmonella_clinical
+```
+
+#### Example 6: Multi-Year NARMS Analysis
+
+Download Kansas NARMS data across multiple years (2020-2023):
+
+```bash
+nextflow run main.nf \
+    --input_mode metadata \
+    --bioproject "PRJNA292663,PRJNA292661,PRJNA292664" \
+    --filter_state "KS" \
+    --filter_year_start 2020 \
+    --filter_year_end 2023 \
+    --outdir results_ks_narms_2020-2023
+```
+
+### General Usage Examples
+
+#### Example 7: Pre-assembled FASTA files (default mode)
+
+Analyze pre-assembled genomes from a samplesheet:
 
 ```bash
 nextflow run main.nf \
@@ -330,28 +471,32 @@ nextflow run main.nf \
     --outdir my_analysis
 ```
 
-### Example 2: Kansas NARMS samples from 2020-2023 (metadata mode)
+#### Example 8: Search by Species Across All SRA
+
+Download and analyze all Listeria samples from SRA (non-NARMS):
 
 ```bash
 nextflow run main.nf \
     --input_mode metadata \
-    --filter_state "KS" \
+    --species "Listeria monocytogenes" \
     --filter_year_start 2020 \
-    --filter_year_end 2023 \
-    --outdir kansas_2020-2023
+    --outdir results_listeria
 ```
 
-### Example 3: California Salmonella from clinical sources (metadata mode)
+#### Example 9: Custom BioProject
+
+Analyze samples from a custom BioProject:
 
 ```bash
 nextflow run main.nf \
     --input_mode metadata \
-    --filter_state "CA" \
-    --filter_source "clinical" \
-    --outdir california_clinical
+    --bioproject "PRJNA123456" \
+    --outdir results_custom_project
 ```
 
-### Example 4: Process specific SRA accessions (sra_list mode)
+#### Example 10: Process specific SRA accessions (sra_list mode)
+
+Process a specific list of SRA accessions:
 
 ```bash
 nextflow run main.nf \
@@ -397,17 +542,6 @@ COMPASS-pipeline/
     └── metadata_to_results.nf  # Legacy metadata workflow
 ```
 
-### Example 4: Limit number of samples
-
-```bash
-# Process only the first 100 samples after filtering
-nextflow run main.nf \
-    --filter_state "CA" \
-    --filter_year_start 2020 \
-    --max_samples 100 \
-    --outdir california_limited
-```
-
 ## Configuration
 
 Edit `nextflow.config` to customize:
@@ -440,7 +574,6 @@ If you use COMPASS, please cite the individual tools:
 **Phage Analysis:**
 - **VIBRANT**: [Kieft et al., 2020](https://microbiomejournal.biomedcentral.com/articles/10.1186/s40168-020-00990-y)
 - **DIAMOND**: [Buchfink et al., 2021](https://www.nature.com/articles/s41592-021-01101-x)
-- **CheckV**: [Nayfach et al., 2021](https://www.nature.com/articles/s41587-020-00774-7)
 - **PHANOTATE**: [McNair et al., 2019](https://academic.oup.com/bioinformatics/article/35/22/4537/5480131)
 
 ## License

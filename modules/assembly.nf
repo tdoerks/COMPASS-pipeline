@@ -1,6 +1,6 @@
 process ASSEMBLE_SPADES {
     tag "$sample_id"
-    publishDir "${params.outdir}/assemblies", mode: 'copy', pattern: "${sample_id}_scaffolds.fasta"
+    publishDir "${params.outdir}/assemblies", mode: 'copy', pattern: "${sample_id}_contigs.fasta"
     publishDir "${params.outdir}/assemblies/failed", mode: 'copy', pattern: "*.failed.log"
     container = 'quay.io/biocontainers/spades:3.15.5--h95f258a_1'
     errorStrategy { task.attempt <= 1 ? params.assembly_error_strategy : 'ignore' }
@@ -10,7 +10,7 @@ process ASSEMBLE_SPADES {
     tuple val(sample_id), path(reads)
 
     output:
-    tuple val(sample_id), path("${sample_id}_scaffolds.fasta"), emit: assembly
+    tuple val(sample_id), path("${sample_id}_contigs.fasta"), emit: assembly
     path "versions.yml", emit: versions, optional: true
     path "${sample_id}.failed.log", emit: failed, optional: true
 
@@ -28,7 +28,7 @@ process ASSEMBLE_SPADES {
             -o ${sample_id}_spades \
             --threads ${task.cpus} \
             --memory ${task.memory.toGiga()} \
-            --careful \
+            --isolate \
             --only-assembler
     else
         # Single-end
@@ -37,25 +37,20 @@ process ASSEMBLE_SPADES {
             -o ${sample_id}_spades \
             --threads ${task.cpus} \
             --memory ${task.memory.toGiga()} \
-            --careful \
+            --isolate \
             --only-assembler
     fi
 
-    # Check if assembly succeeded - use scaffolds if available, contigs as fallback
-    if [ -f ${sample_id}_spades/scaffolds.fasta ] && [ -s ${sample_id}_spades/scaffolds.fasta ]; then
-        # Scaffolds generated successfully
-        echo "✅ Assembly succeeded for ${sample_id} - using scaffolds.fasta"
-        cp ${sample_id}_spades/scaffolds.fasta ${sample_id}_scaffolds.fasta
-        echo '"ASSEMBLE_SPADES": {"spades": "3.15.5"}' > versions.yml
-    elif [ -f ${sample_id}_spades/contigs.fasta ] && [ -s ${sample_id}_spades/contigs.fasta ]; then
-        # Only contigs generated (common when insert size cannot be estimated)
-        echo "⚠️  Scaffolds not generated for ${sample_id}, using contigs.fasta instead"
-        cp ${sample_id}_spades/contigs.fasta ${sample_id}_scaffolds.fasta
+    # Check if assembly succeeded - use contigs only (isolate mode best practice)
+    if [ -f ${sample_id}_spades/contigs.fasta ] && [ -s ${sample_id}_spades/contigs.fasta ]; then
+        # Contigs generated successfully
+        echo "✅ Assembly succeeded for ${sample_id} - using contigs.fasta"
+        cp ${sample_id}_spades/contigs.fasta ${sample_id}_contigs.fasta
         echo '"ASSEMBLE_SPADES": {"spades": "3.15.5"}' > versions.yml
     else
         # Assembly completely failed - log it and exit with error
         echo "❌ Assembly failed for ${sample_id}" | tee ${sample_id}.failed.log
-        echo "SPAdes did not produce scaffolds.fasta or contigs.fasta" | tee -a ${sample_id}.failed.log
+        echo "SPAdes did not produce contigs.fasta" | tee -a ${sample_id}.failed.log
         echo "Check ${sample_id}_spades/spades.log and warnings.log for details" | tee -a ${sample_id}.failed.log
 
         # Copy SPAdes log to failed log

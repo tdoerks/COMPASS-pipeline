@@ -79,7 +79,8 @@ def run_amrfinder_on_fasta(fasta_file, output_file, organism='Salmonella', amrfi
     Returns: True if successful, False otherwise
     """
     # AMRFinder container used by COMPASS pipeline
-    container = 'quay.io/biocontainers/ncbi-amrfinderplus:3.12.8--h283d18e_0'
+    # Use docker:// prefix so Apptainer pulls from cache or Docker registry
+    container = 'docker://quay.io/biocontainers/ncbi-amrfinderplus:3.12.8--h283d18e_0'
 
     # Get absolute paths for volume mounting
     fasta_abs = Path(fasta_file).resolve()

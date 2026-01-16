@@ -190,22 +190,26 @@ def parse_mlst(mlst_dir):
                 for i, line in enumerate(first_lines, 1):
                     print(f"      {i}: {line[:100]}")  # Truncate long lines
 
-                df = pd.read_csv(mlst_file, sep='\t')
+                # MLST files have NO HEADER - read with column positions
+                # Format: FILE SCHEME ST gene1 gene2 ...
+                # Column 0 = assembly file, Column 1 = scheme, Column 2 = ST
+                df = pd.read_csv(mlst_file, sep='\t', header=None)
                 print(f"    Parsed dataframe: {len(df)} rows, {len(df.columns)} columns")
-                print(f"    Column names: {list(df.columns)}")
+                print(f"    Column positions: {list(range(len(df.columns)))}")
 
                 if not df.empty:
                     # MLST format: FILE SCHEME ST gene1 gene2 ...
                     print(f"    First row data:")
-                    for col in df.columns[:5]:  # Show first 5 columns
-                        print(f"      {col}: {df.iloc[0][col]}")
+                    for col_idx in range(min(5, len(df.columns))):  # Show first 5 columns
+                        print(f"      Column {col_idx}: {df.iloc[0][col_idx]}")
 
-                    scheme = str(df.iloc[0]['SCHEME']) if 'SCHEME' in df.columns else '-'
-                    st = str(df.iloc[0]['ST']) if 'ST' in df.columns else '-'
+                    # Use column positions (1=SCHEME, 2=ST) instead of column names
+                    scheme = str(df.iloc[0][1]) if len(df.columns) > 1 else '-'
+                    st = str(df.iloc[0][2]) if len(df.columns) > 2 else '-'
 
                     # Check if we actually got valid data
                     if scheme == '-' or st == '-':
-                        print(f"    ⚠️  WARNING: Missing SCHEME or ST column!")
+                        print(f"    ⚠️  WARNING: Missing SCHEME or ST in columns 1-2!")
 
                     mlst_data[sample_id] = {
                         'mlst_scheme': scheme,
@@ -735,19 +739,20 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 
     # Whitelist of useful metadata fields to display (instead of all 49 SRA fields)
     # This keeps the dropdown manageable and focused on relevant information
+    # NOTE: Field names are case-sensitive and must match CSV column names exactly!
     metadata_whitelist = {
         # Sample identifiers
         'Run', 'BioSample', 'BioProject', 'SampleName',
         # Platform information
         'Platform', 'Model', 'LibraryStrategy', 'LibrarySource', 'LibraryLayout',
-        # Organism information
-        'Organism', 'ScientificName',
+        # Organism information (lowercase 'o' to match CSV!)
+        'organism', 'ScientificName',
         # Source/isolation details
         'source_type', 'isolation_source', 'host', 'geo_loc_name',
-        # Temporal information
-        'Collection_Date', 'year',
+        # Temporal information (capital 'Y' to match CSV!)
+        'Collection_Date', 'Year',
         # Sequencing metrics
-        'spots', 'bases', 'avgLength',
+        'spots', 'bases', 'avgLength', 'spots_with_mates',
         # Dates
         'ReleaseDate', 'LoadDate'
     }
@@ -1431,12 +1436,12 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     <div class="tabs">
         <div class="tab-buttons">
             <button class="tab-button active" onclick="switchTab(event, 'overview')">Overview</button>
+            <button class="tab-button" onclick="switchTab(event, 'quality-control')">Quality Control</button>
             <button class="tab-button" onclick="switchTab(event, 'amr-analysis')">AMR Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'plasmid-analysis')">Plasmid Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>
             <button class="tab-button" onclick="switchTab(event, 'metadata-explorer')">Metadata Explorer</button>
             <button class="tab-button" onclick="switchTab(event, 'strain-typing')">Strain Typing</button>
-            <button class="tab-button" onclick="switchTab(event, 'quality-control')">Quality Control</button>
             <button class="tab-button" onclick="switchTab(event, 'data-table')">Data Table</button>"""
 
     # MultiQC iframe tab removed - MultiQC report is now accessible via link in Quality Control tab

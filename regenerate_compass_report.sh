@@ -25,20 +25,36 @@ echo "Output HTML: $OUTPUT_HTML"
 echo "Output TSV: $OUTPUT_TSV"
 echo ""
 
-# Step 1: Recreate filtered metadata
-echo "Step 1: Recreating filtered metadata..."
-echo ""
-./bin/recreate_filtered_metadata.py --outdir "$RESULTS_DIR" || {
-    echo "⚠️  WARNING: Metadata recreation failed, continuing anyway..."
-}
-echo ""
+# Step 1: Determine metadata source
+METADATA_ARG=""
+
+# Check if there's an existing summary TSV from the pipeline (has all metadata already)
+if [ -f "$RESULTS_DIR/summary/compass_summary.tsv" ]; then
+    echo "✓ Found existing summary TSV with metadata"
+    METADATA_ARG="--metadata $RESULTS_DIR/summary/compass_summary.tsv"
+# Otherwise try to recreate from metadata directory
+elif [ -d "$RESULTS_DIR/metadata" ]; then
+    echo "Step 1: Recreating filtered metadata from metadata directory..."
+    echo ""
+    ./bin/recreate_filtered_metadata.py --outdir "$RESULTS_DIR" || {
+        echo "⚠️  WARNING: Metadata recreation failed, continuing anyway..."
+    }
+    echo ""
+
+    if [ -f "$RESULTS_DIR/filtered_samples/filtered_samples.csv" ]; then
+        METADATA_ARG="--metadata $RESULTS_DIR/filtered_samples/filtered_samples.csv"
+    fi
+else
+    echo "⚠️  No metadata source found (no summary TSV or metadata directory)"
+    echo "   Report will only have fields from result files (bases, spots, organism)"
+fi
 
 # Step 2: Generate comprehensive HTML report
 echo "Step 2: Generating COMPASS summary report..."
 echo ""
 ./bin/generate_compass_summary.py \
     --outdir "$RESULTS_DIR" \
-    --metadata "$RESULTS_DIR/filtered_samples/filtered_samples.csv" \
+    $METADATA_ARG \
     --output_html "$OUTPUT_HTML" \
     --output_tsv "$OUTPUT_TSV"
 

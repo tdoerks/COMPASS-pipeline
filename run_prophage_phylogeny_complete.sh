@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=32G
 #SBATCH --mail-type=END,FAIL
-#SBATCH --mail-user=tdoerks@vet.k-state.edu
+#SBATCH --mail-user=your.email@example.com
 
 echo "=========================================="
 echo "Complete Prophage Phylogenetic Analysis"

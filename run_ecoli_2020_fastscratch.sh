@@ -14,7 +14,7 @@ echo "Organism: E. coli only (PRJNA292663)"
 echo "No state filter - ALL US samples"
 echo "Year: 2020"
 echo "Running from: /fastscratch/tylerdoe"
-echo "Branch: v1.2-mod"
+echo "Branch: main (with enhanced report features)"
 echo "=========================================="
 echo "Job ID: $SLURM_JOB_ID"
 echo "Start time: $(date)"
@@ -31,7 +31,7 @@ export NXF_HOME=/fastscratch/tylerdoe/.nextflow_ecoli_2020
 
 # Run pipeline for E. coli 2020 NARMS data
 # Note: Set filter_state to null to process ALL states
-# Uses v1.2-mod branch which has error handling for failed assemblies
+# Uses main branch with enhanced report features (30+ metadata fields, QC tab improvements)
 nextflow run main.nf \
     -profile beocat \
     --input_mode metadata \
@@ -39,8 +39,10 @@ nextflow run main.nf \
     --filter_organism "Escherichia" \
     --filter_year_start 2020 \
     --filter_year_end 2020 \
-    --skip_busco true \
-    --outdir /fastscratch/tylerdoe/kansas_2020_ecoli \
+    --skip_busco false \
+    --busco_download_path /fastscratch/tylerdoe/databases/busco_downloads \
+    --prophage_db /fastscratch/tylerdoe/databases/prophage_db.dmnd \
+    --outdir /fastscratch/tylerdoe/ecoli_2020_all_narms \
     -w work_ecoli_2020 \
     -resume
 
@@ -55,13 +57,19 @@ echo "=========================================="
 if [ $EXIT_CODE -eq 0 ]; then
     echo "✅ Pipeline completed successfully!"
     echo ""
-    echo "Results location: /fastscratch/tylerdoe/kansas_2020_ecoli"
+    echo "Results location: /fastscratch/tylerdoe/ecoli_2020_all_narms"
     echo ""
-    echo "Summary report (if generated):"
-    echo "  - /fastscratch/tylerdoe/kansas_2020_ecoli/summary/compass_summary.html"
-    echo "  - /fastscratch/tylerdoe/kansas_2020_ecoli/summary/compass_summary.tsv"
+    echo "Enhanced Summary Report:"
+    echo "  - /fastscratch/tylerdoe/ecoli_2020_all_narms/summary/compass_summary.html"
+    echo "  - /fastscratch/tylerdoe/ecoli_2020_all_narms/summary/compass_summary.tsv"
     echo ""
-    echo "Note: This includes ALL US E. coli 2020 samples"
+    echo "Report features:"
+    echo "  • 30+ metadata fields (platform, model, bioproject, etc.)"
+    echo "  • BUSCO quality metrics"
+    echo "  • MLST typing data"
+    echo "  • Enhanced QC tab"
+    echo ""
+    echo "Note: This includes ALL US E. coli 2020 NARMS samples"
     echo "Expected: ~500-1000 samples for 2020"
 else
     echo "❌ Pipeline failed with exit code $EXIT_CODE"

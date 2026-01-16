@@ -36,6 +36,15 @@ module load MAFFT || echo "⚠️  MAFFT module not found, trying system install
 module load Biopython/1.79-foss-2022a || echo "⚠️  Biopython module not found"
 module load IQ-TREE || echo "⚠️  IQ-TREE module not found, trying system install"
 
+# Verify Python can import Bio
+echo ""
+echo "Verifying BioPython installation..."
+python3 -c "from Bio import SeqIO; print('✅ BioPython import successful')" || {
+    echo "❌ ERROR: BioPython module loaded but Python cannot import it"
+    echo "   This may be a PYTHONPATH issue"
+    exit 1
+}
+
 # Check if tools are available
 echo ""
 echo "Checking required tools..."

@@ -122,22 +122,59 @@ scheme = str(df.iloc[0][1])  # Position 1 = SCHEME
 st = str(df.iloc[0][2])      # Position 2 = ST
 ```
 
+---
+
+### ADDITIONAL ISSUES DISCOVERED
+
+#### Issue 4: Metadata Dropdown Still Only 4 Fields
+**Problem**: After first regeneration, dropdown still showed only 4 fields (bases, organism, spots, spots_with_mates)
+**Root cause**: Ran only `generate_compass_summary.py` without `recreate_filtered_metadata.py` first!
+
+The pipeline does a **2-step process**:
+1. `recreate_filtered_metadata.py` - Scans result directories (quast, busco, mlst, etc.), finds analyzed samples, loads original metadata from `metadata/*.csv`, creates `filtered_samples/filtered_samples.csv`
+2. `generate_compass_summary.py --metadata filtered_samples/filtered_samples.csv` - Uses that to add ALL SRA fields
+
+**Solution**: Created wrapper script `regenerate_compass_report.sh` that does both steps (commit `5d699c6`)
+
+#### Issue 5: BUSCO Data Missing from QC Tab
+**Status**: May be expected - Kansas 2021-2025 dataset may not have BUSCO results
+
+**Investigation**:
+- Script looks for `busco/*/short_summary.*.txt` files
+- Pipeline config has `skip_busco = false` by default
+- BUT dataset may have been run with BUSCO skipped or BUSCO failed
+
+**Resolution**:
+- If BUSCO directory exists with results → Script will find them automatically
+- If BUSCO was skipped → QC tab will only show QUAST metrics (N50, contigs, etc.)
+- This is expected behavior - not all datasets have BUSCO data
+- Original pipeline report likely also didn't have BUSCO for this dataset
+
 ### Files Modified
 - **Script**: `bin/generate_compass_summary.py`
 - **Commit**: `65bd92d` - "Fix COMPASS report: move QC tab, fix metadata dropdown, fix MLST parsing"
 - **Status**: Committed and pushed to git
 
-### How to Regenerate Report
+### How to Regenerate Report (CORRECTED)
+
+**IMPORTANT**: The pipeline uses a 2-step process:
+1. **Step 1**: `recreate_filtered_metadata.py` - Rebuilds filtered_samples.csv from analyzed samples
+2. **Step 2**: `generate_compass_summary.py` - Generates report WITH full SRA metadata
+
+**Use the wrapper script** (does both steps automatically):
 ```bash
 cd /fastscratch/tylerdoe/COMPASS-pipeline
 git pull origin v1.2-mod
 
-# Run the report generator
-./bin/generate_compass_summary.py \
-    /bulk/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod
+# Proper way (same as pipeline does)
+./regenerate_compass_report.sh \
+    /bulk/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod \
+    compass_summary.html
 
-# Output: ~/compass_summary_report_kansas_2021-2025_all_narms_v1.2mod.html
+# Output: compass_summary.html (in current directory)
 ```
+
+**What was wrong before**: You ran only step 2 without step 1, so it didn't have the filtered_samples.csv with all SRA metadata fields!
 
 ### What to Check When Report Finishes
 1. ✅ QC tab is now 2nd (after Overview)
@@ -296,12 +333,16 @@ tail -f /homes/tylerdoe/slurm-prophage-amr-5753576.out
 ### Recent Commits (Tonight)
 1. `1e6916e` - Add all-in-one prophage phylogeny analysis script
 2. `65bd92d` - Fix COMPASS report: move QC tab, fix metadata dropdown, fix MLST parsing
+3. `b84d487` - Add comprehensive session notes for January 16, 2026
+4. `5d699c6` - Add wrapper script for proper COMPASS report regeneration
 
 ### Files Added/Modified Tonight
 - ✅ `run_prophage_phylogeny_complete.sh` (NEW)
+- ✅ `regenerate_compass_report.sh` (NEW - wrapper script)
 - ✅ `run_complete_prophage_amr_analysis.sh` (already existed)
 - ✅ `bin/generate_compass_summary.py` (MODIFIED - 3 bug fixes)
 - ✅ `bin/run_amrfinder_on_prophages.py` (MODIFIED - container fix from previous session)
+- ✅ `SESSION_NOTES_2026-01-16.md` (NEW)
 
 ### All Changes Committed and Pushed
 ```bash

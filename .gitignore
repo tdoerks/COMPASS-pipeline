@@ -7,7 +7,9 @@ work/
 
 # Results
 results/
-test_results/
+test_results*/
+test_narms*/
+test_sra*/
 filtered_samples/
 metadata/
 
@@ -37,3 +39,7 @@ run_*_test.sh
 
 # Temp files
 temp_*.txt
+
+# Analysis data - do not commit results
+analysis/data/
+analysis/figures/

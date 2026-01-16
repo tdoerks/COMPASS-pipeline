@@ -1,7 +1,7 @@
 include { AMRFINDER; DOWNLOAD_AMRFINDER_DB } from '../modules/amrfinder'
 include { VIBRANT } from '../modules/vibrant'
 include { DOWNLOAD_PROPHAGE_DB; DIAMOND_PROPHAGE } from '../modules/diamond_prophage'
-// include { CHECKV } from '../modules/checkv'  // COMMENTED OUT FOR TESTING
+include { CHECKV; DOWNLOAD_CHECKV_DB } from '../modules/checkv'
 include { PHANOTATE } from '../modules/phanotate'
 include { COMBINE_RESULTS } from '../modules/combine_results'
 
@@ -13,6 +13,7 @@ workflow AMR_PHAGE_ANALYSIS {
     // Download/prepare databases
     DOWNLOAD_AMRFINDER_DB()
     DOWNLOAD_PROPHAGE_DB()
+    DOWNLOAD_CHECKV_DB()
 
     // Run AMR analysis
     AMRFINDER(samples, DOWNLOAD_AMRFINDER_DB.out.db)
@@ -23,14 +24,20 @@ workflow AMR_PHAGE_ANALYSIS {
     // Run Phage analysis
     VIBRANT(vibrant_input)
     DIAMOND_PROPHAGE(VIBRANT.out.phages, DOWNLOAD_PROPHAGE_DB.out.db)
-    // CHECKV(VIBRANT.out.phages)  // COMMENTED OUT FOR TESTING
+    CHECKV(VIBRANT.out.phages, DOWNLOAD_CHECKV_DB.out.db)
     PHANOTATE(VIBRANT.out.phages)
 
-    // Combine all results (without CheckV for now)
+    // Combine all results (pass empty channels for missing inputs)
     COMBINE_RESULTS(
         AMRFINDER.out.results.map { it[1] }.collect(),
         VIBRANT.out.results.map { it[1] }.collect(),
-        DIAMOND_PROPHAGE.out.results.map { it[1] }.collect()
+        DIAMOND_PROPHAGE.out.results.map { it[1] }.collect(),
+        Channel.empty().collect().ifEmpty([]),  // abricate_summary
+        Channel.empty().collect().ifEmpty([]),  // quast_reports
+        Channel.empty().collect().ifEmpty([]),  // busco_summaries
+        Channel.empty().collect().ifEmpty([]),  // mlst_results
+        Channel.empty().collect().ifEmpty([]),  // sistr_results
+        file('NO_FILE')                         // metadata
     )
 
     // Collect versions
@@ -38,7 +45,7 @@ workflow AMR_PHAGE_ANALYSIS {
     ch_versions = ch_versions.mix(AMRFINDER.out.versions.first())
     ch_versions = ch_versions.mix(VIBRANT.out.versions.first())
     ch_versions = ch_versions.mix(DIAMOND_PROPHAGE.out.versions.first())
-    // ch_versions = ch_versions.mix(CHECKV.out.versions.first())  // COMMENTED OUT
+    ch_versions = ch_versions.mix(CHECKV.out.versions.first())  // COMMENTED OUT
     ch_versions = ch_versions.mix(PHANOTATE.out.versions.first())
     ch_versions = ch_versions.mix(COMBINE_RESULTS.out.versions)
 

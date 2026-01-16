@@ -1,7 +1,6 @@
 process PHANOTATE {
     tag "$sample_id"
     publishDir "${params.outdir}/phanotate", mode: 'copy'
-    
     container = 'quay.io/biocontainers/phanotate:1.6.7--py311he264feb_0'
     
     input:

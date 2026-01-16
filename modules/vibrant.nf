@@ -1,8 +1,7 @@
 process VIBRANT {
     tag "$sample_id"
     publishDir "${params.outdir}/vibrant", mode: 'copy'
-    
-    container = 'docker://staphb/vibrant'
+    container = 'staphb/vibrant'
     
     input:
     tuple val(sample_id), path(assembly)

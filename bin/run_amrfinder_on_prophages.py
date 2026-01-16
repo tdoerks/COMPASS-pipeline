@@ -126,7 +126,9 @@ def run_amrfinder_on_fasta(fasta_file, output_file, organism='Salmonella', amrfi
         if result.returncode == 0:
             return True
         else:
-            print(f"    ⚠️  AMRFinder failed: {result.stderr[:200]}")
+            print(f"    ⚠️  AMRFinder failed:")
+            print(f"    STDERR: {result.stderr}")
+            print(f"    STDOUT: {result.stdout}")
             return False
 
     except subprocess.TimeoutExpired:

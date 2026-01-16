@@ -81,16 +81,22 @@ echo "This will create a multi-FASTA file with all prophage sequences."
 echo ""
 
 # Create Python script inline to extract prophages
+# Pass paths via environment variables since heredoc uses single quotes
+export RESULTS_DIR_PY="$RESULTS_DIR"
+export OUTPUT_FASTA_PY="$PROPHAGE_FASTA"
+export OUTPUT_METADATA_PY="$PROPHAGE_METADATA"
+
 python3 << 'PYTHON_SCRIPT'
 import sys
+import os
 from pathlib import Path
 from Bio import SeqIO
 import csv
 
-results_dir = Path("/bulk/tylerdoe/archives/kansas_2021-2025_all_narms_v1.2mod")
+results_dir = Path(os.environ['RESULTS_DIR_PY'])
 vibrant_dir = results_dir / "vibrant"
-output_fasta = Path("/homes/tylerdoe/prophage_phylogeny_$(date +%Y%m%d)/prophages_all.fasta").parent / "prophages_all.fasta"
-output_metadata = output_fasta.parent / "prophage_metadata.tsv"
+output_fasta = Path(os.environ['OUTPUT_FASTA_PY'])
+output_metadata = Path(os.environ['OUTPUT_METADATA_PY'])
 
 print(f"Scanning VIBRANT directory: {vibrant_dir}")
 print(f"Output FASTA: {output_fasta}")

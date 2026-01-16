@@ -54,8 +54,10 @@ def find_amrfinder_database():
     """
     # Common database locations
     possible_paths = [
+        Path.home() / "databases/amrfinder_db",  # User's database
         Path.home() / "databases/amrfinder",
         Path.home() / ".amrfinder",
+        Path("/homes") / Path.home().name / "databases/amrfinder_db",
         Path("/homes") / Path.home().name / "databases/amrfinder",
     ]
 

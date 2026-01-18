@@ -10,7 +10,7 @@
 
 echo "=========================================="
 echo "E. coli Prophage-AMR Analysis"
-echo "All 3 Methods on Multiple E. coli Datasets"
+echo "All 3 Methods on E. coli 2021-2024 Datasets"
 echo "=========================================="
 echo "Job ID: $SLURM_JOB_ID"
 echo "Start time: $(date)"
@@ -30,6 +30,7 @@ cd "$PIPELINE_DIR" || {
 
 # Define datasets to analyze
 declare -A DATASETS=(
+    ["ecoli_2021"]="/bulk/tylerdoe/archives/kansas_2021_ecoli"
     ["ecoli_2022"]="/bulk/tylerdoe/archives/kansas_2022_ecoli"
     ["ecoli_2023"]="/bulk/tylerdoe/archives/results_ecoli_2023"
     ["ecoli_2024"]="/bulk/tylerdoe/archives/results_ecoli_all_2024"

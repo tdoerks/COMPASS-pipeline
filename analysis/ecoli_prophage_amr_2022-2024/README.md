@@ -6,6 +6,8 @@ This analysis investigates whether prophages (integrated bacteriophages) carry a
 
 **Key Finding**: Prophages DO carry AMR genes in E. coli - we identified **322 AMR genes** located within prophage regions across the three-year period.
 
+**Note**: This is part of a 4-year series (2021-2024). See `ecoli_prophage_amr_2021/` for 2021 results (74 genes). **Combined total: 396 AMR genes** across all 4 years.
+
 ## Analysis Date
 
 January 16, 2026

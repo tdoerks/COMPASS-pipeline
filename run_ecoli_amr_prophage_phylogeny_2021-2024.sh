@@ -196,9 +196,10 @@ if not amr_samples:
                         reader = csv.DictReader(f)
                         samples = set()
                         for row in reader:
-                            # CSV should have sample_id and prophage info
-                            if row.get('sample_id'):
-                                samples.add(row['sample_id'])
+                            # CSV has 'sample' column (not 'sample_id')
+                            # Skip rows where gene is 'None' (samples with no AMR in prophages)
+                            if row.get('sample') and row.get('gene') != 'None':
+                                samples.add(row['sample'])
                     if samples:
                         amr_samples[year] = list(samples)
                         print(f"  Found {len(samples)} samples with AMR prophages")

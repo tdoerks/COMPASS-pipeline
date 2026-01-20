@@ -2,9 +2,9 @@
 #SBATCH --job-name=ecoli_amr_prophage_phylo
 #SBATCH --output=/homes/tylerdoe/slurm-ecoli-amr-prophage-phylo-%j.out
 #SBATCH --error=/homes/tylerdoe/slurm-ecoli-amr-prophage-phylo-%j.err
-#SBATCH --time=24:00:00
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=16G
+#SBATCH --time=96:00:00
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=32G
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=tdoerks@vet.k-state.edu
 

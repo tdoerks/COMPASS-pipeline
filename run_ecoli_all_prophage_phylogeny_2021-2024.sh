@@ -275,7 +275,7 @@ mafft \
     --auto \
     --thread $SLURM_CPUS_PER_TASK \
     "$ALIGNMENT_INPUT" \
-    > "$ALIGNED_FASTA" 2>&1 | tee "$OUTPUT_DIR/mafft.log"
+    > "$ALIGNED_FASTA" 2> >(tee "$OUTPUT_DIR/mafft.log" >&2)
 
 MAFFT_EXIT=$?
 END_TIME=$(date +%s)

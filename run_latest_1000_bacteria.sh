@@ -66,7 +66,7 @@ echo ""
 
 # Run pipeline
 nextflow run /fastscratch/tylerdoe/COMPASS-pipeline/main.nf \
-    -profile singularity \
+    -profile beocat \
     --all_bacterial true \
     --filter_platform "ILLUMINA" \
     --filter_library_source "GENOMIC" \

@@ -65,7 +65,7 @@ echo "Running COMPASS pipeline..."
 echo ""
 
 # Run pipeline
-nextflow run /homes/tylerdoe/COMPASS-pipeline/main.nf \
+nextflow run /fastscratch/tylerdoe/COMPASS-pipeline/main.nf \
     -profile singularity \
     --all_bacterial true \
     --filter_platform "ILLUMINA" \

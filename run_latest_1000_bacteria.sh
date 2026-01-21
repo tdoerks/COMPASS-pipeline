@@ -19,75 +19,58 @@ echo "Job ID: $SLURM_JOB_ID"
 echo "Start time: $(date)"
 echo ""
 
-# Set working directory
-WORK_DIR="/fastscratch/tylerdoe"
-OUTPUT_DIR="${WORK_DIR}/latest_1000_bacteria_$(date +%Y%m%d)"
-
-cd "$WORK_DIR" || {
-    echo "ERROR: Could not cd to $WORK_DIR"
+# Change to fastscratch directory
+cd /fastscratch/tylerdoe/COMPASS-pipeline || {
+    echo "ERROR: Could not cd to /fastscratch/tylerdoe/COMPASS-pipeline"
     exit 1
 }
 
-echo "Working directory: $WORK_DIR"
-echo "Output directory: $OUTPUT_DIR"
-echo ""
-
-# Clean up any existing work directory from previous runs
-if [ -d "work" ]; then
-    echo "Cleaning up previous work directory..."
-    rm -rf work
-fi
-
-# Load required modules
-echo "Loading required modules..."
-module load Nextflow/24.04.2 || {
+# Load Nextflow
+module load Nextflow || {
     echo "ERROR: Could not load Nextflow"
     exit 1
 }
 
-module load Singularity/3.11.4 || {
-    echo "WARNING: Could not load Singularity, trying without module"
-}
+# Set unique Nextflow home to avoid cache conflicts
+export NXF_HOME=/fastscratch/tylerdoe/.nextflow_latest_1000
 
-echo ""
-echo "Nextflow version:"
-nextflow -version
-echo ""
+# Set output directory
+OUTPUT_DIR="/fastscratch/tylerdoe/latest_1000_bacteria_$(date +%Y%m%d)"
 
-# Set Nextflow configuration
-export NXF_SINGULARITY_CACHEDIR="/fastscratch/tylerdoe/singularity_cache"
-export NXF_OPTS="-Xms512M -Xmx4G"
-
-# Ensure cache directory exists
-mkdir -p "$NXF_SINGULARITY_CACHEDIR"
-
-echo "Running COMPASS pipeline..."
+echo "Working directory: $(pwd)"
+echo "Output directory: $OUTPUT_DIR"
 echo ""
 
-# Run pipeline
-nextflow run /fastscratch/tylerdoe/COMPASS-pipeline/main.nf \
+# Run pipeline for latest 1000 bacterial genomes
+# No organism filter - gets all bacteria
+# Platform and library source filters ensure quality isolate data
+nextflow run main.nf \
     -profile beocat \
-    --all_bacterial true \
+    --input_mode metadata \
     --filter_platform "ILLUMINA" \
     --filter_library_source "GENOMIC" \
     --max_samples 1000 \
+    --skip_busco false \
+    --busco_download_path /fastscratch/tylerdoe/databases/busco_downloads \
+    --prophage_db /fastscratch/tylerdoe/databases/prophage_db.dmnd \
     --outdir "$OUTPUT_DIR" \
-    --cpus 8 \
-    --memory "32 GB" \
-    -resume \
-    -with-report "${OUTPUT_DIR}/nextflow_report.html" \
-    -with-timeline "${OUTPUT_DIR}/nextflow_timeline.html" \
-    -with-dag "${OUTPUT_DIR}/nextflow_dag.html"
+    -w work_latest_1000 \
+    -resume
 
 EXIT_CODE=$?
 
 echo ""
 echo "=========================================="
+echo "End time: $(date)"
+echo "Exit code: $EXIT_CODE"
+echo "=========================================="
+
 if [ $EXIT_CODE -eq 0 ]; then
-    echo "✅ COMPASS PIPELINE COMPLETE!"
-    echo "=========================================="
+    echo "✅ Pipeline completed successfully!"
     echo ""
     echo "Results location: $OUTPUT_DIR"
+    echo ""
+    echo "Summary Report:"
     echo "  - ${OUTPUT_DIR}/summary/compass_summary.html"
     echo "  - ${OUTPUT_DIR}/summary/compass_summary.tsv"
     echo ""
@@ -104,13 +87,10 @@ if [ $EXIT_CODE -eq 0 ]; then
     echo "Use the Data Explorer to browse by organism, view AMR patterns,"
     echo "and explore prophage diversity across bacterial species."
 else
-    echo "❌ PIPELINE FAILED"
-    echo "=========================================="
-    echo "Check error logs above for details"
+    echo "❌ Pipeline failed with exit code $EXIT_CODE"
+    echo "Check logs:"
+    echo "  - /homes/tylerdoe/slurm-compass-latest-1000-${SLURM_JOB_ID}.out"
+    echo "  - .nextflow.log"
 fi
-
-echo ""
-echo "End time: $(date)"
-echo "=========================================="
 
 exit $EXIT_CODE

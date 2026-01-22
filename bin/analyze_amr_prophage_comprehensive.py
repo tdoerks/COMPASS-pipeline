@@ -88,24 +88,20 @@ def analyze_gene_frequency(data, output_file):
     for d in data:
         gene_by_year[d['gene']][d['year']] += 1
 
+    # Get all years present in data (sorted)
+    all_years = sorted(set(d['year'] for d in data))
+
     # Write results
     with open(output_file, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['gene', 'total_count', '2021', '2022', '2023', '2024', 'num_years_present'])
+        writer.writerow(['gene', 'total_count'] + all_years + ['num_years_present'])
 
         for gene, total in gene_counts.most_common():
             counts_by_year = gene_by_year[gene]
-            num_years = sum(1 for y in ['2021', '2022', '2023', '2024'] if counts_by_year[y] > 0)
+            num_years = sum(1 for y in all_years if counts_by_year[y] > 0)
 
-            writer.writerow([
-                gene,
-                total,
-                counts_by_year.get('2021', 0),
-                counts_by_year.get('2022', 0),
-                counts_by_year.get('2023', 0),
-                counts_by_year.get('2024', 0),
-                num_years
-            ])
+            row = [gene, total] + [counts_by_year.get(y, 0) for y in all_years] + [num_years]
+            writer.writerow(row)
 
     print(f"✅ Gene frequency analysis saved to: {output_file}")
     print(f"   Total unique genes: {len(gene_counts)}")
@@ -128,25 +124,27 @@ def analyze_drug_class_trends(data, output_file):
         if d['class']:
             class_by_year[d['year']][d['class']] += 1
 
-    # Get all unique classes
+    # Get all unique classes and years
     all_classes = set()
     for year_data in class_by_year.values():
         all_classes.update(year_data.keys())
 
+    all_years = sorted(class_by_year.keys())
+
     # Write results
     with open(output_file, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['drug_class', '2021', '2022', '2023', '2024', 'total', 'trend'])
+        writer.writerow(['drug_class'] + all_years + ['total', 'trend'])
 
         for drug_class in sorted(all_classes):
-            counts = [class_by_year[y].get(drug_class, 0) for y in ['2021', '2022', '2023', '2024']]
+            counts = [class_by_year[y].get(drug_class, 0) for y in all_years]
             total = sum(counts)
 
-            # Simple trend: compare 2024 to 2021
-            if counts[0] > 0 and counts[3] > 0:
-                if counts[3] > counts[0] * 1.5:
+            # Simple trend: compare last year to first year
+            if counts[0] > 0 and counts[-1] > 0:
+                if counts[-1] > counts[0] * 1.5:
                     trend = 'increasing'
-                elif counts[3] < counts[0] * 0.67:
+                elif counts[-1] < counts[0] * 0.67:
                     trend = 'decreasing'
                 else:
                     trend = 'stable'
@@ -479,11 +477,13 @@ Example:
         """
     )
 
+    parser.add_argument('--csv-2020', required=False, help='Method 3 CSV for 2020 (optional)')
     parser.add_argument('--csv-2021', required=True, help='Method 3 CSV for 2021')
     parser.add_argument('--csv-2022', required=True, help='Method 3 CSV for 2022')
     parser.add_argument('--csv-2023', required=True, help='Method 3 CSV for 2023')
     parser.add_argument('--csv-2024', required=True, help='Method 3 CSV for 2024')
 
+    parser.add_argument('--vibrant-2020', required=False, help='VIBRANT directory for 2020 (optional)')
     parser.add_argument('--vibrant-2021', required=True, help='VIBRANT directory for 2021')
     parser.add_argument('--vibrant-2022', required=True, help='VIBRANT directory for 2022')
     parser.add_argument('--vibrant-2023', required=True, help='VIBRANT directory for 2023')
@@ -508,19 +508,29 @@ Example:
     print()
 
     # Load data
-    csv_files = {
+    csv_files = {}
+    vibrant_dirs = {}
+
+    # Add 2020 if provided
+    if args.csv_2020:
+        csv_files['2020'] = args.csv_2020
+    if args.vibrant_2020:
+        vibrant_dirs['2020'] = args.vibrant_2020
+
+    # Add 2021-2024 (required)
+    csv_files.update({
         '2021': args.csv_2021,
         '2022': args.csv_2022,
         '2023': args.csv_2023,
         '2024': args.csv_2024
-    }
+    })
 
-    vibrant_dirs = {
+    vibrant_dirs.update({
         '2021': args.vibrant_2021,
         '2022': args.vibrant_2022,
         '2023': args.vibrant_2023,
         '2024': args.vibrant_2024
-    }
+    })
 
     data = load_amr_data(csv_files)
 

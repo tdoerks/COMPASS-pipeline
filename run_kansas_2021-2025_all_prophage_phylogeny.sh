@@ -51,7 +51,7 @@ module load FastTree/2.1.11-GCCcore-11.3.0 || echo "⚠️  FastTree module not 
 # Verify Python can import Bio
 echo ""
 echo "Verifying BioPython installation..."
-python3 -c "from Bio import SeqIO; print('✅ BioPython import successful')\" || {
+python3 -c "from Bio import SeqIO; print('✅ BioPython import successful')" || {
     echo "❌ ERROR: BioPython module loaded but Python cannot import it"
     exit 1
 }

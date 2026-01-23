@@ -29,10 +29,17 @@ module load Nextflow || {
     exit 1
 }
 
-module load entrez-direct || {
-    echo "ERROR: Could not load entrez-direct"
-    exit 1
+# Load Singularity/Apptainer (for running entrez-direct container)
+module load Singularity 2>/dev/null || module load Apptainer 2>/dev/null || {
+    echo "⚠️  WARNING: Could not load Singularity/Apptainer module"
+    echo "   Trying to use singularity from PATH..."
 }
+
+# Use entrez-direct container (same as Nextflow pipeline)
+ENTREZ_CONTAINER="docker://quay.io/biocontainers/entrez-direct:16.2--he881be0_1"
+
+echo "Using entrez-direct container: $ENTREZ_CONTAINER"
+echo ""
 
 # Set unique Nextflow home to avoid cache conflicts
 export NXF_HOME=/fastscratch/tylerdoe/.nextflow_ks_mo_temporal
@@ -62,8 +69,10 @@ echo "Querying NCBI SRA for E. coli samples from 2021-2026..."
 echo "This may take several minutes for large datasets..."
 echo ""
 
-esearch -db sra -query "Escherichia coli[Organism] AND 2021:2026[Release Date]" | \
-    efetch -format runinfo > "$METADATA_FILE"
+# Run entrez-direct in container
+singularity exec "$ENTREZ_CONTAINER" bash -c \
+    "esearch -db sra -query 'Escherichia coli[Organism] AND 2021:2026[Release Date]' | efetch -format runinfo" \
+    > "$METADATA_FILE"
 
 if [ ! -f "$METADATA_FILE" ] || [ ! -s "$METADATA_FILE" ]; then
     echo "❌ ERROR: Failed to download metadata"

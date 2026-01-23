@@ -156,33 +156,87 @@ def parse_mlst(mlst_dir):
     mlst_data = {}
     mlst_path = Path(mlst_dir)
 
+    print(f"\n{'='*60}")
+    print(f"MLST PARSING DEBUG")
+    print(f"{'='*60}")
     print(f"  Searching for MLST files in: {mlst_path}")
+    print(f"  Directory exists: {mlst_path.exists()}")
 
     if mlst_path.exists():
+        # List ALL files in directory for debugging
+        all_files = list(mlst_path.glob('*'))
+        print(f"  Total files in MLST directory: {len(all_files)}")
+        if all_files:
+            print(f"  All files: {[f.name for f in all_files[:10]]}")  # Show first 10
+
         mlst_files = list(mlst_path.glob('*_mlst.tsv'))
-        print(f"  Found {len(mlst_files)} MLST files: {[f.name for f in mlst_files]}")
+        print(f"  Found {len(mlst_files)} MLST TSV files: {[f.name for f in mlst_files]}")
+
+        if len(mlst_files) == 0:
+            print(f"  ⚠️  WARNING: No *_mlst.tsv files found!")
+            print(f"  Expected pattern: SAMPLEID_mlst.tsv")
 
         for mlst_file in mlst_files:
             sample_id = mlst_file.stem.replace('_mlst', '')
+            print(f"\n  Processing: {mlst_file.name}")
+            print(f"    Full path: {mlst_file}")
+            print(f"    File size: {mlst_file.stat().st_size} bytes")
+
             try:
-                df = pd.read_csv(mlst_file, sep='\t')
-                print(f"    Parsing {mlst_file.name}: {len(df)} rows, columns: {list(df.columns)}")
+                # Read raw content for debugging
+                with open(mlst_file, 'r') as f:
+                    first_lines = [f.readline().strip() for _ in range(3)]
+                print(f"    First 3 lines of file:")
+                for i, line in enumerate(first_lines, 1):
+                    print(f"      {i}: {line[:100]}")  # Truncate long lines
+
+                # MLST files have NO HEADER - read with column positions
+                # Format: FILE SCHEME ST gene1 gene2 ...
+                # Column 0 = assembly file, Column 1 = scheme, Column 2 = ST
+                df = pd.read_csv(mlst_file, sep='\t', header=None)
+                print(f"    Parsed dataframe: {len(df)} rows, {len(df.columns)} columns")
+                print(f"    Column positions: {list(range(len(df.columns)))}")
 
                 if not df.empty:
                     # MLST format: FILE SCHEME ST gene1 gene2 ...
-                    scheme = str(df.iloc[0]['SCHEME']) if 'SCHEME' in df.columns else '-'
-                    st = str(df.iloc[0]['ST']) if 'ST' in df.columns else '-'
+                    print(f"    First row data:")
+                    for col_idx in range(min(5, len(df.columns))):  # Show first 5 columns
+                        print(f"      Column {col_idx}: {df.iloc[0][col_idx]}")
+
+                    # Use column positions (1=SCHEME, 2=ST) instead of column names
+                    scheme = str(df.iloc[0][1]) if len(df.columns) > 1 else '-'
+                    st = str(df.iloc[0][2]) if len(df.columns) > 2 else '-'
+
+                    # Check if we actually got valid data
+                    if scheme == '-' or st == '-':
+                        print(f"    ⚠️  WARNING: Missing SCHEME or ST in columns 1-2!")
+
                     mlst_data[sample_id] = {
                         'mlst_scheme': scheme,
                         'mlst_st': st
                     }
-                    print(f"      → Sample {sample_id}: scheme={scheme}, ST={st}")
-            except Exception as e:
-                print(f"Warning: Could not parse MLST results for {mlst_file}: {e}", file=sys.stderr)
-    else:
-        print(f"  MLST directory does not exist: {mlst_path}")
+                    print(f"    ✓ Successfully parsed: Sample={sample_id}, Scheme={scheme}, ST={st}")
+                else:
+                    print(f"    ⚠️  WARNING: Dataframe is empty!")
 
-    print(f"  Total MLST data parsed: {len(mlst_data)} samples")
+            except Exception as e:
+                print(f"    ❌ ERROR parsing {mlst_file.name}: {e}")
+                import traceback
+                traceback.print_exc()
+    else:
+        print(f"  ❌ MLST directory does not exist: {mlst_path}")
+
+    print(f"\n{'='*60}")
+    print(f"  MLST PARSING SUMMARY")
+    print(f"  Total samples with MLST data: {len(mlst_data)}")
+    if mlst_data:
+        print(f"  Samples: {list(mlst_data.keys())}")
+        print(f"  Schemes found: {set(d['mlst_scheme'] for d in mlst_data.values())}")
+        print(f"  STs found: {set(d['mlst_st'] for d in mlst_data.values())}")
+    else:
+        print(f"  ⚠️  No MLST data found - charts will show 'No data available' message")
+    print(f"{'='*60}\n")
+
     return mlst_data
 
 def parse_sistr(sistr_dir):
@@ -683,9 +737,35 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                        'serovar', 'inc_groups', 'mob_types', 'num_lytic', 'num_lysogenic',
                        'num_prophage_hits', 'top_prophage_matches'}
 
-    # Get all column names that are suitable for grouping
-    # NOTE: Any column from the metadata CSV will appear here automatically!
-    metadata_fields = [col for col in df.columns if col not in excluded_fields]
+    # Whitelist of useful metadata fields to display (instead of all 49 SRA fields)
+    # This keeps the dropdown manageable and focused on relevant information
+    # IMPORTANT: Field names must match what parse_metadata() creates (lowercase with underscores)
+    # The parser converts "BioProject" → "bioproject", "SampleName" → "samplename", etc.
+    metadata_whitelist = {
+        # Sample identifiers
+        'run', 'biosample', 'bioproject', 'samplename',
+        # Platform information
+        'platform', 'model', 'librarystrategy', 'librarysource', 'librarylayout',
+        # Organism information
+        'organism', 'scientificname',
+        # Source/isolation details
+        'source_type', 'isolation_source', 'host', 'geo_loc_name',
+        # Temporal information
+        'collection_date', 'year',
+        # Sequencing metrics
+        'spots', 'bases', 'avglength', 'spots_with_mates',
+        # Dates
+        'releasedate', 'loaddate',
+        # Additional useful fields
+        'center_name', 'instrument', 'libraryselection',
+        'bioproject_biosample', 'consent', 'datastore_filetype',
+        'datastore_provider', 'datastore_region'
+    }
+
+    # Get metadata field names that are both in our whitelist AND in the dataframe
+    # NOTE: Only whitelisted metadata fields will appear in the Metadata Explorer dropdown
+    metadata_fields = [col for col in df.columns
+                      if col not in excluded_fields and col in metadata_whitelist]
 
     # Create aggregation data structure for ALL metadata fields
     # This allows the JavaScript to dynamically generate charts for any field
@@ -1361,12 +1441,12 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     <div class="tabs">
         <div class="tab-buttons">
             <button class="tab-button active" onclick="switchTab(event, 'overview')">Overview</button>
+            <button class="tab-button" onclick="switchTab(event, 'quality-control')">Quality Control</button>
             <button class="tab-button" onclick="switchTab(event, 'amr-analysis')">AMR Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'plasmid-analysis')">Plasmid Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>
             <button class="tab-button" onclick="switchTab(event, 'metadata-explorer')">Metadata Explorer</button>
             <button class="tab-button" onclick="switchTab(event, 'strain-typing')">Strain Typing</button>
-            <button class="tab-button" onclick="switchTab(event, 'quality-control')">Quality Control</button>
             <button class="tab-button" onclick="switchTab(event, 'data-table')">Data Table</button>"""
 
     # MultiQC iframe tab removed - MultiQC report is now accessible via link in Quality Control tab
@@ -1831,29 +1911,65 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     </tbody>
                 </table>
             </div>
-        </div>"""
+        </div>
 
-    # Add MultiQC Report Download Section (only if MultiQC report exists)
-    if multiqc_path and Path(multiqc_path).exists():
-        html += """
-        <!-- MultiQC Report Download Section -->
-        <div style="margin-top: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px; color: white;">
+        <!-- Smart MultiQC Link with JavaScript detection -->
+        <div id="multiqcLinkContainer" style="margin-top: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px; color: white;">
             <h2 style="margin-bottom: 15px; color: white;">📊 Full Quality Control Report</h2>
             <p style="margin-bottom: 20px; opacity: 0.9;">
                 For detailed read-level QC metrics including FastQC sequence quality, adapter content,
                 and fastp trimming statistics, view the comprehensive MultiQC report.
             </p>
-            <a href="../multiqc/multiqc_report.html" target="_blank"
-               style="display: inline-block; padding: 15px 30px; background: white; color: #667eea;
-                      text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 1.1em;
-                      box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: transform 0.2s;"
-               onmouseover="this.style.transform='translateY(-2px)'"
-               onmouseout="this.style.transform='translateY(0)'">
-                📥 Open Full MultiQC Report
-            </a>
-            <p style="margin-top: 15px; font-size: 0.9em; opacity: 0.8;">
-                Opens in new tab • Includes FastQC, fastp, QUAST, and BUSCO detailed metrics
-            </p>
+
+            <!-- This will be populated by JavaScript based on file existence -->
+            <div id="multiqcLinkContent"></div>
+
+            <script>
+                // Check if MultiQC report exists using a simple fetch test
+                async function checkMultiQCExists() {
+                    const multiqcPath = '../multiqc/multiqc_report.html';
+                    const container = document.getElementById('multiqcLinkContent');
+
+                    try {
+                        const response = await fetch(multiqcPath, { method: 'HEAD' });
+                        if (response.ok) {
+                            // File exists - show working link
+                            container.innerHTML = `
+                                <a href="${multiqcPath}" target="_blank"
+                                   style="display: inline-block; padding: 15px 30px; background: white; color: #667eea;
+                                          text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 1.1em;
+                                          box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: transform 0.2s;"
+                                   onmouseover="this.style.transform='translateY(-2px)'"
+                                   onmouseout="this.style.transform='translateY(0)'">
+                                    ✅ Open Full MultiQC Report
+                                </a>
+                                <p style="margin-top: 15px; font-size: 0.9em; opacity: 0.8;">
+                                    Opens in new tab • Includes FastQC, fastp, QUAST, and BUSCO detailed metrics
+                                </p>`;
+                        } else {
+                            throw new Error('File not found');
+                        }
+                    } catch (error) {
+                        // File doesn't exist - show helpful message
+                        container.innerHTML = `
+                            <div style="padding: 20px; background: rgba(255,255,255,0.2); border-radius: 8px;">
+                                <p style="margin: 0; font-size: 1.1em;">
+                                    <strong>ℹ️ MultiQC Report Location</strong>
+                                </p>
+                                <p style="margin-top: 10px; opacity: 0.9;">
+                                    The MultiQC report is available in the <code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px;">multiqc/</code>
+                                    directory alongside this summary file.
+                                </p>
+                                <p style="margin-top: 10px; opacity: 0.8; font-size: 0.9em;">
+                                    To view it: Download the entire output directory and open <code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px;">multiqc/multiqc_report.html</code> in your browser.
+                                </p>
+                            </div>`;
+                    }
+                }
+
+                // Check when page loads
+                checkMultiQCExists();
+            </script>
         </div>"""
 
     html += """
@@ -2904,111 +3020,132 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         const mlstSTLabels = MLST_ST_LABELS_PLACEHOLDER;
         const mlstSTCounts = MLST_ST_COUNTS_PLACEHOLDER;
 
-        const mlstSTCtx = document.getElementById('mlstSTChart').getContext('2d');
-        const mlstSTChart = new Chart(mlstSTCtx, {
-            type: 'bar',
-            data: {
-                labels: mlstSTLabels,
-                datasets: [{
-                    label: 'Number of Samples',
-                    data: mlstSTCounts,
-                    backgroundColor: '#22c55e',
-                    borderColor: '#16a34a',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: 'y',  // Horizontal bar chart
-                plugins: {
-                    legend: {
-                        display: false
-                    }
+        // Check if we have MLST data, otherwise show empty message
+        const mlstSTCanvas = document.getElementById('mlstSTChart');
+        if (mlstSTLabels.length > 0) {
+            const mlstSTCtx = mlstSTCanvas.getContext('2d');
+            const mlstSTChart = new Chart(mlstSTCtx, {
+                type: 'bar',
+                data: {
+                    labels: mlstSTLabels,
+                    datasets: [{
+                        label: 'Number of Samples',
+                        data: mlstSTCounts,
+                        backgroundColor: '#22c55e',
+                        borderColor: '#16a34a',
+                        borderWidth: 1
+                    }]
                 },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Number of Samples'
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',  // Horizontal bar chart
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Samples'
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
+        } else {
+            // Display empty state message
+            mlstSTCanvas.parentElement.innerHTML = '<div style="padding: 40px; text-align: center; color: #999;"><p style="font-size: 1.2em;">📊 No MLST data available</p><p style="margin-top: 10px;">None of the samples have MLST sequence types assigned.</p></div>';
+        }
 
         // Strain Typing: MLST Scheme Distribution
         const mlstSchemeLabels = MLST_SCHEME_LABELS_PLACEHOLDER;
         const mlstSchemeCounts = MLST_SCHEME_COUNTS_PLACEHOLDER;
 
-        const mlstSchemeCtx = document.getElementById('mlstSchemeChart').getContext('2d');
-        const mlstSchemeChart = new Chart(mlstSchemeCtx, {
-            type: 'pie',
-            data: {
-                labels: mlstSchemeLabels,
-                datasets: [{
-                    data: mlstSchemeCounts,
-                    backgroundColor: [
-                        '#22c55e',
-                        '#10b981',
-                        '#14b8a6',
-                        '#06b6d4',
-                        '#0ea5e9',
-                        '#3b82f6'
-                    ],
-                    borderWidth: 2,
-                    borderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'right'
+        // Check if we have MLST scheme data, otherwise show empty message
+        const mlstSchemeCanvas = document.getElementById('mlstSchemeChart');
+        if (mlstSchemeLabels.length > 0) {
+            const mlstSchemeCtx = mlstSchemeCanvas.getContext('2d');
+            const mlstSchemeChart = new Chart(mlstSchemeCtx, {
+                type: 'pie',
+                data: {
+                    labels: mlstSchemeLabels,
+                    datasets: [{
+                        data: mlstSchemeCounts,
+                        backgroundColor: [
+                            '#22c55e',
+                            '#10b981',
+                            '#14b8a6',
+                            '#06b6d4',
+                            '#0ea5e9',
+                            '#3b82f6'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        }
                     }
                 }
-            }
-        });
+            });
+        } else {
+            // Display empty state message
+            mlstSchemeCanvas.parentElement.innerHTML = '<div style="padding: 40px; text-align: center; color: #999;"><p style="font-size: 1.2em;">📊 No MLST scheme data available</p><p style="margin-top: 10px;">None of the samples have MLST typing schemes assigned.</p></div>';
+        }
 
         // Strain Typing: Serovar Distribution (Salmonella)
         const serovarLabels = SEROVAR_LABELS_PLACEHOLDER;
         const serovarCounts = SEROVAR_COUNTS_PLACEHOLDER;
 
-        const serovarCtx = document.getElementById('serovarChart').getContext('2d');
-        const serovarChart = new Chart(serovarCtx, {
-            type: 'bar',
-            data: {
-                labels: serovarLabels,
-                datasets: [{
-                    label: 'Number of Samples',
-                    data: serovarCounts,
-                    backgroundColor: '#f59e0b',
-                    borderColor: '#d97706',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: 'y',  // Horizontal bar chart
-                plugins: {
-                    legend: {
-                        display: false
-                    }
+        // Check if we have serovar data, otherwise show empty message
+        const serovarCanvas = document.getElementById('serovarChart');
+        if (serovarLabels.length > 0) {
+            const serovarCtx = serovarCanvas.getContext('2d');
+            const serovarChart = new Chart(serovarCtx, {
+                type: 'bar',
+                data: {
+                    labels: serovarLabels,
+                    datasets: [{
+                        label: 'Number of Samples',
+                        data: serovarCounts,
+                        backgroundColor: '#f59e0b',
+                        borderColor: '#d97706',
+                        borderWidth: 1
+                    }]
                 },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Number of Samples'
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',  // Horizontal bar chart
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Samples'
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
+        } else {
+            // Display empty state message
+            serovarCanvas.parentElement.innerHTML = '<div style="padding: 40px; text-align: center; color: #999;"><p style="font-size: 1.2em;">📊 No serovar data available</p><p style="margin-top: 10px;">None of the samples have Salmonella serovar predictions (SISTR is Salmonella-specific).</p></div>';
+        }
 
         // N50 Distribution Histogram
         const n50Labels = N50_LABELS_PLACEHOLDER;

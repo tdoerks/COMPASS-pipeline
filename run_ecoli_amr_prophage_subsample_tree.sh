@@ -67,14 +67,19 @@ which mafft > /dev/null 2>&1 && echo "✅ MAFFT found" || { echo "❌ MAFFT not 
 which FastTree > /dev/null 2>&1 && echo "✅ FastTree found" || { echo "❌ FastTree not found"; exit 1; }
 echo ""
 
-# Get pipeline directory (where this script lives)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SUBSAMPLE_SCRIPT="$SCRIPT_DIR/bin/subsample_ecoli_amr_prophages.py"
+# Pipeline directory (hardcoded since SLURM changes working directory)
+PIPELINE_DIR="/fastscratch/tylerdoe/COMPASS-pipeline"
+SUBSAMPLE_SCRIPT="$PIPELINE_DIR/bin/subsample_ecoli_amr_prophages.py"
 
 if [ ! -f "$SUBSAMPLE_SCRIPT" ]; then
     echo "❌ ERROR: Subsampling script not found: $SUBSAMPLE_SCRIPT"
+    echo "   Make sure you're running from: $PIPELINE_DIR"
+    echo "   And that you've pulled the latest v1.3-dev branch"
     exit 1
 fi
+
+echo "✅ Subsampling script found: $SUBSAMPLE_SCRIPT"
+echo ""
 
 # ============================================================================
 # STEP 1: Subsample to Representative Dataset

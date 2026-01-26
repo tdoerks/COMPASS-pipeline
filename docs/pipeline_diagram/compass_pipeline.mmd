@@ -1,0 +1,75 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#E8F4F8','primaryTextColor':'#000','primaryBorderColor':'#0066CC','lineColor':'#0066CC','secondaryColor':'#FFF4E6','tertiaryColor':'#F0E6FF'}}}%%
+graph TB
+    %% Input/Download Stage
+    START([Start: Sample List<br/>or Metadata Query]):::input
+    META[Metadata Download<br/>NCBI SRA]:::download
+    DOWNLOAD[SRA Download<br/>fasterq-dump]:::download
+
+    %% Quality Control Stage
+    QC1[Quality Control<br/>FASTQC]:::qc
+    TRIM[Read Trimming<br/>FASTP]:::qc
+
+    %% Assembly Stage
+    ASSEMBLY[Genome Assembly<br/>SPADES]:::assembly
+    QUAST[Assembly QC<br/>QUAST]:::assembly
+    BUSCO[Completeness Check<br/>BUSCO]:::assembly
+
+    %% AMR Analysis Branch
+    AMRFINDER[AMR Detection<br/>AMRFinder Plus]:::amr
+    ABRICATE[Multi-DB Screening<br/>ABRICATE<br/><small>NCBI, CARD, ResFinder,<br/>ARG-ANNOT, VFDB</small>]:::amr
+
+    %% Prophage Analysis Branch
+    VIBRANT[Prophage Prediction<br/>VIBRANT]:::prophage
+    PHANOTATE[Gene Annotation<br/>PHANOTATE]:::prophage
+
+    %% Typing & Plasmid Branch
+    MLST[Sequence Typing<br/>MLST]:::typing
+    MOBSUITE[Plasmid Analysis<br/>MOB-suite]:::typing
+
+    %% Final Output
+    MULTIQC[Integrated Report<br/>MultiQC]:::output
+    END([Analysis Complete<br/>Data Explorer]):::output
+
+    %% Define workflow connections
+    START -->|Metadata Mode| META
+    START -->|Accession Mode| DOWNLOAD
+    META --> DOWNLOAD
+
+    DOWNLOAD --> QC1
+    QC1 --> TRIM
+    TRIM --> ASSEMBLY
+
+    ASSEMBLY --> QUAST
+    ASSEMBLY --> BUSCO
+
+    %% Parallel analysis branches from assembly
+    ASSEMBLY --> AMRFINDER
+    ASSEMBLY --> ABRICATE
+    ASSEMBLY --> VIBRANT
+    ASSEMBLY --> MLST
+
+    %% Prophage sub-workflow
+    VIBRANT --> PHANOTATE
+
+    %% Typing sub-workflow
+    MLST --> MOBSUITE
+
+    %% All converge to MultiQC
+    QUAST --> MULTIQC
+    BUSCO --> MULTIQC
+    AMRFINDER --> MULTIQC
+    ABRICATE --> MULTIQC
+    PHANOTATE --> MULTIQC
+    MOBSUITE --> MULTIQC
+
+    MULTIQC --> END
+
+    %% Style definitions
+    classDef input fill:#E8F4F8,stroke:#0066CC,stroke-width:3px,color:#000
+    classDef download fill:#D4E6F1,stroke:#0066CC,stroke-width:2px,color:#000
+    classDef qc fill:#D5F4E6,stroke:#27AE60,stroke-width:2px,color:#000
+    classDef assembly fill:#FCF3CF,stroke:#F39C12,stroke-width:2px,color:#000
+    classDef amr fill:#FADBD8,stroke:#E74C3C,stroke-width:3px,color:#000,font-weight:bold
+    classDef prophage fill:#E8DAEF,stroke:#9B59B6,stroke-width:3px,color:#000,font-weight:bold
+    classDef typing fill:#D6EAF8,stroke:#3498DB,stroke-width:2px,color:#000
+    classDef output fill:#D5F4E6,stroke:#27AE60,stroke-width:3px,color:#000,font-weight:bold

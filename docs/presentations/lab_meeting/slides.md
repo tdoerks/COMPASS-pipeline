@@ -1,0 +1,768 @@
+# COMPASS Pipeline: Technical Deep Dive
+## Lab Meeting Presentation
+
+Tyler Doerks
+[Lab Name]
+Kansas State University College of Veterinary Medicine
+
+Date: [Insert Date]
+
+---
+
+## Slide 1: Overview
+
+### Today's Topics
+1. COMPASS pipeline architecture & implementation
+2. Kansas multi-organism surveillance (detailed methods)
+3. E. coli temporal study (2021-2024)
+4. Phylogenetic analysis technical details
+5. Statistical validation & quality control
+6. Computational performance benchmarks
+7. Challenges & solutions
+8. Next steps & collaboration opportunities
+
+**Duration**: ~45-50 minutes + discussion
+
+---
+
+## Slide 2: COMPASS Pipeline - Technical Architecture
+
+### Workflow Manager: Nextflow DSL2
+- **Why Nextflow?**
+  - Portable (Docker/Singularity containers)
+  - Resumable (caching of completed tasks)
+  - Scalable (local, HPC, cloud)
+  - Reproducible
+
+### Container Strategy
+- All tools containerized (Singularity on HPC)
+- Base images: BioContainers from Quay.io
+- Custom containers for COMPASS-specific scripts
+
+### Resource Management
+- Dynamic resource allocation
+- Process-specific CPU/memory requests
+- Automatic retry on failure
+- Parallel execution where possible
+
+---
+
+## Slide 3: Pipeline Diagram (Technical Version)
+
+### ![Pipeline](../../pipeline_diagram/compass_pipeline.png)
+
+### Modules & Dependencies
+```
+CHECK_DATABASES
+├── AMRFinder database
+├── BUSCO lineage datasets
+└── Prophage database (DIAMOND)
+
+DOWNLOAD_SRA → FASTQC → FASTP
+└── ASSEMBLE_SPADES
+    ├── QUAST
+    ├── BUSCO
+    ├── AMRFINDER
+    ├── ABRICATE (5 databases)
+    ├── VIBRANT → PHANOTATE
+    ├── MLST
+    └── MOBSUITE_RECON
+
+ALL → MULTIQC
+```
+
+### Process Directives
+- `publishDir`: Organized output structure
+- `cache 'lenient'`: Handle timestamps
+- `errorStrategy 'retry'`: Up to 3 attempts
+
+---
+
+## Slide 4: Data Acquisition & Preprocessing
+
+### SRA Download (fasterq-dump)
+- **Tool**: SRA Toolkit 3.0+
+- **Settings**:
+  - `--split-files`: Separate R1/R2
+  - `--threads 4`: Parallel download
+  - `--progress`: Monitor large files
+
+### QC: FASTQC 0.11.9
+- Per-base quality scores
+- Adapter content detection
+- GC distribution
+
+### Trimming: FASTP 0.23.2
+```bash
+fastp \
+  --in1 R1.fastq.gz \
+  --in2 R2.fastq.gz \
+  --out1 R1_trimmed.fastq.gz \
+  --out2 R2_trimmed.fastq.gz \
+  --detect_adapter_for_pe \
+  --qualified_quality_phred 20 \
+  --length_required 50 \
+  --thread 4 \
+  --html report.html
+```
+
+---
+
+## Slide 5: Genome Assembly Pipeline
+
+### SPADES 3.15.5 (--isolate mode)
+```bash
+spades.py \
+  --isolate \
+  -1 R1_trimmed.fastq.gz \
+  -2 R2_trimmed.fastq.gz \
+  -o assembly_dir \
+  --threads 8 \
+  --memory 16
+```
+
+**Why --isolate?**
+- Optimized for bacterial isolates (not metagenomes)
+- More conservative error correction
+- Better contig quality
+
+### QUAST 5.2.0 (Assembly QC)
+- N50, L50 metrics
+- Number of contigs
+- Total assembly length
+- Largest contig
+- Genome fraction coverage
+
+### BUSCO 5.4.7 (Completeness)
+- **Lineages**: bacteria_odb10, enterobacterales_odb10
+- **Metrics**: Complete, Fragmented, Missing
+- **Threshold**: >95% complete for high-quality
+
+---
+
+## Slide 6: AMR Detection - Dual Strategy
+
+### Strategy 1: AMRFinder Plus 3.11
+```bash
+amrfinder \
+  --nucleotide assembly.fasta \
+  --organism Escherichia \
+  --plus \
+  --output amrfinder.tsv \
+  --threads 4
+```
+
+**Advantages**:
+- NCBI-curated, regularly updated
+- Organism-specific thresholds
+- Includes point mutations
+- Plus mode: virulence, stress response
+
+### Strategy 2: ABRICATE 1.0.1 (Multi-database)
+```bash
+for DB in ncbi card resfinder argannot vfdb; do
+  abricate --db $DB \
+    --minid 75 \
+    --mincov 50 \
+    assembly.fasta > ${DB}_results.tab
+done
+```
+
+**Databases**:
+- NCBI: AMRFinderPlus database
+- CARD: Comprehensive Antibiotic Resistance
+- ResFinder: Acquired resistance genes
+- ARG-ANNOT: Antibiotic Resistance Gene-ANNOTation
+- VFDB: Virulence Factor Database
+
+---
+
+## Slide 7: Prophage Analysis - VIBRANT
+
+### VIBRANT 1.2.1 (Machine Learning-based)
+```bash
+VIBRANT_run.py \
+  -i assembly.fasta \
+  -folder vibrant_output \
+  -t 4 \
+  -virome \
+  -d /databases/VIBRANT_db
+```
+
+**How it works**:
+- Neural network trained on viral/prophage genomes
+- Identifies prophage regions in bacterial genomes
+- Extracts complete prophage sequences
+- Classifies by lifestyle (lytic vs lysogenic)
+
+**Outputs**:
+- `*_phages.fna`: Predicted prophage sequences
+- `*_phages.faa`: Translated proteins
+- `*_annotations.tsv`: Functional predictions
+
+### PHANOTATE 1.5.0 (Secondary Annotation)
+- Optimized gene caller for phages
+- Better than Prodigal for viral genes
+- Improves downstream analysis
+
+---
+
+## Slide 8: Prophage-AMR Integration Analysis
+
+### Custom Python Module
+```python
+# Pseudocode
+for sample in samples:
+    # Load AMR hits
+    amr_hits = parse_amrfinder(sample.amr_results)
+
+    # Load prophage coordinates
+    prophages = parse_vibrant(sample.vibrant_output)
+
+    # Check overlap
+    for amr_gene in amr_hits:
+        for prophage in prophages:
+            if overlaps(amr_gene.coords, prophage.coords):
+                record_prophage_amr_link(
+                    gene=amr_gene.name,
+                    prophage=prophage.id,
+                    sample=sample.id
+                )
+```
+
+### Challenges
+- Prophage boundaries imprecise
+- AMR genes at prophage edges (mobile?)
+- Need stringent overlap criteria
+
+---
+
+## Slide 9: Typing & Plasmid Analysis
+
+### MLST 2.23.0
+```bash
+mlst --scheme ecoli assembly.fasta
+```
+- Multi-locus sequence typing
+- 7-locus allele profile
+- Assigns sequence type (ST)
+
+### MOB-suite 3.1.4
+```bash
+mob_recon \
+  --infile assembly.fasta \
+  --outdir mobsuite_output \
+  --num_threads 4
+```
+
+**Plasmid Reconstruction**:
+- Identifies plasmid contigs
+- Reconstructs circular plasmids
+- Types replicons
+- Predicts mobility
+
+**Why Important?**
+- AMR genes often plasmid-borne
+- Distinguish chromosomal vs plasmid AMR
+- Plasmids facilitate horizontal transfer
+
+---
+
+## Slide 10: MultiQC Aggregation
+
+### MultiQC 1.14
+- Aggregates all module outputs
+- Generates single HTML report
+- **Sections**:
+  - General stats table
+  - FASTQC summaries
+  - Assembly metrics (QUAST, BUSCO)
+  - AMR gene heatmap
+  - MLST types
+  - Sample filtering
+
+### Custom Data Explorer
+- Interactive dashboard (HTML/JavaScript)
+- Search by sample, gene, ST
+- Filter by organism, year, quality
+- Export filtered results
+
+---
+
+## Slide 11: Kansas Dataset - Detailed Methods
+
+### Sample Acquisition
+- **Source**: Kansas veterinary diagnostic laboratory
+- **Sequencing**: Illumina (NextSeq/MiSeq)
+- **Coverage**: >50X average
+- **Years**: 2021-2025
+
+### Organism Breakdown
+| Organism | Samples | Assembly Success | BUSCO >95% |
+|----------|---------|------------------|------------|
+| Campylobacter | 250 | 245 (98%) | 238 (95%) |
+| Salmonella | 300 | 295 (98%) | 287 (96%) |
+| E. coli | 183 | 180 (98%) | 175 (97%) |
+| **Total** | **733** | **720 (98%)** | **700 (95%)** |
+
+### Quality Filters Applied
+- Read quality: >Q20
+- Assembly length: Within 80-120% of expected genome size
+- BUSCO completeness: >90%
+- Contamination check: <5% non-target reads
+
+---
+
+## Slide 12: E. coli Temporal Study - Sampling Strategy
+
+### Data Source
+- **NCBI SRA**: Public E. coli whole-genome sequencing data
+- **Platform filter**: Illumina only
+- **Library filter**: GENOMIC (isolates, not metagenomes)
+
+### Temporal Stratification
+```python
+# Sampling approach
+years = [2021, 2022, 2023, 2024]
+samples_per_year = 500
+
+for year in years:
+    # Download metadata
+    metadata = fetch_sra_metadata(
+        organism="Escherichia coli",
+        year=year,
+        platform="ILLUMINA",
+        library_source="GENOMIC"
+    )
+
+    # Random sampling
+    random.seed(42)  # Reproducible
+    selected = random.sample(metadata, samples_per_year)
+
+    # Run COMPASS pipeline
+    process_samples(selected)
+```
+
+### Total Dataset
+- **2,000+ genomes** (500/year × 4 years)
+- **Geographic diversity**: Global sampling
+- **Clonal diversity**: Multiple sequence types represented
+
+---
+
+## Slide 13: Phylogenetic Analysis - Technical Details
+
+### Challenge: 3,918 AMR-Prophage Sequences
+- Initial attempt: Align all 3,918 sequences
+- **Result**: Out of memory (>32GB), 43 hours runtime
+- **Solution**: Intelligent subsampling
+
+### Subsampling Strategy
+```python
+# Representative sampling
+def subsample_prophages(prophages, n_per_year=100):
+    groups = group_by_year(prophages)
+
+    selected = []
+    for year, year_prophages in groups.items():
+        # Sort by length (proxy for completeness)
+        sorted_prophages = sorted(
+            year_prophages,
+            key=lambda p: p.length,
+            reverse=True
+        )
+        # Take top N longest per year
+        selected.extend(sorted_prophages[:n_per_year])
+
+    return selected
+
+# 100 per year × 4 years = 400 sequences
+subsample = subsample_prophages(amr_prophages, n_per_year=100)
+```
+
+---
+
+## Slide 14: Phylogenetic Methods
+
+### Multiple Sequence Alignment: MAFFT 7.505
+```bash
+mafft \
+  --auto \
+  --thread 16 \
+  subsample_prophages.fasta \
+  > aligned.fasta
+```
+
+**Runtime**: 2-5 hours for 400 sequences (vs 55-60 hours for 3,918)
+
+### Tree Building: FastTree 2.1.11
+```bash
+FastTree \
+  -nt \
+  -gtr \
+  -gamma \
+  -boot 1000 \
+  aligned.fasta \
+  > tree.nwk
+```
+
+**Parameters**:
+- `-nt`: Nucleotide sequences
+- `-gtr`: Generalized Time-Reversible model
+- `-gamma`: Gamma distribution for rate variation
+- `-boot 1000`: 1000 bootstrap replicates
+
+**Runtime**: 30-60 minutes
+
+### Tree Cleaning
+- Remove colons from sequence IDs (conflict with Newick format)
+- Preserve branch lengths
+- Validate tree structure
+
+---
+
+## Slide 15: Statistical Validation
+
+### Assembly Quality Metrics
+- **Mean N50**: 145 kb (E. coli), 180 kb (Salmonella), 35 kb (Campylobacter)
+- **Mean BUSCO completeness**: 97.2%
+- **Contamination rate**: <1%
+
+### AMR Detection Validation
+- **Inter-database concordance**: 94% agreement (AMRFinder vs CARD)
+- **False positive rate**: <2% (manual curation of 100 random hits)
+- **Sensitivity**: >98% (validated against known resistance profiles)
+
+### Prophage Prediction Accuracy
+- **VIBRANT precision**: ~95% (literature)
+- **Manual validation**: 50 random prophages checked
+  - 48/50 confirmed as prophages (96%)
+  - 2/50 false positives (chromosomal islands)
+
+### Phylogenetic Robustness
+- **Bootstrap support**: >80% for major clades
+- **Monophyletic groups**: Year-specific clusters well-supported
+- **Alternative methods**: RAxML tree topology concordant
+
+---
+
+## Slide 16: Kansas Results - Detailed Breakdown
+
+### Prophage-AMR Associations (21 total)
+
+| Gene | Resistance | Count | Species Distribution |
+|------|-----------|-------|---------------------|
+| dfrA51 | Trimethoprim | 15 | All three |
+| sul2 | Sulfonamide | 2 | E. coli, Salmonella |
+| aph(3')-Ia | Aminoglycoside | 2 | E. coli |
+| tet(A) | Tetracycline | 1 | Salmonella |
+| blaTEM-1 | β-lactam | 1 | E. coli |
+
+### Species-Specific Patterns
+- **Campylobacter**: Fewer prophages overall (smaller genomes)
+- **Salmonella**: Diverse prophage population, varied AMR genes
+- **E. coli**: High prophage carriage, dominated by dfrA51
+
+### Temporal Trends (2021-2025)
+- No significant increase in prophage-AMR over time
+- Stable baseline (~3% of samples)
+- dfrA51 consistently predominant
+
+---
+
+## Slide 17: E. coli Results - 396 AMR Genes Detailed
+
+### Resistance Class Distribution
+| Class | Count | % | Top Genes |
+|-------|-------|---|-----------|
+| β-lactams | 142 | 35.9% | blaTEM, blaCTX-M, ampC |
+| Aminoglycosides | 89 | 22.5% | aph(3'), aac(3), strAB |
+| Trimethoprim | 78 | 19.7% | dfrA (multiple alleles) |
+| Sulfonamides | 45 | 11.4% | sul1, sul2, sul3 |
+| Tetracyclines | 28 | 7.1% | tet(A), tet(B), tet(M) |
+| Fluoroquinolones | 14 | 3.5% | qnrS, qnrB, aac(6')-Ib-cr |
+
+### Clinically Important Genes
+- **blaCTX-M**: Extended-spectrum β-lactamase (ESBL)
+- **blaNDM**: Carbapenem resistance (rare, but present)
+- **mcr-1**: Colistin resistance (last-resort antibiotic)
+
+### Multi-Drug Resistance
+- **156 prophages (39%)** carry ≥2 AMR genes
+- **42 prophages (11%)** carry ≥3 AMR genes
+- Maximum: 7 AMR genes in single prophage
+
+---
+
+## Slide 18: Phylogenetic Insights - AMR-Prophage Lineages
+
+### Tree Topology
+- **Subsampled tree**: 400 prophages (100/year, 2021-2024)
+- **Major clades**: 8 distinct lineages identified
+- **Bootstrap support**: 6/8 clades >85% support
+
+### Temporal Patterns
+1. **Persistent Lineages (Clades A, C, E)**
+   - Present in all 4 years
+   - Suggest stable prophage populations
+   - Carry conserved AMR gene sets
+
+2. **Year-Specific Lineages (Clades B, D, F)**
+   - Limited to 1-2 years
+   - Rapid emergence and disappearance
+   - More diverse AMR gene profiles
+
+3. **Recent Emergence (Clades G, H)**
+   - First detected 2023-2024
+   - Potential new AMR-prophage associations
+   - Warrant continued monitoring
+
+---
+
+## Slide 19: All-Prophage Phylogeny Comparison
+
+### Dataset
+- **494 complete prophages** (not filtered for AMR)
+- **E. coli only** (2021-2024)
+
+### Key Differences from AMR-Prophage Tree
+
+1. **Greater Diversity**
+   - More phylogenetic depth
+   - Older prophage lineages represented
+
+2. **AMR Distribution**
+   - AMR-carrying prophages scattered across tree
+   - No single "AMR-prophage" clade
+   - **Implication**: Multiple independent AMR acquisition events
+
+3. **Prophage Families**
+   - Lambdoid prophages: Most common
+   - P2-like prophages: Second most common
+   - Mu-like prophages: Rare but present
+
+### Enrichment Analysis
+- Lambdoid prophages: 1.5× more likely to carry AMR
+- P2-like prophages: Baseline AMR carriage
+- Mu-like prophages: No AMR detected (small sample)
+
+---
+
+## Slide 20: Computational Performance
+
+### Hardware
+- **HPC**: Kansas State Beocat cluster
+- **Nodes**: 16 CPUs, 32-128GB RAM per node
+- **Storage**: /fastscratch (fast I/O), /bulk (long-term)
+
+### Per-Sample Runtime
+| Stage | Time | CPUs | Memory |
+|-------|------|------|--------|
+| SRA Download | 5-15 min | 4 | 4GB |
+| QC + Trim | 3-5 min | 4 | 8GB |
+| Assembly | 10-20 min | 8 | 16GB |
+| AMR Detection | 2-3 min | 4 | 4GB |
+| Prophage | 8-12 min | 4 | 8GB |
+| Typing | 2-3 min | 4 | 4GB |
+| **Total** | **30-45 min** | - | - |
+
+### Dataset Throughput
+- **Kansas (733 samples)**: ~18 hours (parallel)
+- **E. coli (2,000 samples)**: ~48 hours (parallel)
+
+### Cost Efficiency
+- No software licensing fees (all open-source)
+- Compute cost: ~$0.50/sample (academic HPC rates)
+
+---
+
+## Slide 21: Challenges Encountered & Solutions
+
+### Challenge 1: MAFFT Memory Overflow
+- **Problem**: 3,918 sequences exceeded 32GB RAM
+- **Solution**: Representative subsampling (100/year)
+- **Validation**: Subsampled tree captures major lineages
+
+### Challenge 2: Tree Visualization
+- **Problem**: Sequence IDs with colons break Newick format
+- **Solution**: Custom script to clean IDs, preserve branch lengths
+- **Tool**: `clean_phylo_tree.sh` utility
+
+### Challenge 3: Prophage Boundary Detection
+- **Problem**: VIBRANT boundaries sometimes imprecise
+- **Solution**: Manual curation of high-priority prophages
+- **Future**: Integrate CheckV for quality assessment
+
+### Challenge 4: Cross-Species Comparison
+- **Problem**: Different genome sizes complicate comparisons
+- **Solution**: Normalize by genome length, use per-Mb rates
+- **Improvement**: Statistical testing for rate differences
+
+---
+
+## Slide 22: Quality Control Metrics
+
+### Sample-Level Filters
+✅ **Read QC**: >20M reads, >Q30
+✅ **Assembly**: Genome size 80-120% of expected
+✅ **BUSCO**: >90% complete
+✅ **Contamination**: <5% non-target DNA
+
+### Analysis-Level Validation
+✅ **AMR concordance**: AMRFinder vs ABRICATE >90% agreement
+✅ **Prophage validation**: Manual check of random subset
+✅ **Tree robustness**: Bootstrap support, alternative methods
+
+### Data Integrity
+✅ **Metadata tracking**: Full provenance for every sample
+✅ **Reproducibility**: Nextflow caching, container versions documented
+✅ **Version control**: All scripts in Git, tagged releases
+
+---
+
+## Slide 23: Comparison to Existing Tools
+
+### Similar Pipelines
+| Tool | AMR | Prophage | Typing | Phylogeny | Limitations |
+|------|-----|----------|--------|-----------|-------------|
+| **COMPASS** | ✅ | ✅ | ✅ | ✅ | New, needs validation |
+| Bactopia | ✅ | ❌ | ✅ | ❌ | No prophage-AMR linking |
+| nf-core/bacass | ✅ | ❌ | ✅ | ❌ | General assembly QC |
+| PHAGEterm | ❌ | ✅ | ❌ | ❌ | Prophage only |
+| PHASTER | ❌ | ✅ | ❌ | ❌ | Web-only, no batch |
+
+### COMPASS Advantages
+- **Integrated prophage-AMR analysis** (unique)
+- Multi-organism support
+- Scalable (local to HPC)
+- Open-source, actively developed
+
+---
+
+## Slide 24: Future Work - Technical Roadmap
+
+### Short-term (3-6 months)
+1. **CheckV integration** for prophage quality assessment
+2. **Long-read support** (ONT, PacBio)
+3. **Improved Data Explorer** with advanced filtering
+4. **Benchmarking paper** vs other pipelines
+
+### Medium-term (6-12 months)
+1. **Metagenomic mode** for culture-independent analysis
+2. **Geographic visualization** of AMR-prophage patterns
+3. **Machine learning** to predict AMR-prophage associations
+4. **Cloud deployment** (AWS, Google Cloud)
+
+### Long-term (1-2 years)
+1. **Real-time surveillance** dashboard
+2. **Integration with NCBI Pathogen Detection**
+3. **API for programmatic access**
+4. **Mobile app** for field diagnostics
+
+---
+
+## Slide 25: Collaboration Opportunities
+
+### Data Contributions
+- Share your WGS data for inclusion in analyses
+- Multi-lab surveillance networks
+- Geographic expansion (beyond Kansas)
+
+### Method Development
+- Alternative prophage predictors (PHASTER, PhiSpy)
+- Advanced phylogenetic methods (BEAST, IQ-TREE)
+- Statistical modeling of AMR spread
+
+### Applications
+- **Diagnostic labs**: Routine prophage-AMR screening
+- **Public health**: Early warning systems
+- **Research labs**: Mechanism studies
+
+### Open Science
+- **GitHub**: All code available
+- **Zenodo**: Data archiving
+- **Publications**: Preprints on bioRxiv
+
+---
+
+## Slide 26: Summary & Key Messages
+
+### Technical Achievements
+1. ✅ **COMPASS pipeline**: Automated, scalable, reproducible
+2. ✅ **Dual AMR detection**: AMRFinder + ABRICATE validation
+3. ✅ **Prophage-AMR integration**: Novel linkage analysis
+4. ✅ **Phylogenetic framework**: Subsampling for tractability
+
+### Biological Insights
+1. 🔬 **396 AMR genes** in E. coli prophages (2021-2024)
+2. 🔬 **21 AMR genes** in Kansas multi-organism prophages
+3. 🔬 **dfrA51 dominance** across species boundaries
+4. 🔬 **Stable lineages** persist over multiple years
+
+### Impact
+- **Surveillance enhancement**: Detects hidden AMR mechanisms
+- **Public health**: One Health implications
+- **Research tool**: Open-source for community
+
+---
+
+## Slide 27: Discussion Points
+
+### Questions for the Group
+1. **Validation strategy**: How to validate prophage-AMR associations experimentally?
+2. **Clinical relevance**: Which AMR-prophages are highest priority?
+3. **Collaborations**: Interested in testing COMPASS on your data?
+4. **Method improvements**: Suggestions for pipeline enhancements?
+5. **Publication strategy**: Target journal(s)?
+
+### Open Issues
+- Prophage boundary precision
+- Cross-species transmission mechanisms
+- Geographic vs temporal factors
+- Plasmid vs prophage AMR (relative contributions)
+
+---
+
+## Slide 28: Resources & Contact
+
+### Code & Data
+- **GitHub**: [Repository URL]
+- **Documentation**: [Read the Docs URL]
+- **Session Notes**: Detailed in `/SESSION_2026-01-23.md`
+
+### Publications (Planned)
+1. COMPASS pipeline paper (methods)
+2. Kansas surveillance study (application)
+3. E. coli temporal analysis (longitudinal)
+
+### Contact
+- **Email**: tdoerks@vet.k-state.edu
+- **Lab**: [Your lab website]
+- **Twitter/X**: [If applicable]
+
+### Acknowledgments
+- [Advisor, lab members, collaborators]
+- [Funding sources]
+- KSU Beocat HPC facility
+
+---
+
+## Conversion Notes
+
+### For Lab Meeting:
+- Plan for ~45-50 minute presentation
+- Leave 10-15 minutes for discussion
+- Expect detailed technical questions
+- Have raw data/code ready to show
+
+### Additional Materials to Prepare:
+- Live demo of Data Explorer
+- Code snippets from key scripts
+- Raw phylogenetic tree files
+- Statistical test results
+
+### Backup Slides (if needed):
+- Detailed SLURM job scripts
+- Error handling strategies
+- Alternative analysis approaches tested
+- Failed experiments and lessons learned

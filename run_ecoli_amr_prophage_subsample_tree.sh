@@ -2,7 +2,7 @@
 #SBATCH --job-name=ecoli_amr_subsample_tree
 #SBATCH --output=/homes/tylerdoe/slurm-ecoli-amr-subsample-tree-%j.out
 #SBATCH --error=/homes/tylerdoe/slurm-ecoli-amr-subsample-tree-%j.err
-#SBATCH --time=24:00:00
+#SBATCH --time=168:00:00
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=32G
 #SBATCH --mail-type=END,FAIL

@@ -1,0 +1,343 @@
+---
+title: "COMPASS: Surveillance of AMR and Prophage-Mediated Gene Transfer"
+subtitle: "Phi Zeta Research Day 2026"
+author: "Tyler Doerks, PhD Candidate"
+institute: "Kansas State University College of Veterinary Medicine"
+date: "March 3, 2026"
+output:
+  beamer_presentation:
+    theme: "Madrid"
+    colortheme: "beaver"
+    fonttheme: "structurebold"
+    slide_level: 2
+  ioslides_presentation:
+    widescreen: true
+    logo: null
+  slidy_presentation:
+    duration: 15
+---
+
+## The AMR Crisis in Veterinary Medicine
+
+### Challenge
+
+- Antimicrobial resistance threatens animal and human health
+- CDC: >2.8 million resistant infections annually in US
+- Veterinary pathogens as reservoirs for resistance genes
+
+### Critical Gap
+
+**How do AMR genes spread between bacteria?**
+
+- Prophages (integrated viral DNA) transfer genes horizontally
+- Limited tools to track prophage-mediated AMR dissemination
+
+---
+
+## Prophages as Vectors of Resistance
+
+### What are Prophages?
+
+- Bacteriophage DNA integrated into bacterial chromosomes
+- ~50% of bacteria carry prophages
+- Can excise and transfer genes to new hosts
+
+### Link to AMR
+
+- Prophages can carry antimicrobial resistance genes
+- Enable horizontal gene transfer between species
+- Rapid dissemination of resistance
+
+### Problem
+
+**Existing surveillance overlooks prophage-AMR associations**
+
+---
+
+## Study Objectives
+
+1. **Develop COMPASS Pipeline**
+   - Automated, comprehensive surveillance tool
+   - Integrates AMR detection with prophage analysis
+
+2. **Kansas Multi-Organism Surveillance**
+   - 733 isolates (*Campylobacter*, *Salmonella*, *E. coli*)
+   - 2021-2025 temporal coverage
+
+3. **E. coli Temporal Study**
+   - 2,000+ genomes across 2021-2024
+   - Track AMR-prophage evolution
+
+4. **Phylogenetic Analysis**
+   - Identify AMR-prophage lineages
+
+---
+
+## COMPASS Pipeline Overview
+
+![Pipeline Workflow](../../pipeline_diagram/compass_pipeline.png){width=85%}
+
+### Key Features
+
+✓ Automated end-to-end
+✓ Reproducible (Nextflow + containers)
+✓ Scalable (HPC-ready)
+
+---
+
+## Data Sources & Methods
+
+### Kansas Multi-Organism Dataset
+
+- **Source**: Kansas veterinary diagnostic samples
+- **Species**: *Campylobacter*, *Salmonella*, *E. coli*
+- **Timeline**: 2021-2025
+- **Sample size**: 733 genomes
+
+### E. coli Temporal Dataset
+
+- **Source**: NCBI SRA (public data)
+- **Timeline**: 2021-2024 (4 years)
+- **Sample size**: 2,000+ genomes
+- **Strategy**: Balanced sampling (500/year)
+
+---
+
+## Computational Methods
+
+### AMR Detection
+
+- **Primary**: NCBI AMRFinder Plus (curated)
+- **Validation**: ABRICATE multi-database
+  - CARD, ResFinder, ARG-ANNOT, VFDB
+
+### Prophage Analysis
+
+- **Prediction**: VIBRANT (machine learning)
+- **Annotation**: PHANOTATE (phage gene caller)
+- **AMR-Prophage Linking**: Custom integration
+
+### Phylogenetic Reconstruction
+
+- **Alignment**: MAFFT
+- **Tree**: FastTree (GTR+Gamma, 1000 bootstraps)
+- **Visualization**: iTOL
+
+---
+
+## Results - Kansas Multi-Organism
+
+### Dataset Overview
+
+- **733 genomes** across 3 species
+- **825 samples** had prophage predictions
+
+### Key Findings
+
+- **21 AMR genes** detected in prophages
+- **dfrA51 predominates**: 71% of hits (15/21)
+  - Trimethoprim resistance
+  - Found across multiple species
+
+### Distribution
+
+| Organism | Samples | Prophage-AMR | Rate |
+|----------|---------|--------------|------|
+| *Campylobacter* | ~250 | 7 | 2.8% |
+| *Salmonella* | ~300 | 8 | 2.7% |
+| *E. coli* | ~183 | 6 | 3.3% |
+
+---
+
+## Results - E. coli Temporal Study
+
+### Dataset
+
+- **2,000+ *E. coli* genomes** from NCBI SRA
+- **Balanced sampling**: ~500 per year
+
+### Major Finding: 396 AMR Genes in Prophages
+
+**Resistance Classes Detected:**
+
+- β-lactams (ampicillin, cephalosporins)
+- Aminoglycosides (gentamicin, streptomycin)
+- Trimethoprim/sulfonamides
+- Tetracyclines
+- Fluoroquinolones
+
+### Temporal Trend
+
+- Prophage-AMR associations stable 2021-2024
+- Some lineages persist across all 4 years
+
+---
+
+## Phylogenetic Analysis
+
+### Analysis
+
+- **3,918 AMR-carrying prophages** identified
+- **Subsampled to 400** (representative, 100/year)
+
+### Key Observations
+
+1. **Temporal Clustering**
+   - Some lineages year-specific
+   - Others persist across years
+
+2. **Multi-Year Lineages**
+   - Stable prophage populations
+   - Continuous circulation of AMR-prophages
+
+3. **Rapid Evolution**
+   - New branches each year
+   - Ongoing horizontal transfer
+
+---
+
+## Case Study - dfrA51 Dominance
+
+### Gene: dfrA51 (Dihydrofolate Reductase)
+
+- **Resistance**: Trimethoprim
+- **Clinical Relevance**: Common in veterinary medicine
+- **Prevalence**: 71% of Kansas prophage-AMR hits
+
+### Distribution Across Species
+
+- *Campylobacter* ✓
+- *Salmonella* ✓
+- *E. coli* ✓
+
+### Interpretation
+
+- dfrA51-carrying prophage broadly mobile
+- Efficient cross-species transmission
+- **Public health concern**: Resistance crosses species boundaries
+
+---
+
+## Public Health Implications
+
+### Surveillance Enhancement
+
+✓ COMPASS enables routine prophage-AMR monitoring
+✓ Early detection of emerging resistance
+✓ Tracking horizontal gene transfer in real-time
+
+### Clinical Impact
+
+- Informs treatment decisions
+- Identifies high-risk prophage lineages
+- Predicts resistance spread patterns
+
+### One Health Connection
+
+- Veterinary pathogens as AMR reservoirs
+- Prophage-mediated transfer to human pathogens
+- **Need for integrated surveillance**
+
+---
+
+## Future Directions
+
+### Technical Enhancements
+
+1. Long-read sequencing integration (ONT, PacBio)
+2. Metagenomic analysis
+3. Machine learning predictions
+
+### Biological Questions
+
+1. What drives prophage-AMR associations?
+2. Can we interrupt horizontal transfer?
+3. Geographic patterns in prophage resistance?
+
+### Expansion
+
+- More species (Listeria, Staphylococcus, Streptococcus)
+- International datasets
+- Longitudinal farm studies
+
+---
+
+## Conclusions
+
+### Key Takeaways
+
+1. **COMPASS: Comprehensive surveillance tool** for prophage-AMR
+2. **396 AMR genes** in *E. coli* prophages (2021-2024)
+3. **21 prophage-AMR associations** in Kansas dataset
+4. **Phylogenetic evidence** of stable transmission networks
+5. **dfrA51 cross-species mobility** via prophages
+
+### Impact
+
+- First comprehensive prophage-AMR surveillance in veterinary pathogens
+- Reveals hidden mechanism of resistance dissemination
+- Open-source tool for research community
+
+---
+
+## Acknowledgments
+
+### Thank You
+
+- [Your advisor and lab members]
+- Kansas State University CVM
+- [Funding sources]
+- [Collaborators]
+
+### Contact
+
+**Email**: tdoerks@vet.k-state.edu
+
+**GitHub**: [COMPASS-pipeline repository]
+
+---
+
+## Questions?
+
+**Thank you for your attention!**
+
+---
+
+# Appendix
+
+## Rendering Instructions
+
+### In RStudio
+
+1. Open this `.Rmd` file
+2. Click "Knit" button
+3. Choose format:
+   - Beamer (PDF) - Professional
+   - ioslides (HTML) - Modern web
+   - Slidy (HTML) - Simple web
+
+### Command Line
+
+```bash
+# PDF (Beamer)
+Rscript -e "rmarkdown::render('phi_zeta_slides.Rmd', 'beamer_presentation')"
+
+# HTML (ioslides)
+Rscript -e "rmarkdown::render('phi_zeta_slides.Rmd', 'ioslides_presentation')"
+```
+
+### Customization
+
+Edit YAML header to change:
+- `theme`: Madrid, Berlin, Copenhagen, etc.
+- `colortheme`: beaver, crane, dolphin, etc.
+- `fonttheme`: structurebold, serif, etc.
+
+### Timing
+
+For 10-12 minute talk:
+- Slides 1-3: Background (2-3 min)
+- Slides 4-5: Methods (2 min)
+- Slides 6-9: Results (4-5 min)
+- Slides 10-12: Conclusions (2-3 min)
+- Leave 3-5 min for questions

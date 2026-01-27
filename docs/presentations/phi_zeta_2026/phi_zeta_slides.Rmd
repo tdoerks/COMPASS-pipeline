@@ -77,7 +77,10 @@ output:
 
 ## COMPASS Pipeline Overview
 
-![Pipeline Workflow](../../pipeline_diagram/compass_pipeline.png){width=85%}
+<!-- TODO: Add pipeline diagram image once generated -->
+<!-- ![Pipeline Workflow](../../pipeline_diagram/compass_pipeline.png){width=85%} -->
+
+**[Pipeline diagram - add manually in PowerPoint]**
 
 ### Key Features
 

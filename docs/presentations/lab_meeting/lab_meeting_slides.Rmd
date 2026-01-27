@@ -58,7 +58,10 @@ output:
 
 ## Pipeline Diagram
 
-![COMPASS Workflow](../../pipeline_diagram/compass_pipeline.png){width=90%}
+<!-- TODO: Add pipeline diagram image once generated -->
+<!-- ![COMPASS Workflow](../../pipeline_diagram/compass_pipeline.png){width=90%} -->
+
+**Pipeline visualization coming soon - generate from Mermaid diagram**
 
 ### Modules & Dependencies
 

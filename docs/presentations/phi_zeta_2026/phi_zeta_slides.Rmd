@@ -7,6 +7,7 @@ date: "March 3, 2026"
 output:
   powerpoint_presentation:
     reference_doc: null
+    slide_level: 2
   # Alternative outputs (uncomment to use):
   # beamer_presentation:
   #   theme: "Madrid"
@@ -134,17 +135,17 @@ output:
 
 ### Dataset Overview
 
-- **733 genomes** across 3 species
-- **825 samples** had prophage predictions
+- **733 genomes** across 3 veterinary pathogen species
+- **825 samples** with prophage predictions
 
-### Key Findings
+### 🔬 Key Findings
 
 - **21 AMR genes** detected in prophages
-- **dfrA51 predominates**: 71% of hits (15/21)
-  - Trimethoprim resistance
-  - Found across multiple species
+- **dfrA51 predominates**: 71% of all hits (15/21)
+  - Trimethoprim resistance gene
+  - Found across **all three species**
 
-### Distribution
+### Distribution Across Species
 
 | Organism | Samples | Prophage-AMR | Rate |
 |----------|---------|--------------|------|
@@ -159,22 +160,22 @@ output:
 ### Dataset
 
 - **2,000+ *E. coli* genomes** from NCBI SRA
-- **Balanced sampling**: ~500 per year
+- **Balanced sampling**: ~500 genomes/year (2021-2024)
 
-### Major Finding: 396 AMR Genes in Prophages
+### 🚨 Major Finding: 396 AMR Genes in Prophages
 
 **Resistance Classes Detected:**
 
-- β-lactams (ampicillin, cephalosporins)
-- Aminoglycosides (gentamicin, streptomycin)
+- **β-lactams** (ampicillin, cephalosporins)
+- **Aminoglycosides** (gentamicin, streptomycin)
 - Trimethoprim/sulfonamides
 - Tetracyclines
 - Fluoroquinolones
 
-### Temporal Trend
+### Temporal Trends
 
-- Prophage-AMR associations stable 2021-2024
-- Some lineages persist across all 4 years
+✓ Stable prophage-AMR associations (2021-2024)
+✓ Persistent lineages across all 4 years
 
 ---
 
@@ -205,21 +206,20 @@ output:
 
 ### Gene: dfrA51 (Dihydrofolate Reductase)
 
-- **Resistance**: Trimethoprim
-- **Clinical Relevance**: Common in veterinary medicine
-- **Prevalence**: 71% of Kansas prophage-AMR hits
+- **Resistance**: Trimethoprim (common veterinary antibiotic)
+- **Prevalence**: **71% of Kansas prophage-AMR hits**
 
-### Distribution Across Species
+### Distribution Across All Three Species
 
-- *Campylobacter* ✓
-- *Salmonella* ✓
-- *E. coli* ✓
+✓ *Campylobacter*
+✓ *Salmonella*
+✓ *E. coli*
 
-### Interpretation
+### 🔬 Interpretation
 
-- dfrA51-carrying prophage broadly mobile
-- Efficient cross-species transmission
-- **Public health concern**: Resistance crosses species boundaries
+- **dfrA51-carrying prophage is highly mobile**
+- Efficient cross-species transmission mechanism
+- **Public health concern**: Resistance transcends species barriers
 
 ---
 
@@ -269,19 +269,19 @@ output:
 
 ## Conclusions
 
-### Key Takeaways
+### 🔬 Key Takeaways
 
-1. **COMPASS: Comprehensive surveillance tool** for prophage-AMR
+1. **COMPASS**: Comprehensive surveillance tool for prophage-AMR analysis
 2. **396 AMR genes** in *E. coli* prophages (2021-2024)
-3. **21 prophage-AMR associations** in Kansas dataset
-4. **Phylogenetic evidence** of stable transmission networks
-5. **dfrA51 cross-species mobility** via prophages
+3. **21 prophage-AMR associations** in Kansas multi-organism dataset
+4. **Phylogenetic evidence** of stable AMR-prophage transmission networks
+5. **dfrA51 cross-species mobility** → public health concern
 
-### Impact
+### 🎯 Impact
 
-- First comprehensive prophage-AMR surveillance in veterinary pathogens
-- Reveals hidden mechanism of resistance dissemination
-- Open-source tool for research community
+✓ First comprehensive prophage-AMR surveillance in veterinary pathogens
+✓ Reveals hidden mechanism of resistance dissemination
+✓ Open-source tool available to research community
 
 ---
 

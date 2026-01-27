@@ -7,6 +7,7 @@ date: "`r Sys.Date()`"
 output:
   powerpoint_presentation:
     reference_doc: null
+    slide_level: 2
   # Alternative outputs (uncomment to use):
   # beamer_presentation:
   #   theme: "Madrid"
@@ -90,11 +91,11 @@ output:
 ### Trimming: FASTP 0.23.2
 
 ```bash
-fastp --in1 R1.fastq.gz --in2 R2.fastq.gz \
-  --detect_adapter_for_pe \
-  --qualified_quality_phred 20 \
-  --length_required 50 --thread 4
+fastp --in1 R1.fq.gz --in2 R2.fq.gz \
+  --detect_adapter_for_pe -q 20 -l 50 -w 4
 ```
+
+- Auto-detect adapters, Q20 quality, 50bp minimum, 4 threads
 
 ---
 
@@ -103,16 +104,13 @@ fastp --in1 R1.fastq.gz --in2 R2.fastq.gz \
 ### SPADES 3.15.5 (--isolate mode)
 
 ```bash
-spades.py --isolate \
-  -1 R1.fastq.gz -2 R2.fastq.gz \
-  --threads 8 --memory 16
+spades.py --isolate -1 R1.fq.gz -2 R2.fq.gz -t 8 -m 16
 ```
 
-**Why --isolate?**
+**Why --isolate mode?**
 
 - Optimized for bacterial isolates (not metagenomes)
-- More conservative error correction
-- Better contig quality
+- Conservative error correction → better contig quality
 
 ### QUAST & BUSCO
 
@@ -190,21 +188,15 @@ Custom Python module checks overlap between:
 ### Sampling Strategy
 
 - **Data Source**: NCBI SRA (public data)
-- **Platform**: Illumina only
-- **Library**: GENOMIC (isolates, not metagenomes)
-- **Temporal Stratification**: 500 samples per year
+- **Platform**: Illumina only (isolates, not metagenomes)
+- **Temporal Stratification**: 500 samples/year × 4 years
+- **Total**: 2,000+ genomes
 
-```r
-years <- c(2021, 2022, 2023, 2024)
-samples_per_year <- 500
-total <- length(years) * samples_per_year
-# Total: 2,000+ genomes
-```
+### Sample Diversity
 
-### Geographic & Clonal Diversity
-
-- Global sampling (all available SRA data)
+- Global geographic sampling
 - Multiple sequence types represented
+- Balanced temporal coverage (2021-2024)
 
 ---
 
@@ -218,86 +210,75 @@ total <- length(years) * samples_per_year
 
 ### Subsampling Strategy
 
-```r
-subsample_by_year <- function(prophages, n_per_year = 100) {
-  # Group by year
-  groups <- split(prophages, prophages$year)
+**Method**: Representative sampling by year
 
-  # Select longest N per year (proxy for completeness)
-  selected <- lapply(groups, function(g) {
-    head(g[order(-g$length), ], n_per_year)
-  })
+1. Group 3,918 prophages by year (2021-2024)
+2. Sort each year by sequence length
+3. Select top 100 per year (longest = most complete)
+4. **Result**: 400 sequences total
 
-  do.call(rbind, selected)
-}
-```
-
-**Result**: 400 sequences (100/year × 4 years)
+**Benefits**: Preserves temporal diversity, manageable size
 
 ---
 
 ## Phylogenetic Methods
 
-### MAFFT 7.505
+### MAFFT 7.505 (Multiple Sequence Alignment)
 
 ```bash
-mafft --auto --thread 16 \
-  subsample.fasta > aligned.fasta
+mafft --auto --thread 16 subsample.fasta > aligned.fasta
 ```
 
-**Runtime**: 2-5 hours (vs 55-60 for full dataset)
+**Runtime**: 2-5 hours (vs 55-60 hrs for full dataset)
 
-### FastTree 2.1.11
+### FastTree 2.1.11 (Tree Building)
 
 ```bash
-FastTree -nt -gtr -gamma -boot 1000 \
-  aligned.fasta > tree.nwk
+FastTree -nt -gtr -gamma aligned.fasta > tree.nwk
 ```
 
-- **Model**: GTR (Generalized Time-Reversible)
-- **Rate variation**: Gamma distribution
-- **Bootstrap**: 1000 replicates
+- **Model**: GTR + Gamma rate variation
 - **Runtime**: 30-60 minutes
 
 ---
 
 ## Kansas Results - Prophage-AMR
 
-### 21 AMR Genes in Prophages
+### 21 AMR Genes Detected in Prophages
 
 | Gene | Resistance | Count | Species |
 |------|-----------|-------|---------|
-| dfrA51 | Trimethoprim | 15 | All three |
+| **dfrA51** | Trimethoprim | **15** | All three |
 | sul2 | Sulfonamide | 2 | *E. coli*, *Salmonella* |
 | aph(3')-Ia | Aminoglycoside | 2 | *E. coli* |
 
-### Key Finding
+### 🔬 Key Finding: dfrA51 Dominance
 
-**dfrA51 dominates**: 71% of hits (15/21)
+**71% of all prophage-AMR hits** (15/21)
 
-- Found across all three species
-- Suggests highly mobile prophage element
-- Public health concern: cross-species transmission
+✓ Found across all three species
+✓ Highly mobile prophage element
+✓ Cross-species transmission → public health concern
 
 ---
 
-## E. coli Results - 396 AMR Genes
+## E. coli Results - 396 AMR Genes in Prophages
 
 ### Resistance Class Distribution
 
 | Class | Count | % | Top Genes |
 |-------|-------|---|-----------|
-| β-lactams | 142 | 35.9% | blaTEM, blaCTX-M, ampC |
+| **β-lactams** | **142** | **35.9%** | blaTEM, blaCTX-M, ampC |
 | Aminoglycosides | 89 | 22.5% | aph(3'), aac(3) |
 | Trimethoprim | 78 | 19.7% | dfrA alleles |
 | Sulfonamides | 45 | 11.4% | sul1, sul2, sul3 |
 | Tetracyclines | 28 | 7.1% | tet(A), tet(B) |
 
-### Clinically Important
+### 🚨 Clinically Critical Genes
 
-- **blaCTX-M**: ESBL (extended-spectrum β-lactamase)
-- **blaNDM**: Carbapenem resistance (rare)
-- **mcr-1**: Colistin resistance (last-resort)
+✓ **blaCTX-M** - ESBL (extended-spectrum β-lactamase)
+✓ **blaNDM** - Carbapenem resistance
+✓ **mcr-1** - Colistin resistance (last-resort antibiotic)
 
 ---
 
@@ -483,19 +464,19 @@ FastTree -nt -gtr -gamma -boot 1000 \
 
 ## Summary
 
-### Technical Achievements
+### 🔧 Technical Achievements
 
 ✓ Automated, scalable, reproducible pipeline
-✓ Dual AMR detection with validation
-✓ Novel prophage-AMR integration
-✓ Phylogenetic framework with subsampling
+✓ Dual AMR detection with cross-validation
+✓ Novel prophage-AMR integration module
+✓ Intelligent phylogenetic subsampling framework
 
-### Biological Insights
+### 🔬 Key Biological Insights
 
-- **396 AMR genes** in *E. coli* prophages
-- **21 AMR genes** in Kansas multi-organism
-- **dfrA51 dominance** across species
-- **Stable lineages** over multiple years
+- **396 AMR genes** in *E. coli* prophages (2021-2024)
+- **21 AMR genes** in Kansas multi-organism dataset
+- **dfrA51 dominance** → cross-species mobility
+- **Stable AMR-prophage lineages** persist across years
 
 ---
 

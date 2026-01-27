@@ -5,18 +5,19 @@ author: "Tyler Doerks"
 institute: "Kansas State University College of Veterinary Medicine"
 date: "`r Sys.Date()`"
 output:
-  beamer_presentation:
-    theme: "Madrid"
-    colortheme: "dolphin"
-    fonttheme: "structurebold"
-    slide_level: 2
-    toc: false
-  ioslides_presentation:
-    widescreen: true
-    smaller: false
-    logo: null
-  slidy_presentation:
-    duration: 45
+  powerpoint_presentation:
+    reference_doc: null
+  # Alternative outputs (uncomment to use):
+  # beamer_presentation:
+  #   theme: "Madrid"
+  #   colortheme: "dolphin"
+  #   fonttheme: "structurebold"
+  #   slide_level: 2
+  # ioslides_presentation:
+  #   widescreen: true
+  #   smaller: false
+  # slidy_presentation:
+  #   duration: 45
 ---
 
 ## Overview

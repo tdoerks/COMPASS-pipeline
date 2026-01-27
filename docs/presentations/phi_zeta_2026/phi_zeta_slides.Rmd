@@ -5,16 +5,18 @@ author: "Tyler Doerks, PhD Candidate"
 institute: "Kansas State University College of Veterinary Medicine"
 date: "March 3, 2026"
 output:
-  beamer_presentation:
-    theme: "Madrid"
-    colortheme: "beaver"
-    fonttheme: "structurebold"
-    slide_level: 2
-  ioslides_presentation:
-    widescreen: true
-    logo: null
-  slidy_presentation:
-    duration: 15
+  powerpoint_presentation:
+    reference_doc: null
+  # Alternative outputs (uncomment to use):
+  # beamer_presentation:
+  #   theme: "Madrid"
+  #   colortheme: "beaver"
+  #   fonttheme: "structurebold"
+  #   slide_level: 2
+  # ioslides_presentation:
+  #   widescreen: true
+  # slidy_presentation:
+  #   duration: 15
 ---
 
 ## The AMR Crisis in Veterinary Medicine

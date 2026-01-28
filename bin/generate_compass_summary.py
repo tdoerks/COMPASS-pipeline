@@ -312,6 +312,45 @@ def parse_amrfinder(amr_dir):
                 print(f"Warning: Could not parse AMRFinder results for {amr_file}: {e}", file=sys.stderr)
     return amr_data
 
+def parse_amrfinder_prophage(prophage_amr_dir):
+    """Parse AMRFinder+ results for prophage sequences"""
+    prophage_amr_data = {}
+    prophage_amr_path = Path(prophage_amr_dir)
+    if prophage_amr_path.exists():
+        for amr_file in prophage_amr_path.glob('*_prophage_amr.tsv'):
+            sample_id = amr_file.stem.replace('_prophage_amr', '')
+            try:
+                df = pd.read_csv(amr_file, sep='\t')
+
+                if df.empty:
+                    prophage_amr_data[sample_id] = {
+                        'num_prophage_amr_genes': 0,
+                        'prophage_amr_classes': '-',
+                        'prophage_amr_genes': '-'
+                    }
+                else:
+                    # Get AMR genes from prophages
+                    genes = df[df['Element type'] == 'AMR'] if 'Element type' in df.columns else df
+
+                    # Get AMR classes
+                    classes = []
+                    if 'Class' in df.columns:
+                        classes = [c for c in df['Class'].dropna().unique() if str(c) != 'nan']
+
+                    # Get gene names
+                    gene_names = []
+                    if 'Gene symbol' in df.columns:
+                        gene_names = [g for g in df['Gene symbol'].dropna().unique() if str(g) != 'nan']
+
+                    prophage_amr_data[sample_id] = {
+                        'num_prophage_amr_genes': len(genes),
+                        'prophage_amr_classes': ', '.join(sorted(classes)) if classes else '-',
+                        'prophage_amr_genes': ', '.join(sorted(gene_names)) if gene_names else '-'
+                    }
+            except Exception as e:
+                print(f"Warning: Could not parse prophage AMR results for {amr_file}: {e}", file=sys.stderr)
+    return prophage_amr_data
+
 def parse_mobsuite(mobsuite_dir):
     """Parse MOB-suite plasmid detection and typing results"""
     mobsuite_data = {}
@@ -648,6 +687,40 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     # Get AMR class distribution for pie chart
     amr_class_labels = [cls for cls, count in amr_class_counter.most_common()]
     amr_class_counts = [count for cls, count in amr_class_counter.most_common()]
+
+    # Prepare Prophage AMR data for visualizations
+    prophage_amr_gene_counter = Counter()
+    prophage_amr_class_counter = Counter()
+
+    # Prophage AMR statistics
+    total_prophage_amr_genes = int(df['num_prophage_amr_genes'].replace('-', 0).fillna(0).astype(float).sum())
+    samples_with_prophage_amr = len(df[df['num_prophage_amr_genes'].replace('-', 0).fillna(0).astype(float) > 0])
+
+    for _, row in df.iterrows():
+        # Parse prophage AMR genes
+        genes_str = row.get('prophage_amr_genes', '-')
+        if genes_str and genes_str != '-':
+            genes = [g.strip() for g in str(genes_str).split(',')]
+            for gene in genes:
+                if gene:  # Skip empty strings
+                    prophage_amr_gene_counter[gene] += 1
+
+        # Parse prophage AMR classes
+        classes_str = row.get('prophage_amr_classes', '-')
+        if classes_str and classes_str != '-':
+            classes = [c.strip() for c in str(classes_str).split(',')]
+            for cls in classes:
+                if cls:  # Skip empty strings
+                    prophage_amr_class_counter[cls] += 1
+
+    # Get top 15 prophage AMR genes for bar chart
+    top_prophage_amr_genes = prophage_amr_gene_counter.most_common(15)
+    prophage_amr_gene_labels = [gene for gene, count in top_prophage_amr_genes]
+    prophage_amr_gene_counts = [count for gene, count in top_prophage_amr_genes]
+
+    # Get prophage AMR class distribution for pie chart
+    prophage_amr_class_labels = [cls for cls, count in prophage_amr_class_counter.most_common()]
+    prophage_amr_class_counts = [count for cls, count in prophage_amr_class_counter.most_common()]
 
     # Prepare Plasmid Analysis data for visualizations
     inc_group_counter = Counter()
@@ -1443,6 +1516,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <button class="tab-button active" onclick="switchTab(event, 'overview')">Overview</button>
             <button class="tab-button" onclick="switchTab(event, 'quality-control')">Quality Control</button>
             <button class="tab-button" onclick="switchTab(event, 'amr-analysis')">AMR Analysis</button>
+            <button class="tab-button" onclick="switchTab(event, 'prophage-amr')">Prophage AMR</button>
             <button class="tab-button" onclick="switchTab(event, 'plasmid-analysis')">Plasmid Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>
             <button class="tab-button" onclick="switchTab(event, 'metadata-explorer')">Metadata Explorer</button>
@@ -1557,6 +1631,58 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <p style="color: #666; margin-bottom: 20px;">Samples with multidrug resistance (≥3 resistance classes) vs susceptible samples</p>
             <div class="chart-wrapper" style="height: 300px;">
                 <canvas id="mdrComparisonChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prophage AMR Analysis Tab -->
+    <div id="prophage-amr" class="tab-content">
+        <div class="summary-grid" style="margin-bottom: 30px;">
+            <div class="summary-card">
+                <h3>Total Prophage AMR Genes</h3>
+                <div class="value">{total_prophage_amr_genes}</div>
+                <div class="subtext">Across {samples_with_prophage_amr} samples</div>
+            </div>
+            <div class="summary-card">
+                <h3>Samples with Prophage AMR</h3>
+                <div class="value">{samples_with_prophage_amr}</div>
+                <div class="subtext">{samples_with_prophage_amr/total_samples*100:.1f}% of total</div>
+            </div>
+            <div class="summary-card">
+                <h3>Unique AMR Genes in Prophages</h3>
+                <div class="value">{len(prophage_amr_gene_counter)}</div>
+                <div class="subtext">Found within prophage regions</div>
+            </div>
+            <div class="summary-card">
+                <h3>AMR Classes in Prophages</h3>
+                <div class="value">{len(prophage_amr_class_counter)}</div>
+                <div class="subtext">Resistance classes in prophages</div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px;">
+            <div class="chart-container">
+                <h2>Top 15 AMR Genes in Prophages</h2>
+                <p style="color: #666; margin-bottom: 20px;">Most frequently detected AMR genes within prophage sequences</p>
+                <div class="chart-wrapper">
+                    <canvas id="prophageAmrGenesBarChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <h2>Prophage AMR Class Distribution</h2>
+                <p style="color: #666; margin-bottom: 20px;">Distribution of antimicrobial resistance classes within prophages</p>
+                <div class="chart-wrapper">
+                    <canvas id="prophageAmrClassPieChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h2>Prophage AMR vs Chromosomal AMR</h2>
+            <p style="color: #666; margin-bottom: 20px;">Comparison of samples with prophage-associated AMR genes vs total AMR genes</p>
+            <div class="chart-wrapper" style="height: 300px;">
+                <canvas id="prophageAmrComparisonChart"></canvas>
             </div>
         </div>
     </div>
@@ -2250,6 +2376,9 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 'amrGenesBarChart',
                 'amrClassPieChart',
                 'mdrComparisonChart',
+                'prophageAmrGenesBarChart',
+                'prophageAmrClassPieChart',
+                'prophageAmrComparisonChart',
                 'incGroupsBarChart',
                 'mobilityPieChart',
                 'plasmidCountHist',
@@ -2811,6 +2940,153 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 }
             }
         });
+
+        // ============================================================
+        // PROPHAGE AMR CHARTS
+        // ============================================================
+
+        // Prophage AMR Genes Bar Chart
+        const prophageAmrGeneLabels = PROPHAGE_AMR_GENE_LABELS_PLACEHOLDER;
+        const prophageAmrGeneCounts = PROPHAGE_AMR_GENE_COUNTS_PLACEHOLDER;
+
+        const prophageAmrGenesCtx = document.getElementById('prophageAmrGenesBarChart').getContext('2d');
+        const prophageAmrGenesBar = new Chart(prophageAmrGenesCtx, {
+            type: 'bar',
+            data: {
+                labels: prophageAmrGeneLabels,
+                datasets: [{
+                    label: 'Number of Samples',
+                    data: prophageAmrGeneCounts,
+                    backgroundColor: 'rgba(156, 39, 176, 0.7)',
+                    borderColor: 'rgba(156, 39, 176, 1)',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: false
+                    },
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Number of Samples'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'AMR Gene'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Prophage AMR Class Pie Chart
+        const prophageAmrClassLabels = PROPHAGE_AMR_CLASS_LABELS_PLACEHOLDER;
+        const prophageAmrClassCounts = PROPHAGE_AMR_CLASS_COUNTS_PLACEHOLDER;
+
+        const prophageAmrClassCtx = document.getElementById('prophageAmrClassPieChart').getContext('2d');
+        const prophageAmrClassPie = new Chart(prophageAmrClassCtx, {
+            type: 'pie',
+            data: {
+                labels: prophageAmrClassLabels,
+                datasets: [{
+                    data: prophageAmrClassCounts,
+                    backgroundColor: [
+                        'rgba(156, 39, 176, 0.8)',
+                        'rgba(103, 58, 183, 0.8)',
+                        'rgba(63, 81, 181, 0.8)',
+                        'rgba(33, 150, 243, 0.8)',
+                        'rgba(3, 169, 244, 0.8)',
+                        'rgba(0, 188, 212, 0.8)',
+                        'rgba(0, 150, 136, 0.8)',
+                        'rgba(76, 175, 80, 0.8)',
+                        'rgba(139, 195, 74, 0.8)',
+                        'rgba(205, 220, 57, 0.8)'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            boxWidth: 15,
+                            padding: 10
+                        }
+                    }
+                }
+            }
+        });
+
+        // Prophage AMR vs Total AMR Comparison Chart
+        const prophageAmrCompLabels = ['With Prophage AMR', 'Without Prophage AMR'];
+        const prophageAmrCompCounts = [SAMPLES_WITH_PROPHAGE_AMR_PLACEHOLDER, SAMPLES_WITHOUT_PROPHAGE_AMR_PLACEHOLDER];
+
+        const prophageAmrCompCtx = document.getElementById('prophageAmrComparisonChart').getContext('2d');
+        const prophageAmrCompBar = new Chart(prophageAmrCompCtx, {
+            type: 'bar',
+            data: {
+                labels: prophageAmrCompLabels,
+                datasets: [{
+                    label: 'Number of Samples',
+                    data: prophageAmrCompCounts,
+                    backgroundColor: [
+                        'rgba(156, 39, 176, 0.7)',
+                        'rgba(189, 189, 189, 0.7)'
+                    ],
+                    borderColor: [
+                        'rgba(156, 39, 176, 1)',
+                        'rgba(189, 189, 189, 1)'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: false
+                    },
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Number of Samples'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Prophage AMR Status'
+                        }
+                    }
+                }
+            }
+        });
+
+        // ============================================================
+        // PLASMID CHARTS
+        // ============================================================
 
         // Plasmid Inc Groups Bar Chart
         const incGroupLabels = INC_GROUP_LABELS_PLACEHOLDER;
@@ -3388,6 +3664,14 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = js_code.replace('NON_MDR_SAMPLES_PLACEHOLDER', str(total_samples - mdr_samples))
     js_code = js_code.replace('MDR_SAMPLES_PLACEHOLDER', str(mdr_samples))
 
+    # Prophage AMR data
+    js_code = js_code.replace('PROPHAGE_AMR_GENE_LABELS_PLACEHOLDER', json.dumps(prophage_amr_gene_labels))
+    js_code = js_code.replace('PROPHAGE_AMR_GENE_COUNTS_PLACEHOLDER', json.dumps(prophage_amr_gene_counts))
+    js_code = js_code.replace('PROPHAGE_AMR_CLASS_LABELS_PLACEHOLDER', json.dumps(prophage_amr_class_labels))
+    js_code = js_code.replace('PROPHAGE_AMR_CLASS_COUNTS_PLACEHOLDER', json.dumps(prophage_amr_class_counts))
+    js_code = js_code.replace('SAMPLES_WITH_PROPHAGE_AMR_PLACEHOLDER', str(samples_with_prophage_amr))
+    js_code = js_code.replace('SAMPLES_WITHOUT_PROPHAGE_AMR_PLACEHOLDER', str(total_samples - samples_with_prophage_amr))
+
     # Plasmid data
     js_code = js_code.replace('INC_GROUP_LABELS_PLACEHOLDER', json.dumps(inc_group_labels))
     js_code = js_code.replace('INC_GROUP_COUNTS_PLACEHOLDER', json.dumps(inc_group_counts))
@@ -3701,6 +3985,9 @@ def main():
     print("Parsing AMRFinder results...")
     amr_data = parse_amrfinder(outdir / 'amrfinder')
 
+    print("Parsing prophage AMRFinder results...")
+    prophage_amr_data = parse_amrfinder_prophage(outdir / 'amrfinder_prophage')
+
     print("Parsing MOB-suite plasmid results...")
     mobsuite_data = parse_mobsuite(outdir / 'mobsuite')
 
@@ -3810,6 +4097,16 @@ def main():
             row.update({
                 'num_prophage_hits': 0,
                 'top_prophage_matches': '-'
+            })
+
+        # Prophage AMR summary
+        if sample in prophage_amr_data:
+            row.update(prophage_amr_data[sample])
+        else:
+            row.update({
+                'num_prophage_amr_genes': 0,
+                'prophage_amr_classes': '-',
+                'prophage_amr_genes': '-'
             })
 
         summary_data.append(row)

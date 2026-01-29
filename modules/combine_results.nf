@@ -6,6 +6,7 @@ process COMBINE_RESULTS {
     path amr_results
     path vibrant_results
     path diamond_results
+    path prophage_amr_results
     path abricate_summary, stageAs: 'abricate_summary.tsv'
     path quast_reports, stageAs: 'quast_*.tsv'
     path busco_summaries

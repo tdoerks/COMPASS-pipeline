@@ -131,6 +131,7 @@ workflow COMPLETE_PIPELINE {
         AMR_ANALYSIS.out.results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),
         PHAGE_ANALYSIS.out.vibrant_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),
         PHAGE_ANALYSIS.out.diamond_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),
+        PHAGE_ANALYSIS.out.prophage_amr_results.filter { it[1] instanceof Path || it[1] instanceof java.io.File }.map { it[1] }.collect().ifEmpty([]),  // prophage AMR results
         Channel.empty().collect().ifEmpty([]),  // abricate_summary
         ch_quast_report.collect().ifEmpty([]),  // quast_reports
         ch_busco_summary.filter { it instanceof Path || it instanceof java.io.File }.collect().ifEmpty([]), // busco_summaries (filter failed samples)
@@ -183,6 +184,7 @@ workflow COMPLETE_PIPELINE {
     amr_results = AMR_ANALYSIS.out.results
     phage_results = PHAGE_ANALYSIS.out.vibrant_results
     diamond_results = PHAGE_ANALYSIS.out.diamond_results
+    prophage_amr_results = PHAGE_ANALYSIS.out.prophage_amr_results
     // checkv_results = PHAGE_ANALYSIS.out.checkv_results  // CheckV not currently emitted by PHAGE_ANALYSIS
     phanotate_results = PHAGE_ANALYSIS.out.phanotate_results
     mlst_results = TYPING.out.mlst_results

@@ -42,9 +42,9 @@ process AMRFINDER_PROPHAGE {
 
         # Run AMRFinderPlus on prophage sequences
         amrfinder \\
-            --nucleotide ${prophage_fasta} \\
-            --database \$DB_PATH \\
-            --output ${sample_id}_prophage_amr.tsv \\
+            -n ${prophage_fasta} \\
+            -d \$DB_PATH \\
+            -o ${sample_id}_prophage_amr.tsv \\
             --threads ${task.cpus} \\
             --plus
     else

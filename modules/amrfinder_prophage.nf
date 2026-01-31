@@ -26,10 +26,9 @@ process AMRFINDER_PROPHAGE {
     # Check if prophage file contains sequences
     if [ -s ${prophage_fasta} ] && grep -q '^>' ${prophage_fasta}; then
         # Find the actual database directory (handles versioned subdirectories)
-        # Look for latest symlink first, then search for AMRProt
-        if [ -d "${amrfinder_db}/latest" ]; then
-            DB_PATH="${amrfinder_db}/latest"
-        elif [ -L "${amrfinder_db}/latest" ]; then
+        # ALWAYS resolve symlinks to get the real absolute path
+        if [ -L "${amrfinder_db}/latest" ] || [ -d "${amrfinder_db}/latest" ]; then
+            # Resolve the symlink to absolute path
             DB_PATH=\$(readlink -f "${amrfinder_db}/latest")
         else
             # Find any version directory containing AMRProt

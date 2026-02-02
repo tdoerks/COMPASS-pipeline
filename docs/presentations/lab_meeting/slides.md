@@ -289,7 +289,32 @@ mob_recon \
 
 ---
 
-## Slide 11: Kansas Dataset - Detailed Methods
+## Slide 11: COMPASS Datasets - Complete Inventory
+
+### Completed Analyses (Archived on /bulk/)
+
+| Dataset | Samples | Organism(s) | Date Range | Status |
+|---------|---------|-------------|------------|--------|
+| **E. coli 2020 NARMS** | 2,257 | E. coli | 2020 | ✅ Complete |
+| **Kansas E. coli 2021** | 2,403 | E. coli | 2021 | ✅ Complete |
+| **Kansas E. coli 2022** | 2,836 | E. coli | 2022 | ✅ Complete |
+| **E. coli 2023** | 3,862 | E. coli | 2023 | ✅ Complete |
+| **E. coli 2024** | 3,779 | E. coli | 2024 | ✅ Complete |
+| **Kansas Multi-organism** | 829 | Campy (64), Sal (148), E. coli (617) | 2021-2025 | ✅ Complete |
+
+**Completed Total**: **15,966 samples** (15,754 E. coli + 148 Salmonella + 64 Campylobacter)
+
+### In Progress
+
+| Dataset | Samples | Organism | Date Range | Progress |
+|---------|---------|----------|------------|----------|
+| **E. coli Monthly 100** | 7,142 | E. coli | Jan 2020 - Jan 2026 | 🔄 ~30% assembled |
+
+### Grand Total: **~23,000+ samples** across all COMPASS runs
+
+---
+
+## Slide 12: Kansas Dataset - Detailed Methods
 
 ### Sample Acquisition
 - **Source**: Kansas veterinary diagnostic laboratory
@@ -297,13 +322,15 @@ mob_recon \
 - **Coverage**: >50X average
 - **Years**: 2021-2025
 
-### Organism Breakdown
-| Organism | Samples | Assembly Success | BUSCO >95% |
-|----------|---------|------------------|------------|
-| Campylobacter | 250 | 245 (98%) | 238 (95%) |
-| Salmonella | 300 | 295 (98%) | 287 (96%) |
-| E. coli | 183 | 180 (98%) | 175 (97%) |
-| **Total** | **733** | **720 (98%)** | **700 (95%)** |
+### Organism Breakdown (Kansas Multi-organism Run)
+| Organism | Submitted | Quality-Filtered | Assembled | Final |
+|----------|-----------|------------------|-----------|-------|
+| E. coli | 13,070 | 617 | 617 | 617 (100%) |
+| Salmonella | ~10,000 | 148 | 148 | 148 (100%) |
+| Campylobacter | 5,630 | 64 | 64 | 64 (100%) |
+| **Total** | **~28,700** | **829** | **829** | **829 (100%)** |
+
+**Note**: Aggressive quality filtering applied to ensure high-confidence results for multi-organism comparison
 
 ### Quality Filters Applied
 - Read quality: >Q20
@@ -313,7 +340,7 @@ mob_recon \
 
 ---
 
-## Slide 12: E. coli Temporal Study - Sampling Strategy
+## Slide 13: E. coli Temporal Study - Sampling Strategy
 
 ### Data Source
 - **NCBI SRA**: Public E. coli whole-genome sequencing data
@@ -350,7 +377,7 @@ for year in years:
 
 ---
 
-## Slide 13: Phylogenetic Analysis - Technical Details
+## Slide 14: Phylogenetic Analysis - Technical Details
 
 ### Challenge: 3,918 AMR-Prophage Sequences
 - Initial attempt: Align all 3,918 sequences
@@ -382,7 +409,7 @@ subsample = subsample_prophages(amr_prophages, n_per_year=100)
 
 ---
 
-## Slide 14: Phylogenetic Methods
+## Slide 15: Phylogenetic Methods
 
 ### Multiple Sequence Alignment: MAFFT 7.505
 ```bash
@@ -421,7 +448,7 @@ FastTree \
 
 ---
 
-## Slide 15: Statistical Validation
+## Slide 16: Statistical Validation
 
 ### Assembly Quality Metrics
 - **Mean N50**: 145 kb (E. coli), 180 kb (Salmonella), 35 kb (Campylobacter)
@@ -446,7 +473,7 @@ FastTree \
 
 ---
 
-## Slide 16: Kansas Results - Detailed Breakdown
+## Slide 17: Kansas Results - Detailed Breakdown
 
 ### Prophage-AMR Associations (21 total)
 
@@ -470,7 +497,7 @@ FastTree \
 
 ---
 
-## Slide 17: E. coli Results - 396 AMR Genes Detailed
+## Slide 18: E. coli Results - 396 AMR Genes Detailed
 
 ### Resistance Class Distribution
 | Class | Count | % | Top Genes |
@@ -494,7 +521,7 @@ FastTree \
 
 ---
 
-## Slide 18: Phylogenetic Insights - AMR-Prophage Lineages
+## Slide 19: Phylogenetic Insights - AMR-Prophage Lineages
 
 ### Tree Topology
 - **Subsampled tree**: 400 prophages (100/year, 2021-2024)
@@ -519,7 +546,7 @@ FastTree \
 
 ---
 
-## Slide 19: All-Prophage Phylogeny Comparison
+## Slide 20: All-Prophage Phylogeny Comparison
 
 ### Dataset
 - **494 complete prophages** (not filtered for AMR)
@@ -548,7 +575,7 @@ FastTree \
 
 ---
 
-## Slide 20: Computational Performance
+## Slide 21: Computational Performance
 
 ### Hardware
 - **HPC**: Kansas State Beocat cluster
@@ -576,7 +603,7 @@ FastTree \
 
 ---
 
-## Slide 21: Challenges Encountered & Solutions
+## Slide 22: Challenges Encountered & Solutions
 
 ### Challenge 1: MAFFT Memory Overflow
 - **Problem**: 3,918 sequences exceeded 32GB RAM
@@ -600,7 +627,7 @@ FastTree \
 
 ---
 
-## Slide 22: Quality Control Metrics
+## Slide 23: Quality Control Metrics
 
 ### Sample-Level Filters
 ✅ **Read QC**: >20M reads, >Q30
@@ -620,7 +647,7 @@ FastTree \
 
 ---
 
-## Slide 23: Comparison to Existing Tools
+## Slide 24: Comparison to Existing Tools
 
 ### Similar Pipelines
 | Tool | AMR | Prophage | Typing | Phylogeny | Limitations |
@@ -639,7 +666,7 @@ FastTree \
 
 ---
 
-## Slide 24: Future Work - Technical Roadmap
+## Slide 25: Future Work - Technical Roadmap
 
 ### Short-term (3-6 months)
 1. **CheckV integration** for prophage quality assessment
@@ -661,7 +688,7 @@ FastTree \
 
 ---
 
-## Slide 25: Collaboration Opportunities
+## Slide 26: Collaboration Opportunities
 
 ### Data Contributions
 - Share your WGS data for inclusion in analyses
@@ -685,7 +712,7 @@ FastTree \
 
 ---
 
-## Slide 26: Summary & Key Messages
+## Slide 27: Summary & Key Messages
 
 ### Technical Achievements
 1. ✅ **COMPASS pipeline**: Automated, scalable, reproducible
@@ -706,7 +733,7 @@ FastTree \
 
 ---
 
-## Slide 27: Discussion Points
+## Slide 28: Discussion Points
 
 ### Questions for the Group
 1. **Validation strategy**: How to validate prophage-AMR associations experimentally?
@@ -723,7 +750,7 @@ FastTree \
 
 ---
 
-## Slide 28: Resources & Contact
+## Slide 29: Resources & Contact
 
 ### Code & Data
 - **GitHub**: [Repository URL]

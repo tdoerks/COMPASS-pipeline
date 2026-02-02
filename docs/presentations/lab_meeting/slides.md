@@ -2,10 +2,10 @@
 ## Lab Meeting Presentation
 
 Tyler Doerks
-[Lab Name]
 Kansas State University College of Veterinary Medicine
+Diagnostic Medicine/Pathobiology
 
-Date: [Insert Date]
+Date: TBD
 
 ---
 
@@ -753,9 +753,12 @@ FastTree \
 ## Slide 29: Resources & Contact
 
 ### Code & Data
-- **GitHub**: [Repository URL]
-- **Documentation**: [Read the Docs URL]
-- **Session Notes**: Detailed in `/SESSION_2026-01-23.md`
+- **GitHub**: https://github.com/tdoerks/COMPASS-pipeline
+- **Branches**:
+  - `main` - Stable releases
+  - `v1.3-dev` - Current development
+  - `presentation` - Presentation materials
+- **Data**: Archived results on Beocat `/bulk/tylerdoe/archives/`
 
 ### Publications (Planned)
 1. COMPASS pipeline paper (methods)
@@ -764,8 +767,8 @@ FastTree \
 
 ### Contact
 - **Email**: tdoerks@vet.k-state.edu
-- **Lab**: [Your lab website]
-- **Twitter/X**: [If applicable]
+- **GitHub**: https://github.com/tdoerks/COMPASS-pipeline
+- **Lab**: KSU College of Veterinary Medicine
 
 ### Acknowledgments
 - [Advisor, lab members, collaborators]

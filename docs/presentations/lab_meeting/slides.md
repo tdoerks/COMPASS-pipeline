@@ -1,5 +1,5 @@
 # COMPASS Pipeline: Technical Deep Dive
-## Lab Meeting Presentation
+## COmprehensive Mobile element & Pathogen ASsessment Suite
 
 Tyler Doerks
 Kansas State University College of Veterinary Medicine

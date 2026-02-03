@@ -1,12 +1,12 @@
 ---
 title: "COMPASS Pipeline: Technical Deep Dive"
-subtitle: "Comprehensive Omics Analysis Pipeline for Surveillance and Study"  
+subtitle: "COmprehensive Mobile element & Pathogen ASsessment Suite"
 author: "Tyler Doerks"
 institute: "Kansas State University College of Veterinary Medicine - Diagnostic Medicine/Pathobiology"
 date: "`r Sys.Date()`"
 output:
   powerpoint_presentation:
-    reference_doc: null
+    reference_doc: COMPASS_title_with_compass_badge_sq.pptx
     slide_level: 2
 ---
 

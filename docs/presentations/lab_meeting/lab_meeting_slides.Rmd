@@ -9,15 +9,6 @@ output:
     reference_doc: COMPASS_title_with_compass_badge_sq.pptx
     slide_level: 2
 ---
-
-
----
-
-## Overview
-
-### Today's Topics
-1. COMPASS pipeline architecture & implementation
-2. Kansas multi-organism surveillance (detailed methods)
 3. E. coli temporal study (2021-2024)
 4. Phylogenetic analysis technical details
 5. Statistical validation & quality control
@@ -29,7 +20,7 @@ output:
 
 ---
 
-## COMPASS Pipeline - Technical Architecture
+## Slide 2: COMPASS Pipeline - Technical Architecture
 
 ### Workflow Manager: Nextflow DSL2
 - **Why Nextflow?**
@@ -51,7 +42,7 @@ output:
 
 ---
 
-## Pipeline Diagram (Technical Version)
+## Slide 3: Pipeline Diagram (Technical Version)
 
 ### ![Pipeline](../../pipeline_diagram/compass_pipeline.png)
 
@@ -82,7 +73,7 @@ ALL → MULTIQC
 
 ---
 
-## Data Acquisition & Preprocessing
+## Slide 4: Data Acquisition & Preprocessing
 
 ### SRA Download (fasterq-dump)
 - **Tool**: SRA Toolkit 3.0+
@@ -112,7 +103,7 @@ fastp \
 
 ---
 
-## Genome Assembly Pipeline
+## Slide 5: Genome Assembly Pipeline
 
 ### SPADES 3.15.5 (--isolate mode)
 ```bash
@@ -144,7 +135,7 @@ spades.py \
 
 ---
 
-## AMR Detection - Dual Strategy
+## Slide 6: AMR Detection - Dual Strategy
 
 ### Strategy 1: AMRFinder Plus 3.11
 ```bash
@@ -181,7 +172,7 @@ done
 
 ---
 
-## Prophage Analysis - VIBRANT
+## Slide 7: Prophage Analysis - VIBRANT
 
 ### VIBRANT 1.2.1 (Machine Learning-based)
 ```bash
@@ -211,7 +202,7 @@ VIBRANT_run.py \
 
 ---
 
-## Prophage-AMR Integration Analysis
+## Slide 8: Prophage-AMR Integration Analysis
 
 ### Custom Python Module
 ```python
@@ -241,7 +232,7 @@ for sample in samples:
 
 ---
 
-## Typing & Plasmid Analysis
+## Slide 9: Typing & Plasmid Analysis
 
 ### MLST 2.23.0
 ```bash
@@ -272,7 +263,7 @@ mob_recon \
 
 ---
 
-## MultiQC Aggregation
+## Slide 10: MultiQC Aggregation
 
 ### MultiQC 1.14
 - Aggregates all module outputs
@@ -293,9 +284,9 @@ mob_recon \
 
 ---
 
-## COMPASS Datasets - Complete Inventory
+## Slide 11A: COMPASS Datasets - Completed Analyses
 
-### Completed Analyses (Archived on /bulk/)
+### Archived Results on /bulk/ (Production Runs)
 
 | Dataset | Samples | Organism(s) | Date Range | Status |
 |---------|---------|-------------|------------|--------|
@@ -308,17 +299,29 @@ mob_recon \
 
 **Completed Total**: **15,966 samples** (15,754 E. coli + 148 Salmonella + 64 Campylobacter)
 
-### In Progress
+---
+
+## Slide 11B: COMPASS Datasets - In Progress & Grand Total
+
+### Currently Running
 
 | Dataset | Samples | Organism | Date Range | Progress |
 |---------|---------|----------|------------|----------|
 | **E. coli Monthly 100** | 7,142 | E. coli | Jan 2020 - Jan 2026 | 🔄 ~30% assembled |
 
+**Details**:
+- Sampling strategy: 100 random samples per month
+- Temporal resolution: 73 months (6+ years)
+- Goal: Track AMR-prophage trends over time
+- ETA: ~2-3 weeks (SLURM job running on v1.3-dev)
+
 ### Grand Total: **~23,000+ samples** across all COMPASS runs
+
+**Scope**: Multi-organism (E. coli, Salmonella, Campylobacter) surveillance spanning 2020-2026
 
 ---
 
-## Kansas Dataset - Detailed Methods
+## Slide 12: Kansas Dataset - Detailed Methods
 
 ### Sample Acquisition
 - **Source**: Kansas veterinary diagnostic laboratory
@@ -344,7 +347,7 @@ mob_recon \
 
 ---
 
-## E. coli Temporal Study - Sampling Strategy
+## Slide 13: E. coli Temporal Study - Sampling Strategy
 
 ### Data Source
 - **NCBI SRA**: Public E. coli whole-genome sequencing data
@@ -381,7 +384,7 @@ for year in years:
 
 ---
 
-## Phylogenetic Analysis - Technical Details
+## Slide 14: Phylogenetic Analysis - Technical Details
 
 ### Challenge: 3,918 AMR-Prophage Sequences
 - Initial attempt: Align all 3,918 sequences
@@ -413,7 +416,7 @@ subsample = subsample_prophages(amr_prophages, n_per_year=100)
 
 ---
 
-## Phylogenetic Methods
+## Slide 15: Phylogenetic Methods
 
 ### Multiple Sequence Alignment: MAFFT 7.505
 ```bash
@@ -452,7 +455,7 @@ FastTree \
 
 ---
 
-## Statistical Validation
+## Slide 16: Statistical Validation
 
 ### Assembly Quality Metrics
 - **Mean N50**: 145 kb (E. coli), 180 kb (Salmonella), 35 kb (Campylobacter)
@@ -477,7 +480,7 @@ FastTree \
 
 ---
 
-## Kansas Results - Detailed Breakdown
+## Slide 17: Kansas Results - Detailed Breakdown
 
 ### Prophage-AMR Associations (21 total)
 
@@ -501,7 +504,7 @@ FastTree \
 
 ---
 
-## E. coli Results - 396 AMR Genes Detailed
+## Slide 18: E. coli Results - 396 AMR Genes Detailed
 
 ### Resistance Class Distribution
 | Class | Count | % | Top Genes |
@@ -525,7 +528,7 @@ FastTree \
 
 ---
 
-## Phylogenetic Insights - AMR-Prophage Lineages
+## Slide 19: Phylogenetic Insights - AMR-Prophage Lineages
 
 ### Tree Topology
 - **Subsampled tree**: 400 prophages (100/year, 2021-2024)
@@ -550,7 +553,7 @@ FastTree \
 
 ---
 
-## All-Prophage Phylogeny Comparison
+## Slide 20: All-Prophage Phylogeny Comparison
 
 ### Dataset
 - **494 complete prophages** (not filtered for AMR)
@@ -579,7 +582,117 @@ FastTree \
 
 ---
 
-## Computational Performance
+## Slide 21A: Kansas All-Prophage Phylogenetic Tree
+
+### Source Dataset
+- **825 samples**: 64 Campylobacter, 148 Salmonella, 617 E. coli
+- **Years**: 2021-2025 (Kansas veterinary diagnostic laboratory)
+- **VIBRANT prophage detections**: 7,097 total prophages across all samples
+
+### Subsampling for Phylogeny
+- **Challenge**: MAFFT alignment of 7,097 sequences = >60 hours, >32GB RAM
+- **Solution**: Representative subsampling to 500 prophages
+- **Method**: Random sampling stratified by organism
+  - Preserves organism diversity
+  - Manageable computational requirements (2-3 hour alignment)
+  - Captures major lineages
+
+### Result
+- **Tree**: 500 prophages representing Kansas multi-organism surveillance
+- **File**: `kansas_all_prophage_tree_cleaned.nwk`
+- **Purpose**: Cross-species prophage diversity and AMR patterns
+
+---
+
+## Slide 21B: E. coli AMR-Prophage Temporal Tree
+
+### Source Dataset
+- **2,000+ E. coli genomes** from NCBI SRA (2021-2024)
+- **Total AMR-carrying prophages identified**: 400
+- **Focus**: Temporal evolution of antimicrobial resistance in prophages
+
+### Subsampling Strategy
+- **Challenge**: Identify trends in AMR-prophage evolution over time
+- **Solution**: Balanced temporal sampling (100 prophages per year)
+- **Selection criteria**: Longest prophages per year (proxy for completeness)
+- **Runtime**: Alignment 8 hours, tree building 1 hour
+
+### Result
+- **Tree**: 400 AMR-carrying prophages (2021-2024)
+- **File**: `ecoli_amr_prophage_tree_cleaned.nwk`
+- **Purpose**: Track persistence vs emergence of AMR-prophage lineages
+
+---
+
+## Slide 22A: Tree Files Available on GitHub
+
+### Repository Location
+**Branch**: `presentation`
+**Path**: `docs/presentations/lab_meeting/trees/`
+
+### Kansas All-Prophage Tree
+- `kansas_all_prophage_tree_cleaned.nwk` (500 prophages)
+- `kansas_prophage_metadata_cleaned.tsv` (7,097 metadata rows)
+- `itol_annotations/` directory:
+  - `length_barchart.txt` (prophage sizes)
+  - `labels.txt` (sample IDs)
+
+### E. coli AMR-Prophage Tree
+- `ecoli_amr_prophage_tree_cleaned.nwk` (400 AMR prophages)
+- `ecoli_amr_prophage_metadata.tsv` (year, AMR status)
+- `itol_annotations_ecoli_amr/` directory:
+  - `length_barchart.txt` (prophage sizes)
+  - `labels.txt` (sample IDs)
+
+**All files ready for iTOL visualization**
+
+---
+
+## Slide 22B: iTOL Live Demo - Upload & Annotate
+
+### Step 1: Upload Tree to iTOL
+1. Go to: **https://itol.embl.de/upload.cgi**
+2. Click **"Choose File"**
+3. Select `.nwk` file (e.g., `kansas_all_prophage_tree_cleaned.nwk`)
+4. Click **"Upload"**
+5. Tree renders in ~10-30 seconds
+
+### Step 2: Add Annotations
+1. Locate local `itol_annotations/` folder
+2. **Drag-and-drop** files onto the rendered tree:
+   - `length_barchart.txt` → Prophage sizes displayed as bars
+   - `labels.txt` → Sample IDs shown on tree tips
+3. Annotations apply automatically!
+
+**Demo Time**: ~1 minute to upload + annotate
+
+---
+
+## Slide 22C: iTOL Exploration & Export
+
+### Interactive Features
+- **Zoom**: Mouse wheel or touchpad
+- **Pan**: Click and drag
+- **Collapse clades**: Click on internal nodes
+- **Adjust bar width**: Use iTOL controls panel (right side)
+- **Change colors**: Click on legend items
+
+### Export Options
+- **High-res PNG**: "Export" → "Image" → PNG (3000×3000px)
+- **Vector graphics**: SVG format (scalable for papers)
+- **Share link**: "Export" → "Project" (requires iTOL account)
+
+### What to Look For
+**Kansas Tree**: Cross-species prophage diversity, size variation
+**E. coli AMR Tree**: Temporal clustering (2021-2024), persistent lineages
+
+### iTOL Free Tier Note
+- ⚠️ Cannot save projects (subscription required)
+- ✅ Can export images + re-upload anytime (~30 seconds)
+
+---
+
+## Slide 23: Computational Performance
 
 ### Hardware
 - **HPC**: Kansas State Beocat cluster
@@ -607,7 +720,7 @@ FastTree \
 
 ---
 
-## Challenges Encountered & Solutions
+## Slide 22: Challenges Encountered & Solutions
 
 ### Challenge 1: MAFFT Memory Overflow
 - **Problem**: 3,918 sequences exceeded 32GB RAM
@@ -631,7 +744,7 @@ FastTree \
 
 ---
 
-## Quality Control Metrics
+## Slide 23: Quality Control Metrics
 
 ### Sample-Level Filters
 ✅ **Read QC**: >20M reads, >Q30
@@ -651,7 +764,7 @@ FastTree \
 
 ---
 
-## Comparison to Existing Tools
+## Slide 24: Comparison to Existing Tools
 
 ### Similar Pipelines
 | Tool | AMR | Prophage | Typing | Phylogeny | Limitations |
@@ -670,7 +783,7 @@ FastTree \
 
 ---
 
-## Future Work - Technical Roadmap
+## Slide 25: Future Work - Technical Roadmap
 
 ### Short-term (3-6 months)
 1. **CheckV integration** for prophage quality assessment
@@ -692,7 +805,7 @@ FastTree \
 
 ---
 
-## Collaboration Opportunities
+## Slide 26: Collaboration Opportunities
 
 ### Data Contributions
 - Share your WGS data for inclusion in analyses
@@ -716,7 +829,7 @@ FastTree \
 
 ---
 
-## Summary & Key Messages
+## Slide 27: Summary & Key Messages
 
 ### Technical Achievements
 1. ✅ **COMPASS pipeline**: Automated, scalable, reproducible
@@ -737,7 +850,7 @@ FastTree \
 
 ---
 
-## Discussion Points
+## Slide 28: Discussion Points
 
 ### Questions for the Group
 1. **Validation strategy**: How to validate prophage-AMR associations experimentally?
@@ -754,7 +867,7 @@ FastTree \
 
 ---
 
-## Resources & Contact
+## Slide 29: Resources & Contact
 
 ### Code & Data
 - **GitHub**: https://github.com/tdoerks/COMPASS-pipeline

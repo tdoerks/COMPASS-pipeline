@@ -575,7 +575,113 @@ FastTree \
 
 ---
 
-## Slide 21: Computational Performance
+## Slide 21: Phylogenetic Tree Datasets - From Detection to Visualization
+
+### Kansas All-Prophage Tree
+
+**Source Dataset**:
+- **825 samples**: 64 Campylobacter, 148 Salmonella, 617 E. coli
+- **Years**: 2021-2025 (Kansas veterinary diagnostic laboratory)
+- **VIBRANT prophage detections**: 7,097 total prophages across all samples
+
+**Subsampling for Phylogeny**:
+- **Selected**: 500 prophages (representative sampling)
+- **Rationale**: MAFFT alignment of 7,097 sequences would require >60 hours, >32GB RAM
+- **Method**: Random sampling stratified by organism
+- **Result**: Manageable 2-3 hour alignment, captures major lineages
+
+**Tree File**: `kansas_all_prophage_tree_cleaned.nwk`
+
+### E. coli AMR-Prophage Tree
+
+**Source Dataset**:
+- **2,000+ E. coli genomes** from NCBI SRA (2021-2024)
+- **Total AMR-carrying prophages identified**: 400 (filtered from all prophages)
+- **Years**: 2021-2024 (global sampling, temporal study)
+
+**Subsampling Strategy**:
+- **Selected**: 400 prophages (100 per year, balanced temporal representation)
+- **Selection criteria**: Longest prophages per year (proxy for completeness)
+- **Focus**: Temporal evolution of antimicrobial resistance in prophages
+- **Runtime**: Alignment 8 hours, tree building 1 hour
+
+**Tree File**: `ecoli_amr_prophage_tree_cleaned.nwk`
+
+### Computational Workflow
+```
+VIBRANT prediction → AMR detection (AMRFinder) →
+Metadata curation → Subsampling → MAFFT alignment →
+FastTree inference → Tree ID cleaning → Ready for iTOL
+```
+
+---
+
+## Slide 22: Interactive Tree Visualization - Live Demo Guide
+
+### Files Available on GitHub
+
+**Repository**: `presentation` branch
+**Path**: `docs/presentations/lab_meeting/trees/`
+
+**Kansas Tree Files**:
+- `kansas_all_prophage_tree_cleaned.nwk` (500 prophages)
+- `kansas_prophage_metadata_cleaned.tsv` (7,097 metadata rows)
+- `itol_annotations/` (length bar chart, labels)
+
+**E. coli AMR Tree Files**:
+- `ecoli_amr_prophage_tree_cleaned.nwk` (400 AMR prophages)
+- `ecoli_amr_prophage_metadata.tsv` (includes year, AMR status)
+- `itol_annotations_ecoli_amr/` (length bar chart, labels)
+
+### Step-by-Step iTOL Visualization
+
+**Step 1: Upload Tree**
+1. Go to: **https://itol.embl.de/upload.cgi**
+2. Click **"Choose File"**
+3. Select tree file (e.g., `kansas_all_prophage_tree_cleaned.nwk`)
+4. Click **"Upload"**
+5. Tree renders in ~10-30 seconds
+
+**Step 2: Add Annotations**
+1. From local `itol_annotations/` folder
+2. **Drag-and-drop** annotation files onto the tree:
+   - `length_barchart.txt` → Prophage sizes displayed as bars
+   - `labels.txt` → Sample IDs shown on tree tips
+3. Annotations apply automatically!
+
+**Step 3: Explore & Customize**
+- **Zoom**: Mouse wheel or touchpad
+- **Pan**: Click and drag
+- **Collapse clades**: Click on internal nodes
+- **Adjust bar width**: Use iTOL controls panel
+- **Change colors**: Click on legend items
+
+**Step 4: Export**
+- **High-res image**: "Export" → "Image" → PNG (3000×3000px)
+- **For papers**: SVG format (vector, scalable)
+- **Share link**: "Export" → "Project" (requires iTOL account)
+
+### What to Look For
+
+**Kansas Tree**:
+- Cross-species prophage diversity
+- Geographic patterns (all Kansas samples)
+- Size variation (bar chart)
+
+**E. coli AMR Tree**:
+- Temporal clustering (2021-2024)
+- Persistent vs transient lineages
+- AMR-carrying prophage evolution
+
+### Note on iTOL Free Tier
+- ⚠️ Cannot save projects permanently (requires subscription)
+- ✅ Can export high-resolution images
+- ✅ Can drag-and-drop annotations each time (~30 seconds)
+- **Recommendation**: Export PNGs now for slides, do live demo during talk
+
+---
+
+## Slide 23: Computational Performance
 
 ### Hardware
 - **HPC**: Kansas State Beocat cluster

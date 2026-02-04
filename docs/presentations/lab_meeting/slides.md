@@ -788,25 +788,36 @@ FastTree \
 
 ---
 
-## Slide 25: Future Work - Technical Roadmap
+## Slide 25: Next Steps - Roadmap to Publication
 
-### Short-term (3-6 months)
-1. **CheckV integration** for prophage quality assessment
-2. **Long-read support** (ONT, PacBio)
-3. **Improved Data Explorer** with advanced filtering
-4. **Benchmarking paper** vs other pipelines
+### Phase 1: Stabilize & Validate (Current - 3 months)
+1. **Solidify v1.3 stable version**
+   - Complete E. coli Monthly 100 run (7,142 samples)
+   - Merge prophage-AMR integration from v1.4-dev
+   - Tag v1.3 release on GitHub
+2. **Run comprehensive datasets**
+   - Re-run Kansas multi-organism with stable pipeline
+   - Validate consistency across all completed datasets
+   - Generate final summary statistics
 
-### Medium-term (6-12 months)
-1. **Metagenomic mode** for culture-independent analysis
-2. **Geographic visualization** of AMR-prophage patterns
-3. **Machine learning** to predict AMR-prophage associations
-4. **Cloud deployment** (AWS, Google Cloud)
+### Phase 2: Analyze & Publish (3-6 months)
+3. **Deep analysis of results**
+   - Complete phylogenetic analyses (Kansas + E. coli temporal)
+   - Statistical validation of prophage-AMR patterns
+   - Cross-species AMR transmission analysis
+4. **Publish pipeline & findings**
+   - **Paper 1**: COMPASS pipeline methods paper
+   - **Paper 2**: Kansas surveillance study (prophage-AMR findings)
+   - **Announce**: Biotech forum, Twitter/X, preprint servers
 
-### Long-term (1-2 years)
-1. **Real-time surveillance** dashboard
-2. **Integration with NCBI Pathogen Detection**
-3. **API for programmatic access**
-4. **Mobile app** for field diagnostics
+### Phase 3: Expand & Iterate (6+ months)
+5. **Continue data collection**
+   - Expand to additional organisms (Listeria, Campylobacter deep dive)
+   - Geographic expansion beyond Kansas
+6. **COMPASS v2.0 development**
+   - Add analysis modules: CheckV, plasmid-prophage integration
+   - Expand capabilities: long-read support, metagenomic mode
+   - Enhanced reporting and visualization tools
 
 ---
 

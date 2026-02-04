@@ -292,12 +292,14 @@ mob_recon \
 |---------|---------|-------------|------------|--------|
 | **E. coli 2020 NARMS** | 2,257 | E. coli | 2020 | ✅ Complete |
 | **Kansas E. coli 2021** | 2,403 | E. coli | 2021 | ✅ Complete |
-| **Kansas E. coli 2022** | 2,836 | E. coli | 2022 | ✅ Complete |
-| **E. coli 2023** | 3,862 | E. coli | 2023 | ✅ Complete |
-| **E. coli 2024** | 3,779 | E. coli | 2024 | ✅ Complete |
+| **Kansas E. coli 2022*** | 2,836 | E. coli | 2022 | ✅ Complete |
+| **E. coli 2023*** | 3,862 | E. coli | 2023 | ✅ Complete |
+| **E. coli 2024*** | 3,779 | E. coli | 2024 | ✅ Complete |
 | **Kansas Multi-organism** | 829 | Campy (64), Sal (148), E. coli (617) | 2021-2025 | ✅ Complete |
 
 **Completed Total**: **15,966 samples** (15,754 E. coli + 148 Salmonella + 64 Campylobacter)
+
+**\*NARMS Data Restriction**: NARMS data from 2022-2024 cannot be published until official NARMS reports are released. Data shown for pipeline validation and methods development only.
 
 ---
 

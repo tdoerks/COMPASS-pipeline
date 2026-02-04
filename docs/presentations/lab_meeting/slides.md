@@ -308,17 +308,24 @@ mob_recon \
 
 ## Slide 11B: COMPASS Datasets - In Progress & Grand Total
 
-### Currently Running
+### Currently Running: E. coli Monthly 100
 
-| Dataset | Samples | Organism | Date Range | Progress |
-|---------|---------|----------|------------|----------|
-| **E. coli Monthly 100** | 7,142 | E. coli | Jan 2020 - Jan 2026 | 🔄 ~30% assembled |
+**Status as of February 4, 2026**:
 
-**Details**:
-- Sampling strategy: 100 random samples per month
-- Temporal resolution: 73 months (6+ years)
-- Goal: Track AMR-prophage trends over time
-- ETA: ~2-3 weeks (SLURM job running on v1.3-dev)
+| Stage | Complete | Total | % | Status |
+|-------|----------|-------|---|--------|
+| SRA Download | 6,778 | 7,142 | 94.9% | 🔄 Running |
+| QC (FastQC/fastp) | 6,538 | 7,142 | 91.5% | 🔄 Running |
+| Assembly (SPAdes) | 3,638 | 6,408 | 56.8% | 🔄 Running |
+| BUSCO QC | 2,683 | 3,638 | 73.7% | 🔄 Running |
+| AMR Detection | 2,572 | 3,638 | 70.7% | 🔄 Running |
+| Prophage Analysis | 2,560 | 3,638 | 70.4% | 🔄 Running |
+
+**Progress Notes**:
+- 240 samples failed SRA download (unavailable/withdrawn from NCBI)
+- Assembly success rate: 93.4% (6,408/6,860 attempted)
+- Currently processing ~3,600 samples through all analysis modules
+- **ETA**: ~1-2 weeks to completion (SLURM job on v1.3-dev stable)
 
 ### Grand Total: **~23,000+ samples** across all COMPASS runs
 

@@ -2,8 +2,8 @@ process DOWNLOAD_ASSEMBLY {
     tag "$sample"
     label 'process_low'
 
-    // Use biocontainers wget - specifically designed for bioinformatics workflows
-    container = 'biocontainers/biocontainers:v1.2.0_cv2'
+    // Use NCBI Entrez Direct for reliable assembly downloads
+    container = 'quay.io/biocontainers/entrez-direct:16.2--he881be0_1'
 
     publishDir "${params.outdir}/assemblies", mode: 'copy'
 
@@ -16,29 +16,17 @@ process DOWNLOAD_ASSEMBLY {
 
     script:
     """
-    # Download assembly using NCBI FTP (most reliable method)
-    echo "Downloading ${assembly_accession}..." >&2
+    # Download assembly using NCBI Entrez Direct
+    echo "Downloading ${assembly_accession} using NCBI Entrez Direct..." >&2
 
-    # Construct FTP path from accession (works with both GCF and GCA)
-    ACC_PREFIX=\$(echo ${assembly_accession} | sed 's/\\.[0-9]*\$//')
-    FTP_PATH="https://ftp.ncbi.nlm.nih.gov/genomes/all/\${ACC_PREFIX:0:3}/\${ACC_PREFIX:4:3}/\${ACC_PREFIX:7:3}/\${ACC_PREFIX:10:3}/${assembly_accession}/${assembly_accession}_genomic.fna.gz"
-
-    echo "Fetching from: \$FTP_PATH" >&2
-
-    # Download with retries
-    for i in 1 2 3; do
-        wget -q -O ${sample}.fasta.gz "\$FTP_PATH" && break
-        echo "Download attempt \$i failed, retrying..." >&2
-        sleep 5
-    done
-
-    # Decompress
-    gunzip ${sample}.fasta.gz 2>/dev/null || true
+    # Query NCBI Assembly database and fetch FASTA
+    esearch -db assembly -query "${assembly_accession}[Assembly Accession]" | \\
+        efetch -format fasta > ${sample}.fasta
 
     # Check if download succeeded
     if [ ! -s ${sample}.fasta ]; then
         echo "ERROR: Failed to download ${assembly_accession}" >&2
-        echo "Tried FTP path: \$FTP_PATH" >&2
+        echo "Assembly may not exist or NCBI service unavailable" >&2
         exit 1
     fi
 
@@ -47,7 +35,7 @@ process DOWNLOAD_ASSEMBLY {
     # Create versions file
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        wget: \$(wget --version 2>&1 | head -n1 | awk '{print \$3}')
+        entrez-direct: \$(esearch -version 2>&1 | head -n1 | sed 's/^[^0-9]*//')
     END_VERSIONS
     """
 

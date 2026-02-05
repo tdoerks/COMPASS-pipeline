@@ -18,7 +18,8 @@ process MOBSUITE_RECON {
     mob_recon \\
         --infile ${assembly} \\
         --outdir ${sample_id}_mobsuite \\
-        --num_threads ${task.cpus}
+        --num_threads ${task.cpus} \\
+        --force
 
     # Run MOB-typer on reconstructed plasmids if any were found
     if ls ${sample_id}_mobsuite/plasmid_*.fasta 1> /dev/null 2>&1; then

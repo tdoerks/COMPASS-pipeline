@@ -27,8 +27,10 @@ echo ""
 
 # Load required modules
 echo "Loading modules..."
-module load Nextflow/24.04
-module load Apptainer/1.2.2
+module load Nextflow || {
+    echo "ERROR: Could not load Nextflow"
+    exit 1
+}
 
 # Set working directory
 cd $SLURM_SUBMIT_DIR
@@ -61,7 +63,7 @@ echo "=========================================="
 echo ""
 
 nextflow run main.nf \
-    -profile slurm \
+    -profile beocat \
     --input "$SAMPLESHEET" \
     --outdir "$OUTDIR" \
     --input_mode assembly \

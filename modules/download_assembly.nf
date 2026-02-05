@@ -2,8 +2,8 @@ process DOWNLOAD_ASSEMBLY {
     tag "$sample"
     label 'process_low'
 
-    // Use ubuntu with curl - more reliable than broken entrez-direct container
-    container = 'ubuntu:22.04'
+    // Use curlimages/curl - has curl pre-installed and works in read-only mode
+    container = 'curlimages/curl:8.5.0'
 
     publishDir "${params.outdir}/assemblies", mode: 'copy'
 
@@ -16,9 +16,7 @@ process DOWNLOAD_ASSEMBLY {
 
     script:
     """
-    # Install curl if needed
-    apt-get update -qq && apt-get install -y -qq curl > /dev/null 2>&1
-
+    #!/bin/sh
     # Download assembly using NCBI FTP (most reliable method)
     echo "Downloading ${assembly_accession}..." >&2
 
@@ -36,7 +34,6 @@ process DOWNLOAD_ASSEMBLY {
     done
 
     # Decompress
-    apt-get install -y -qq gzip > /dev/null 2>&1
     gunzip ${sample}.fasta.gz 2>/dev/null || true
 
     # Check if download succeeded

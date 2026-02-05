@@ -41,42 +41,39 @@ Genomes representing major E. coli sequence types
 
 ## Quick Start
 
-### Step 1: Download Genomes
+The COMPASS pipeline now supports direct assembly downloading via NCBI Entrez Direct. No manual pre-download required!
+
+### Step 1: Verify Samplesheet
+
+Check the validation samplesheet exists:
 
 ```bash
-# Make download script executable
-chmod +x data/validation/download_genomes.sh
-
-# Run download (requires ncbi-datasets CLI)
-# Install: conda install -c conda-forge ncbi-datasets-cli
-bash data/validation/download_genomes.sh
+cat data/validation/validation_samplesheet.csv
 ```
 
-**Expected time**: 2-4 hours
-**Output**: `data/validation/assemblies/*.fasta` (~196 files)
+**Format**: `sample,organism,assembly_accession`
+**Currently**: 14 Tier 1 & 2 genomes (expand to all 196 as needed)
 
 ---
 
-### Step 2: Generate Samplesheet
+### Step 2: Submit SLURM Job
 
-```bash
-# Create COMPASS-compatible samplesheet
-python data/validation/create_samplesheet.py
-```
-
-**Output**: `data/validation/validation_samplesheet.csv`
-
----
-
-### Step 3: Submit SLURM Job
+The pipeline will automatically download assemblies from NCBI:
 
 ```bash
 # Submit validation run to HPC
 sbatch data/validation/run_compass_validation.sh
 ```
 
+**Input mode**: `assembly` (uses DOWNLOAD_ASSEMBLY module)
 **Expected runtime**: 24-48 hours
 **Output**: `data/validation/results/`
+
+The pipeline will:
+1. Download assemblies via NCBI Entrez Direct (containerized)
+2. Run BUSCO and QUAST for assembly QC
+3. Perform AMR, prophage, plasmid, and typing analysis
+4. Generate comprehensive MultiQC report
 
 ---
 
@@ -136,10 +133,11 @@ results/
 
 ## Troubleshooting
 
-### Download fails
-- Check internet connection
-- Ensure ncbi-datasets CLI is installed
-- Try downloading individual tiers separately
+### Assembly download fails
+- Check HPC internet connectivity to NCBI
+- Verify assembly accessions are valid (use NCBI Assembly browser)
+- Check DOWNLOAD_ASSEMBLY process logs
+- Try downloading problematic accessions manually using esearch/efetch
 
 ### SLURM job fails
 - Check error log: `compass_validation_<JOB_ID>.err`

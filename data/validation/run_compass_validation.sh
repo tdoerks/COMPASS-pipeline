@@ -64,8 +64,7 @@ nextflow run main.nf \
     -profile slurm \
     --input "$SAMPLESHEET" \
     --outdir "$OUTDIR" \
-    --input_mode fasta \
-    --skip_sra_download \
+    --input_mode assembly \
     --max_cpus 16 \
     --max_memory 64.GB \
     -resume \

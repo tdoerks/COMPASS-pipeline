@@ -2,8 +2,8 @@ process DOWNLOAD_ASSEMBLY {
     tag "$sample"
     label 'process_low'
 
-    // Use alpine with curl - lightweight and has all needed tools
-    container = 'alpine:3.19'
+    // Use biocontainers wget - specifically designed for bioinformatics workflows
+    container = 'biocontainers/biocontainers:v1.2.0_cv2'
 
     publishDir "${params.outdir}/assemblies", mode: 'copy'
 

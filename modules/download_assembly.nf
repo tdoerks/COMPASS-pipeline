@@ -2,8 +2,8 @@ process DOWNLOAD_ASSEMBLY {
     tag "$sample"
     label 'process_low'
 
-    // Use curlimages/curl - has curl pre-installed and works in read-only mode
-    container = 'curlimages/curl:8.5.0'
+    // Use alpine with curl - lightweight and has all needed tools
+    container = 'alpine:3.19'
 
     publishDir "${params.outdir}/assemblies", mode: 'copy'
 
@@ -16,11 +16,10 @@ process DOWNLOAD_ASSEMBLY {
 
     script:
     """
-    #!/bin/sh
     # Download assembly using NCBI FTP (most reliable method)
     echo "Downloading ${assembly_accession}..." >&2
 
-    # Construct FTP path from accession
+    # Construct FTP path from accession (works with both GCF and GCA)
     ACC_PREFIX=\$(echo ${assembly_accession} | sed 's/\\.[0-9]*\$//')
     FTP_PATH="https://ftp.ncbi.nlm.nih.gov/genomes/all/\${ACC_PREFIX:0:3}/\${ACC_PREFIX:4:3}/\${ACC_PREFIX:7:3}/\${ACC_PREFIX:10:3}/${assembly_accession}/${assembly_accession}_genomic.fna.gz"
 
@@ -28,7 +27,7 @@ process DOWNLOAD_ASSEMBLY {
 
     # Download with retries
     for i in 1 2 3; do
-        curl -L -s "\$FTP_PATH" -o ${sample}.fasta.gz && break
+        wget -q -O ${sample}.fasta.gz "\$FTP_PATH" && break
         echo "Download attempt \$i failed, retrying..." >&2
         sleep 5
     done
@@ -48,7 +47,7 @@ process DOWNLOAD_ASSEMBLY {
     # Create versions file
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        curl: \$(curl --version 2>&1 | head -n1 | cut -d' ' -f2)
+        wget: \$(wget --version 2>&1 | head -n1 | awk '{print \$3}')
     END_VERSIONS
     """
 

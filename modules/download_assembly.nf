@@ -2,8 +2,8 @@ process DOWNLOAD_ASSEMBLY {
     tag "$sample"
     label 'process_low'
 
-    // Use biocontainers wget - specifically designed for bioinformatics workflows
-    container = 'biocontainers/biocontainers:v1.2.0_cv2'
+    // Use NCBI's official entrez-direct container
+    container = 'ncbi/edirect:latest'
 
     publishDir "${params.outdir}/assemblies", mode: 'copy'
 
@@ -16,38 +16,25 @@ process DOWNLOAD_ASSEMBLY {
 
     script:
     """
-    # Download assembly using NCBI FTP (most reliable method)
+    # Download assembly using NCBI Entrez Direct
     echo "Downloading ${assembly_accession}..." >&2
 
-    # Construct FTP path from accession (works with both GCF and GCA)
-    ACC_PREFIX=\$(echo ${assembly_accession} | sed 's/\\.[0-9]*\$//')
-    FTP_PATH="https://ftp.ncbi.nlm.nih.gov/genomes/all/\${ACC_PREFIX:0:3}/\${ACC_PREFIX:4:3}/\${ACC_PREFIX:7:3}/\${ACC_PREFIX:10:3}/${assembly_accession}/${assembly_accession}_genomic.fna.gz"
-
-    echo "Fetching from: \$FTP_PATH" >&2
-
-    # Download with retries
-    for i in 1 2 3; do
-        wget -q -O ${sample}.fasta.gz "\$FTP_PATH" && break
-        echo "Download attempt \$i failed, retrying..." >&2
-        sleep 5
-    done
-
-    # Decompress
-    gunzip ${sample}.fasta.gz 2>/dev/null || true
+    # Use esearch + efetch to download assembly
+    esearch -db assembly -query "${assembly_accession}[Assembly Accession]" | \\
+        efetch -format fasta > ${sample}.fasta
 
     # Check if download succeeded
     if [ ! -s ${sample}.fasta ]; then
         echo "ERROR: Failed to download ${assembly_accession}" >&2
-        echo "Tried FTP path: \$FTP_PATH" >&2
         exit 1
     fi
 
-    echo "Successfully downloaded ${assembly_accession}" >&2
+    echo "Successfully downloaded ${assembly_accession} (\$(wc -l < ${sample}.fasta) lines)" >&2
 
     # Create versions file
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        wget: \$(wget --version 2>&1 | head -n1 | awk '{print \$3}')
+        entrez-direct: \$(esearch -version 2>&1 | head -n1 | awk '{print \$NF}')
     END_VERSIONS
     """
 

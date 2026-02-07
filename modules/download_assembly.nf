@@ -2,7 +2,7 @@ process DOWNLOAD_ASSEMBLY {
     tag "$sample"
     label 'process_low'
 
-    // Use NCBI's official entrez-direct container
+    // Use NCBI's official entrez-direct container - has all dependencies
     container = 'ncbi/edirect:latest'
 
     publishDir "${params.outdir}/assemblies", mode: 'copy'
@@ -17,15 +17,16 @@ process DOWNLOAD_ASSEMBLY {
     script:
     """
     # Download assembly using NCBI Entrez Direct
-    echo "Downloading ${assembly_accession}..." >&2
+    echo "Downloading ${assembly_accession} using NCBI Entrez Direct..." >&2
 
-    # Use esearch + efetch to download assembly
+    # Query NCBI Assembly database and fetch FASTA
     esearch -db assembly -query "${assembly_accession}[Assembly Accession]" | \\
         efetch -format fasta > ${sample}.fasta
 
     # Check if download succeeded
     if [ ! -s ${sample}.fasta ]; then
         echo "ERROR: Failed to download ${assembly_accession}" >&2
+        echo "Assembly may not exist or NCBI service unavailable" >&2
         exit 1
     fi
 
@@ -34,13 +35,13 @@ process DOWNLOAD_ASSEMBLY {
     # Create versions file
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        entrez-direct: \$(esearch -version 2>&1 | head -n1 | awk '{print \$NF}')
+        entrez-direct: \$(esearch -version 2>&1 | head -n1 | sed 's/^[^0-9]*//')
     END_VERSIONS
     """
 
     stub:
     """
     touch ${sample}.fasta
-    echo '"${task.process}": {"curl": "7.81.0"}' > versions.yml
+    echo '"${task.process}": {"entrez-direct": "16.2"}' > versions.yml
     """
 }

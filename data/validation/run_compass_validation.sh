@@ -6,7 +6,6 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
-#SBATCH --partition=ksu-gen-highmem.q
 
 # COMPASS Validation Run - ~200 Reference Genomes
 # Date: 2026-02-05

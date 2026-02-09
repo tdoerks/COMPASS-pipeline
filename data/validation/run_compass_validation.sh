@@ -37,7 +37,7 @@ echo "Working directory: $(pwd)"
 echo ""
 
 # Check samplesheet exists
-SAMPLESHEET="data/validation/validation_samplesheet_162.csv"
+SAMPLESHEET="data/validation/validation_samplesheet_163.csv"
 if [ ! -f "$SAMPLESHEET" ]; then
     echo "ERROR: Samplesheet not found: $SAMPLESHEET"
     echo "Run: python data/validation/create_fasta_samplesheet.py"

@@ -2,8 +2,8 @@ process DOWNLOAD_ASSEMBLY {
     tag "$sample"
     label 'process_low'
 
-    // Use NCBI Entrez Direct for reliable assembly downloads
-    container = 'quay.io/biocontainers/entrez-direct:16.2--he881be0_1'
+    // Use NCBI's official entrez-direct container - has all dependencies
+    container = 'ncbi/edirect:latest'
 
     publishDir "${params.outdir}/assemblies", mode: 'copy'
 
@@ -30,7 +30,7 @@ process DOWNLOAD_ASSEMBLY {
         exit 1
     fi
 
-    echo "Successfully downloaded ${assembly_accession}" >&2
+    echo "Successfully downloaded ${assembly_accession} (\$(wc -l < ${sample}.fasta) lines)" >&2
 
     # Create versions file
     cat <<-END_VERSIONS > versions.yml
@@ -42,6 +42,6 @@ process DOWNLOAD_ASSEMBLY {
     stub:
     """
     touch ${sample}.fasta
-    echo '"${task.process}": {"curl": "7.81.0"}' > versions.yml
+    echo '"${task.process}": {"entrez-direct": "16.2"}' > versions.yml
     """
 }

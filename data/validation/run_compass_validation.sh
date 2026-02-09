@@ -65,7 +65,7 @@ nextflow run main.nf \
     -profile beocat \
     --input "$SAMPLESHEET" \
     --outdir "$OUTDIR" \
-    --input_mode assembly \
+    --input_mode fasta \
     --max_cpus 16 \
     --max_memory 64.GB \
     -resume \

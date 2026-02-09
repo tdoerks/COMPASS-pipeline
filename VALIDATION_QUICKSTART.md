@@ -186,6 +186,59 @@ After the run completes, you can calculate:
 1. Check HPC internet connectivity to NCBI
 2. Verify assembly accession is valid on NCBI website
 3. Try restarting with `-resume` flag (already in script)
+4. **If automated download continues to fail**: Use manual download workflow (see below)
+
+### Problem: Some assemblies can't be downloaded automatically
+
+**Symptoms**: Pipeline downloads most genomes but some fail repeatedly
+
+**Solution**: **Manual Download + FASTA Mode**
+
+If automated downloads fail for some genomes (common on Beocat due to network restrictions), you can:
+
+1. **Switch to FASTA input mode** with pre-downloaded assemblies
+2. **Manually download missing genomes** from NCBI
+3. **Run validation with available subset**
+
+**See detailed guides**:
+- [FASTA Input Mode Guide](docs/FASTA_INPUT_MODE.md) - How to run COMPASS with pre-downloaded assemblies
+- [Manual Download Guide](data/validation/MANUAL_DOWNLOAD_GUIDE.md) - Step-by-step for downloading from NCBI
+
+**Quick workflow**:
+
+```bash
+# 1. Identify which assemblies you already have
+ls data/validation/assemblies/*.fasta | wc -l
+# Example: 162 out of 171
+
+# 2. Create FASTA-mode samplesheet (absolute paths required!)
+python data/validation/create_fasta_samplesheet.py
+
+# 3. Run with FASTA mode
+# Edit run_compass_validation.sh to use:
+#   --input_mode fasta
+#   --input data/validation/validation_samplesheet_162.csv
+
+# 4. (Optional) Manually download critical missing strains
+# See Manual Download Guide for step-by-step instructions
+# Example: EC958 (ST131 reference) is critical for validation
+
+# 5. Submit validation run
+sbatch data/validation/run_compass_validation.sh
+```
+
+**Key points**:
+- ✅ Running with 162-163 genomes is perfectly fine (includes all critical validation strains)
+- ✅ Must use **absolute paths** in FASTA-mode samplesheet: `/fastscratch/user/path/to/file.fasta`
+- ✅ Column must be named `fasta` (not `assembly_accession` or `file`)
+- ❌ Relative paths **will not work** in Nextflow work directories
+
+**Real-world example** (February 2026):
+- Original plan: 171 genomes
+- Actually available on Beocat: 162 genomes
+- Manually downloaded: EC958 (critical ST131 strain)
+- **Final validation run**: 163 genomes - sufficient for robust validation
+- Missing genomes: 5 ETEC strains, K12_W3110, DIVERSE_072, 1 additional
 
 ### Problem: Job runs out of memory
 

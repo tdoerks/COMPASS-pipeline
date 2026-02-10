@@ -622,8 +622,11 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     # Parse top_amr_genes column to get gene frequency
     amr_gene_counter = Counter()
     amr_class_counter = Counter()
+    amr_class_samples = defaultdict(set)  # Track which samples have each class (for unique calculation)
 
     for _, row in df.iterrows():
+        sample_id = row.get('sample_id', '')
+
         # Parse top AMR genes
         genes_str = row.get('top_amr_genes', '-')
         if genes_str and genes_str != '-':
@@ -639,15 +642,25 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             for cls in classes:
                 if cls:  # Skip empty strings
                     amr_class_counter[cls] += 1
+                    amr_class_samples[cls].add(sample_id)  # Track unique samples per class
 
     # Get top 15 AMR genes for bar chart
     top_amr_genes = amr_gene_counter.most_common(15)
     amr_gene_labels = [gene for gene, count in top_amr_genes]
     amr_gene_counts = [count for gene, count in top_amr_genes]
 
-    # Get AMR class distribution for pie chart
+    # Get AMR class distribution for pie chart (total counts mode)
     amr_class_labels = [cls for cls, count in amr_class_counter.most_common()]
     amr_class_counts = [count for cls, count in amr_class_counter.most_common()]
+
+    # Calculate normalized AMR class data for Issue #7
+    # Per-genome: average count per sample
+    amr_class_per_genome = [count / total_samples if total_samples > 0 else 0
+                             for count in amr_class_counts]
+
+    # Unique per genome: percentage of samples with each class
+    amr_class_unique = [len(amr_class_samples[cls]) / total_samples if total_samples > 0 else 0
+                        for cls in amr_class_labels]
 
     # Prepare Plasmid Analysis data for visualizations
     inc_group_counter = Counter()
@@ -1430,6 +1443,60 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             font-weight: 600;
             margin-right: 10px;
         }}
+
+        /* Normalization Toggle Styles - Issue #7 */
+        .normalization-toggle {{
+            background: #f0f4ff;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 30px 0;
+            text-align: center;
+        }}
+
+        .normalization-toggle h3 {{
+            color: #667eea;
+            margin: 0 0 15px 0;
+            font-size: 1.2em;
+        }}
+
+        .toggle-options {{
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }}
+
+        .toggle-option {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }}
+
+        .toggle-option input[type="radio"] {{
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }}
+
+        .toggle-option label {{
+            font-size: 1em;
+            font-weight: 500;
+            cursor: pointer;
+        }}
+
+        .current-mode-display {{
+            background: #d1fae5;
+            border-left: 5px solid #10b981;
+            padding: 12px;
+            margin: 15px 0 0 0;
+            border-radius: 5px;
+            font-weight: bold;
+            color: #065f46;
+            font-size: 0.95em;
+        }}
     </style>
 </head>
 <body>
@@ -1531,6 +1598,36 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 <h3>AMR Classes</h3>
                 <div class="value">{len(amr_class_counter)}</div>
                 <div class="subtext">Resistance classes found</div>
+            </div>
+        </div>
+
+        <!-- Normalization Toggle - Issue #7 -->
+        <div class="normalization-toggle">
+            <h3>📊 Display Mode</h3>
+            <div class="toggle-options">
+                <div class="toggle-option">
+                    <input type="radio" id="mode-total" name="display-mode" value="total" checked>
+                    <label for="mode-total">Total Counts</label>
+                </div>
+                <div class="toggle-option">
+                    <input type="radio" id="mode-pergenome" name="display-mode" value="pergenome">
+                    <label for="mode-pergenome">Per-Genome</label>
+                </div>
+                <div class="toggle-option">
+                    <input type="radio" id="mode-unique" name="display-mode" value="unique">
+                    <label for="mode-unique">Unique per Genome</label>
+                </div>
+            </div>
+            <div class="current-mode-display" id="current-mode-display">
+                Current Mode: <span id="mode-name">Total Counts</span> - <span id="mode-description">Raw sum of all features</span>
+            </div>
+            <div style="background: #f8f9fa; border-left: 4px solid #667eea; padding: 15px; margin: 15px 0 0 0; border-radius: 5px; text-align: left; font-size: 0.9em;">
+                <strong>Display Modes:</strong>
+                <ul style="margin: 8px 0 0 20px; line-height: 1.6;">
+                    <li><strong>Total Counts:</strong> Raw sum of all features across all samples</li>
+                    <li><strong>Per-Genome:</strong> Average number of features per sample (total / {total_samples} samples)</li>
+                    <li><strong>Unique per Genome:</strong> Percentage of samples containing each feature type</li>
+                </ul>
             </div>
         </div>
 
@@ -2721,9 +2818,29 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             }
         });
 
-        // AMR Class Pie Chart
+        // AMR Class Pie Chart - Issue #7: Normalization support
         const amrClassLabels = AMR_CLASS_LABELS_PLACEHOLDER;
-        const amrClassCounts = AMR_CLASS_COUNTS_PLACEHOLDER;
+        const amrClassData = {
+            total: AMR_CLASS_COUNTS_PLACEHOLDER,
+            pergenome: AMR_CLASS_PERGENOME_PLACEHOLDER,
+            unique: AMR_CLASS_UNIQUE_PLACEHOLDER
+        };
+        const totalSamples = TOTAL_SAMPLES_PLACEHOLDER;
+
+        const modeDescriptions = {
+            total: {
+                name: 'Total Counts',
+                description: 'Raw sum of all features'
+            },
+            pergenome: {
+                name: 'Per-Genome',
+                description: 'Average per sample (Total / ' + totalSamples + ')'
+            },
+            unique: {
+                name: 'Unique per Genome',
+                description: 'Percentage of samples with feature'
+            }
+        };
 
         const amrClassCtx = document.getElementById('amrClassPieChart').getContext('2d');
         const amrClassPie = new Chart(amrClassCtx, {
@@ -2731,7 +2848,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             data: {
                 labels: amrClassLabels,
                 datasets: [{
-                    data: amrClassCounts,
+                    data: amrClassData.total,
                     backgroundColor: [
                         '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
                         '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384',
@@ -2768,6 +2885,38 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 }
             }
         });
+
+        // Normalization Toggle - Issue #7: Update chart when mode changes
+        document.querySelectorAll('input[name="display-mode"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const mode = this.value;
+                updateNormalizationDisplay(mode);
+            });
+        });
+
+        function updateNormalizationDisplay(mode) {
+            // Update mode description
+            document.getElementById('mode-name').textContent = modeDescriptions[mode].name;
+            document.getElementById('mode-description').textContent = modeDescriptions[mode].description;
+
+            // Update AMR Class Pie Chart data
+            const newData = amrClassData[mode];
+
+            // Format data based on mode
+            let formattedData;
+            if (mode === 'total') {
+                formattedData = newData;
+            } else if (mode === 'pergenome') {
+                formattedData = newData;
+            } else if (mode === 'unique') {
+                // Convert to percentages for display
+                formattedData = newData.map(val => val * 100);
+            }
+
+            // Update chart
+            amrClassPie.data.datasets[0].data = formattedData;
+            amrClassPie.update();
+        }
 
         // MDR Comparison Bar Chart
         const mdrLabels = ['MDR (≥3 classes)', 'Non-MDR'];
@@ -3384,6 +3533,10 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = js_code.replace('AMR_GENE_COUNTS_PLACEHOLDER', json.dumps(amr_gene_counts))
     js_code = js_code.replace('AMR_CLASS_LABELS_PLACEHOLDER', json.dumps(amr_class_labels))
     js_code = js_code.replace('AMR_CLASS_COUNTS_PLACEHOLDER', json.dumps(amr_class_counts))
+    # Issue #7: Add normalized AMR class data
+    js_code = js_code.replace('AMR_CLASS_PERGENOME_PLACEHOLDER', json.dumps(amr_class_per_genome))
+    js_code = js_code.replace('AMR_CLASS_UNIQUE_PLACEHOLDER', json.dumps(amr_class_unique))
+    js_code = js_code.replace('TOTAL_SAMPLES_PLACEHOLDER', str(total_samples))
     # Replace NON_MDR first to avoid partial match with MDR_SAMPLES_PLACEHOLDER
     js_code = js_code.replace('NON_MDR_SAMPLES_PLACEHOLDER', str(total_samples - mdr_samples))
     js_code = js_code.replace('MDR_SAMPLES_PLACEHOLDER', str(mdr_samples))

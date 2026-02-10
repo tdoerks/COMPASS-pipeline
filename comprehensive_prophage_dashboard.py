@@ -52,36 +52,68 @@ def calculate_overall_statistics(df, total_samples):
     return stats
 
 def analyze_prophage_types(df):
-    """Analyze prophage lifestyle types (lytic vs lysogenic)."""
+    """Analyze prophage lifestyle types (lytic vs lysogenic) with normalization options."""
     print("\n🔬 Analyzing prophage types...")
 
+    num_samples = df['sample_id'].nunique()
+
+    # Total counts (raw sum)
     type_counts = df['type'].value_counts()
+
+    # Per-genome counts (normalized by number of samples)
+    type_per_genome = {ptype: count / num_samples for ptype, count in type_counts.items()}
+
+    # Unique counts per genome (deduplicated - count samples that have each type)
+    type_unique = df.groupby('type')['sample_id'].nunique().to_dict()
+    type_unique_per_genome = {ptype: count / num_samples for ptype, count in type_unique.items()}
+
     type_stats = {
         'counts': type_counts.to_dict(),
-        'percentages': (type_counts / len(df) * 100).to_dict()
+        'percentages': (type_counts / len(df) * 100).to_dict(),
+        'per_genome': type_per_genome,
+        'unique_per_genome': type_unique_per_genome,
+        'num_samples': num_samples
     }
 
     print(f"  Prophage Types:")
     for ptype, count in type_counts.items():
         pct = count / len(df) * 100
-        print(f"    • {ptype}: {count:,} ({pct:.1f}%)")
+        per_genome = type_per_genome[ptype]
+        unique = type_unique_per_genome[ptype]
+        print(f"    • {ptype}: {count:,} ({pct:.1f}%) | {per_genome:.2f}/genome | {unique:.2%} unique")
 
     return type_stats
 
 def analyze_prophage_quality(df):
-    """Analyze prophage quality scores."""
+    """Analyze prophage quality scores with normalization options."""
     print("\n💎 Analyzing prophage quality...")
 
+    num_samples = df['sample_id'].nunique()
+
+    # Total counts (raw sum)
     quality_counts = df['quality'].value_counts()
+
+    # Per-genome counts (normalized by number of samples)
+    quality_per_genome = {qual: count / num_samples for qual, count in quality_counts.items()}
+
+    # Unique counts per genome (deduplicated - count samples that have each quality)
+    quality_unique = df.groupby('quality')['sample_id'].nunique().to_dict()
+    quality_unique_per_genome = {qual: count / num_samples for qual, count in quality_unique.items()}
+
     quality_stats = {
         'counts': quality_counts.to_dict(),
-        'percentages': (quality_counts / len(df) * 100).to_dict()
+        'percentages': (quality_counts / len(df) * 100).to_dict(),
+        'per_genome': quality_per_genome,
+        'unique_per_genome': quality_unique_per_genome,
+        'num_samples': num_samples
     }
 
     print(f"  Prophage Quality:")
     for quality, count in quality_counts.items():
         pct = count / len(df) * 100
-        print(f"    • {quality}: {count:,} ({pct:.1f}%)")
+        per_genome = quality_per_genome[quality]
+        unique = quality_unique_per_genome[quality]
+        print(f"    • {quality}: {count:,} ({pct:.1f}%) | {per_genome:.2f}/genome | {unique:.2%} unique")
 
     return quality_stats
 

@@ -24,7 +24,7 @@ from collections import defaultdict
 import re
 
 def parse_amrfinder_results(results_dir, sample):
-    """Parse AMRFinder results for a sample."""
+    """Parse AMRFinder results for a sample - only ACQUIRED AMR genes."""
     amr_file = Path(results_dir) / "amrfinder" / f"{sample}_amr.tsv"
 
     if not amr_file.exists():
@@ -35,14 +35,28 @@ def parse_amrfinder_results(results_dir, sample):
         reader = csv.DictReader(f, delimiter='\t')
         for row in reader:
             gene_symbol = row.get('Gene symbol', '')
-            if gene_symbol:
-                genes.append(gene_symbol)
+            scope = row.get('Scope', '')
+            element_type = row.get('Element type', '')
+
+            # Only count acquired AMR genes (Scope=core means intrinsic/efflux)
+            # We want: Scope != "plus" (which includes intrinsic genes)
+            # OR specifically: Element type = "AMR" and Subclass = something besides "EFFLUX"
+            subclass = row.get('Subclass', '')
+
+            if gene_symbol and element_type == 'AMR':
+                # Skip efflux pumps and stress genes (intrinsic)
+                if subclass not in ['EFFLUX', '']:
+                    genes.append(gene_symbol)
+                elif subclass == 'EFFLUX' and scope != 'plus':
+                    # Keep acquired efflux genes, skip intrinsic ones
+                    genes.append(gene_symbol)
 
     return {"genes": genes, "count": len(genes)}
 
 def parse_vibrant_results(results_dir, sample):
     """Parse VIBRANT prophage results for a sample."""
-    vibrant_dir = Path(results_dir) / "vibrant" / sample
+    # VIBRANT output has _vibrant suffix
+    vibrant_dir = Path(results_dir) / "vibrant" / f"{sample}_vibrant"
 
     if not vibrant_dir.exists():
         return {"prophages": [], "count": 0}
@@ -66,26 +80,30 @@ def parse_vibrant_results(results_dir, sample):
 
 def parse_mobsuite_results(results_dir, sample):
     """Parse MOBsuite plasmid results for a sample."""
-    mobsuite_dir = Path(results_dir) / "mobsuite" / sample
+    # MOBsuite output has _mobsuite suffix
+    mobsuite_dir = Path(results_dir) / "mobsuite" / f"{sample}_mobsuite"
 
     if not mobsuite_dir.exists():
         return {"plasmids": [], "replicons": [], "count": 0}
 
-    # Look for mobtyper results
-    mobtyper_file = mobsuite_dir / "mobtyper_results.txt"
+    # Look for individual plasmid typing files
+    typing_files = list(mobsuite_dir.glob("plasmid_*_typing.txt"))
 
-    if not mobtyper_file.exists():
+    if not typing_files:
         return {"plasmids": [], "replicons": [], "count": 0}
 
     replicons = []
-    with open(mobtyper_file, 'r') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            rep_type = row.get('rep_type(s)', '')
-            if rep_type and rep_type != '-':
-                replicons.extend(rep_type.split(','))
+    for typing_file in typing_files:
+        with open(typing_file, 'r') as f:
+            reader = csv.DictReader(f, delimiter='\t')
+            for row in reader:
+                rep_type = row.get('rep_type(s)', '')
+                if rep_type and rep_type != '-':
+                    # Split on comma and add all replicons
+                    reps = [r.strip() for r in rep_type.split(',')]
+                    replicons.extend(reps)
 
-    return {"plasmids": replicons, "replicons": replicons, "count": len(replicons)}
+    return {"plasmids": typing_files, "replicons": replicons, "count": len(typing_files)}
 
 def parse_mlst_results(results_dir, sample):
     """Parse MLST results for a sample."""
@@ -262,7 +280,9 @@ def validate_sample(sample, ground_truth, results_dir):
         elif feature_type == 'mlst':
             actual_st = mlst_results.get('st')
             test_result['actual'] = actual_st if actual_st else 'Not detected'
-            if actual_st and feature_name in actual_st:
+            # Extract ST number from feature_name (e.g., "ST131" -> "131")
+            expected_st = feature_name.replace('ST', '')
+            if actual_st and actual_st == expected_st:
                 test_result['status'] = 'PASS'
                 validation_results['passed'] += 1
             else:

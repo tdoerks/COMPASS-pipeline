@@ -19,10 +19,5 @@ ATCC_25922,amr_max,total,2,Negative control - should have minimal AMR (0-2 genes
 ATCC_25922,prophage_max,total,2,Negative control - should have minimal prophages (0-2 max)
 CFT073,amr_moderate,total,5,Uropathogenic strain - moderate AMR expected
 CFT073,prophage,present,1,Should have some prophages
-ETEC_H10407,amr,present,1,Enterotoxigenic strain - expect some AMR
-ETEC_B7A,amr,present,1,Enterotoxigenic strain - expect some AMR
-ETEC_E24377A,amr,present,1,Enterotoxigenic strain - expect some AMR
 ETEC_TW10722,amr,present,1,Enterotoxigenic strain - expect some AMR
-ETEC_TW10828,amr,present,1,Enterotoxigenic strain - expect some AMR
 ETEC_TW11681,amr,present,1,Enterotoxigenic strain - expect some AMR
-ETEC_TW14425,amr,present,1,Enterotoxigenic strain - expect some AMR

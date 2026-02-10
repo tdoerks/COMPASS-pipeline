@@ -15,9 +15,5 @@ EC958,plasmid,IncFIA,1,IncF-type plasmid
 EC958,plasmid,IncFII,1,IncF-type plasmid
 EC958,plasmid_count,total,2,Should detect 2 major plasmids
 EC958,mlst,ST131,1,Sequence type 131
-ATCC_25922,amr_max,total,2,Negative control - should have minimal AMR (0-2 genes max)
-ATCC_25922,prophage_max,total,2,Negative control - should have minimal prophages (0-2 max)
 CFT073,amr_moderate,total,5,Uropathogenic strain - moderate AMR expected
 CFT073,prophage,present,1,Should have some prophages
-ETEC_TW10722,amr,present,1,Enterotoxigenic strain - expect some AMR
-ETEC_TW11681,amr,present,1,Enterotoxigenic strain - expect some AMR

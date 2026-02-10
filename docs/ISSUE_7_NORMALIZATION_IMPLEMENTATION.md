@@ -7,23 +7,35 @@ Add interactive toggle to switch between different count display modes in HTML d
 - **Counts per genome** (normalized by number of genomes)
 - **Unique counts per genome** (deduplicated hits per genome)
 
-## Status: In Progress
+## Status: Mostly Complete (v1.4-dev)
 
 ### ✅ Completed
-1. Updated `analyze_prophage_types()` function to calculate all 3 metrics
-2. Updated `analyze_prophage_quality()` function to calculate all 3 metrics
+1. **comprehensive_prophage_dashboard.py** - FULLY IMPLEMENTED
+   - Updated `analyze_prophage_types()` function to calculate all 3 metrics
+   - Updated `analyze_prophage_quality()` function to calculate all 3 metrics
+   - Added CSS styling for normalization toggle
+   - Added HTML toggle control with radio buttons
+   - Added JavaScript for dynamic table updates
+   - Tables support all 3 display modes
 
-### 🔄 In Progress
-3. Add HTML/CSS for normalization toggle control
-4. Add JavaScript to switch between display modes
-5. Update HTML tables to support dynamic switching
+2. **bin/generate_compass_summary.py** - FULLY IMPLEMENTED
+   - Main pipeline summary report (generated at end of COMPASS run)
+   - AMR class data now calculates 3 modes: total, per-genome, unique
+   - CSS styling for normalization toggle
+   - HTML toggle control in AMR Analysis section
+   - Chart.js pie chart updates dynamically with toggle
+   - All placeholders replaced with normalized data
 
-### ⏳ Pending
-6. Apply same changes to other visualization scripts:
-   - `visualize_amr_classes.py`
-   - `visualize_prophages.py`
-   - `visualize_plasmids.py`
-   - `visualize_amr_on_plasmids.py`
+### ⏳ Optional Future Work
+3. Apply same pattern to standalone visualization scripts (PNG-only, no HTML):
+   - `visualize_amr_classes.py` - Static PNG charts only
+   - `visualize_prophages.py` - Static PNG charts only
+   - `visualize_plasmids.py` - Static PNG charts only
+   - `visualize_amr_on_plasmids.py` - Static PNG charts only
+
+   **Note**: These scripts only generate static PNG images, not interactive HTML.
+   The main reports (comprehensive_prophage_dashboard.py and generate_compass_summary.py)
+   already have the normalization toggle, which covers the primary use case.
 
 ---
 
@@ -325,14 +337,25 @@ Lytic   | 92.6%      | 151 samples
 
 ---
 
-## Files Modified
+## Files Modified (v1.4-dev branch only)
 
-- ✅ `/tmp/COMPASS-pipeline/comprehensive_prophage_dashboard.py` (partial)
-- ⏳ Add HTML/JavaScript to same file
-- ⏳ Apply to other visualization scripts
+- ✅ `comprehensive_prophage_dashboard.py` - COMPLETE
+  - Python functions calculate 3 normalization modes
+  - HTML/CSS/JavaScript toggle fully integrated
+  - Tables dynamically update based on selected mode
+
+- ✅ `bin/generate_compass_summary.py` - COMPLETE
+  - Main pipeline summary report
+  - AMR class data with 3 normalization modes
+  - Chart.js pie chart updates dynamically
+  - Full CSS/HTML/JavaScript implementation
+
+- ✅ `docs/ISSUE_7_NORMALIZATION_IMPLEMENTATION.md` - Updated documentation
+- ✅ `normalization_toggle_demo.html` - Standalone demo
 
 ---
 
-**Last Updated**: February 10, 2026
+**Last Updated**: February 10, 2026 (v1.4-dev)
 **Assigned To**: Issue #7 - Normalization in GUI for Feature Counts
-**Status**: 40% complete
+**Branch**: v1.4-dev (v1.3-dev remains unchanged)
+**Status**: 95% complete - primary reports done, optional PNG scripts remain

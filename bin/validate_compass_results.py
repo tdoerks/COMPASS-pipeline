@@ -38,18 +38,13 @@ def parse_amrfinder_results(results_dir, sample):
             scope = row.get('Scope', '')
             element_type = row.get('Element type', '')
 
-            # Only count acquired AMR genes (Scope=core means intrinsic/efflux)
-            # We want: Scope != "plus" (which includes intrinsic genes)
-            # OR specifically: Element type = "AMR" and Subclass = something besides "EFFLUX"
-            subclass = row.get('Subclass', '')
+            # Only count ACQUIRED AMR genes
+            # Scope="plus" means intrinsic/chromosomal (e.g., blaEC, acrF, emrE)
+            # Scope="core" means acquired/mobile
+            # We only want: Element type = "AMR" AND Scope = "core"
 
-            if gene_symbol and element_type == 'AMR':
-                # Skip efflux pumps and stress genes (intrinsic)
-                if subclass not in ['EFFLUX', '']:
-                    genes.append(gene_symbol)
-                elif subclass == 'EFFLUX' and scope != 'plus':
-                    # Keep acquired efflux genes, skip intrinsic ones
-                    genes.append(gene_symbol)
+            if gene_symbol and element_type == 'AMR' and scope == 'core':
+                genes.append(gene_symbol)
 
     return {"genes": genes, "count": len(genes)}
 

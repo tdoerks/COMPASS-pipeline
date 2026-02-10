@@ -569,6 +569,50 @@ def generate_html_report(df, stats, output_dir):
             margin: 20px 0;
             border-radius: 5px;
         }}
+        .normalization-toggle {{
+            background: #f0f4ff;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 30px 0;
+            text-align: center;
+        }}
+        .normalization-toggle h3 {{
+            color: #667eea;
+            margin: 0 0 15px 0;
+            font-size: 1.3em;
+        }}
+        .toggle-options {{
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }}
+        .toggle-option {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }}
+        .toggle-option input[type="radio"] {{
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }}
+        .toggle-option label {{
+            font-size: 1.1em;
+            font-weight: 500;
+            cursor: pointer;
+        }}
+        .current-mode {{
+            background: #d1fae5;
+            border-left: 5px solid #10b981;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-weight: bold;
+            color: #065f46;
+        }}
     </style>
 </head>
 <body>
@@ -604,17 +648,50 @@ def generate_html_report(df, stats, output_dir):
             </section>
 
             <section class="section">
+                <div class="normalization-toggle">
+                    <h3>📊 Display Mode</h3>
+                    <div class="toggle-options">
+                        <div class="toggle-option">
+                            <input type="radio" id="mode-total" name="display-mode" value="total" checked>
+                            <label for="mode-total">Total Counts</label>
+                        </div>
+                        <div class="toggle-option">
+                            <input type="radio" id="mode-pergenome" name="display-mode" value="pergenome">
+                            <label for="mode-pergenome">Per-Genome</label>
+                        </div>
+                        <div class="toggle-option">
+                            <input type="radio" id="mode-unique" name="display-mode" value="unique">
+                            <label for="mode-unique">Unique per Genome</label>
+                        </div>
+                    </div>
+
+                    <div class="current-mode" id="current-mode-display">
+                        Current Mode: <span id="mode-name">Total Counts</span> - <span id="mode-description">Raw sum of all features</span>
+                    </div>
+
+                    <div class="info-box" style="text-align: left;">
+                        <strong>Display Modes:</strong>
+                        <ul>
+                            <li><strong>Total Counts:</strong> Raw sum of all features across all samples</li>
+                            <li><strong>Per-Genome:</strong> Average number of features per sample (total / {stats['types']['num_samples']} samples)</li>
+                            <li><strong>Unique per Genome:</strong> Percentage of samples containing each feature type</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
                 <h2>📈 Visual Dashboard</h2>
                 <img src="prophage_comprehensive_dashboard.png" alt="Prophage Dashboard" class="dashboard-img">
             </section>
 
             <section class="section">
                 <h2>🔬 Prophage Type Distribution</h2>
-                <table>
+                <table id="prophage-type-table">
                     <thead>
                         <tr>
                             <th>Type</th>
-                            <th>Count</th>
+                            <th class="count-column">Count</th>
                             <th>Percentage</th>
                         </tr>
                     </thead>
@@ -646,11 +723,11 @@ def generate_html_report(df, stats, output_dir):
 
             <section class="section">
                 <h2>💎 Quality Assessment</h2>
-                <table>
+                <table id="prophage-quality-table">
                     <thead>
                         <tr>
                             <th>Quality</th>
-                            <th>Count</th>
+                            <th class="count-column">Count</th>
                             <th>Percentage</th>
                         </tr>
                     </thead>
@@ -775,9 +852,99 @@ def generate_html_report(df, stats, output_dir):
             </section>
 """
 
-    html_content += """
+    # Add JavaScript for normalization toggle
+    html_content += f"""
         </div>
     </div>
+
+    <script>
+        // Data for all display modes
+        const prophageTypeData = {{
+            total: {dict(stats['types']['counts'])},
+            pergenome: {dict(stats['types']['per_genome'])},
+            unique: {dict(stats['types']['unique_per_genome'])}
+        }};
+
+        const prophageQualityData = {{
+            total: {dict(stats['quality']['counts'])},
+            pergenome: {dict(stats['quality']['per_genome'])},
+            unique: {dict(stats['quality']['unique_per_genome'])}
+        }};
+
+        const numSamples = {stats['types']['num_samples']};
+
+        const modeDescriptions = {{
+            total: {{
+                name: 'Total Counts',
+                description: 'Raw sum of all features'
+            }},
+            pergenome: {{
+                name: 'Per-Genome',
+                description: 'Average per sample (Total / ' + numSamples + ')'
+            }},
+            unique: {{
+                name: 'Unique per Genome',
+                description: 'Percentage of samples with feature'
+            }}
+        }};
+
+        // Update display when mode changes
+        document.querySelectorAll('input[name="display-mode"]').forEach(radio => {{
+            radio.addEventListener('change', function() {{
+                const mode = this.value;
+                updateDisplay(mode);
+            }});
+        }});
+
+        function updateDisplay(mode) {{
+            // Update mode description
+            document.getElementById('mode-name').textContent = modeDescriptions[mode].name;
+            document.getElementById('mode-description').textContent = modeDescriptions[mode].description;
+
+            // Update tables
+            updateTable('prophage-type-table', prophageTypeData[mode], mode);
+            updateTable('prophage-quality-table', prophageQualityData[mode], mode);
+        }}
+
+        function updateTable(tableId, data, mode) {{
+            const table = document.getElementById(tableId);
+            if (!table) return;
+
+            const rows = table.querySelectorAll('tbody tr');
+
+            rows.forEach(row => {{
+                const typeCell = row.cells[0].querySelector('strong');
+                const countCell = row.cells[1];
+                const pctCell = row.cells[2];
+
+                if (!typeCell) return;
+
+                const type = typeCell.textContent.trim();
+                const value = data[type];
+
+                if (value !== undefined) {{
+                    if (mode === 'total') {{
+                        countCell.textContent = Math.round(value).toLocaleString();
+                        // Percentage calculation for total mode
+                        const totalSum = Object.values(data).reduce((a, b) => a + b, 0);
+                        const pct = (value / totalSum * 100).toFixed(1);
+                        pctCell.textContent = pct + '%';
+                    }} else if (mode === 'pergenome') {{
+                        countCell.textContent = value.toFixed(2);
+                        pctCell.textContent = 'avg per sample';
+                    }} else if (mode === 'unique') {{
+                        const pct = (value * 100).toFixed(1);
+                        countCell.textContent = pct + '%';
+                        const sampleCount = Math.round(value * numSamples);
+                        pctCell.textContent = sampleCount.toLocaleString() + ' of ' + numSamples.toLocaleString() + ' samples';
+                    }}
+                }}
+            }});
+        }}
+
+        // Initialize with total mode
+        updateDisplay('total');
+    </script>
 </body>
 </html>
 """

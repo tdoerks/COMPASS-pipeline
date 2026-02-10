@@ -1497,6 +1497,136 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             color: #065f46;
             font-size: 0.95em;
         }}
+
+        /* Feature Filter Styles - Issue #8 */
+        .filter-banner {{
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            color: #78350f;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }}
+
+        .filter-banner.active {{
+            display: flex;
+        }}
+
+        .filter-info {{
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }}
+
+        .filter-icon {{
+            font-size: 1.5em;
+        }}
+
+        .filter-details {{
+            flex: 1;
+        }}
+
+        .filter-label {{
+            font-weight: 600;
+            font-size: 1.1em;
+        }}
+
+        .filter-count {{
+            font-size: 0.9em;
+            margin-top: 4px;
+        }}
+
+        .clear-filter-btn {{
+            background: white;
+            color: #78350f;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }}
+
+        .clear-filter-btn:hover {{
+            background: #fef3c7;
+            transform: scale(1.05);
+        }}
+
+        .quick-filter-section {{
+            background: #f0f9ff;
+            border: 2px solid #0ea5e9;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }}
+
+        .quick-filter-section h3 {{
+            color: #0369a1;
+            margin: 0 0 15px 0;
+            font-size: 1.2em;
+        }}
+
+        .filter-buttons {{
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }}
+
+        .filter-dropdown {{
+            padding: 10px 15px;
+            border: 2px solid #0ea5e9;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.2s;
+            min-width: 150px;
+        }}
+
+        .filter-dropdown:hover {{
+            background: #e0f2fe;
+            border-color: #0369a1;
+        }}
+
+        .filter-dropdown:focus {{
+            outline: none;
+            border-color: #0369a1;
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+        }}
+
+        .search-feature-input {{
+            padding: 10px 15px;
+            border: 2px solid #0ea5e9;
+            border-radius: 6px;
+            font-size: 1em;
+            flex: 1;
+            max-width: 400px;
+        }}
+
+        .search-feature-btn {{
+            padding: 10px 20px;
+            background: #0ea5e9;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }}
+
+        .search-feature-btn:hover {{
+            background: #0369a1;
+        }}
+
+        .feature-search-row {{
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }}
     </style>
 </head>
 <body>
@@ -2082,6 +2212,39 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     📥 Export to CSV
                 </button>
             </div>
+
+            <!-- Feature Filter Banner - Issue #8 -->
+            <div id="filterBanner" class="filter-banner">
+                <div class="filter-info">
+                    <span class="filter-icon">🔍</span>
+                    <div class="filter-details">
+                        <div class="filter-label" id="filterLabel">Filtered by: AMR Gene = blaCTX-M-15</div>
+                        <div class="filter-count" id="filterCount">Showing 45 of 163 samples</div>
+                    </div>
+                </div>
+                <button class="clear-filter-btn" onclick="clearFeatureFilter()">Clear ✕</button>
+            </div>
+
+            <!-- Quick Feature Filters - Issue #8 -->
+            <div class="quick-filter-section">
+                <h3>🔍 Feature Finder</h3>
+                <div class="filter-buttons">
+                    <select class="filter-dropdown" id="amrGeneFilter" onchange="applyQuickFilter('top_amr_genes', this.value)">
+                        <option value="">AMR Genes ▼</option>
+                    </select>
+                    <select class="filter-dropdown" id="amrClassFilter" onchange="applyQuickFilter('amr_classes', this.value)">
+                        <option value="">AMR Classes ▼</option>
+                    </select>
+                    <select class="filter-dropdown" id="plasmidFilter" onchange="applyQuickFilter('inc_groups', this.value)">
+                        <option value="">Plasmids (Inc) ▼</option>
+                    </select>
+                </div>
+                <div class="feature-search-row">
+                    <input type="text" class="search-feature-input" id="featureSearchInput" placeholder="Or search for any feature...">
+                    <button class="search-feature-btn" onclick="searchForFeature()">Find</button>
+                </div>
+            </div>
+
             <input type="text" class="search-box" id="searchBox" placeholder="Search samples..." onkeyup="filterTable()">
             <div style="margin-bottom: 15px; color: #666; font-size: 0.9em;" id="tableStats">
                 Showing <span id="visibleRows">0</span> of <span id="totalRows">0</span> samples
@@ -2223,6 +2386,161 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 
             table.dataset.sortColumn = column;
             table.dataset.sortDir = newDir;
+        }
+
+        // ==================================================================
+        // Feature Filter Functions - Issue #8
+        // ==================================================================
+
+        // Global variable to track current feature filter
+        let currentFeatureFilter = null;
+
+        // Populate dropdown options on page load
+        function populateFilterDropdowns() {
+            // Populate AMR Genes dropdown
+            const amrGeneSelect = document.getElementById('amrGeneFilter');
+            const amrGeneLabels = AMR_GENE_LABELS_PLACEHOLDER;
+            amrGeneLabels.forEach(gene => {
+                const option = document.createElement('option');
+                option.value = gene;
+                option.textContent = gene;
+                amrGeneSelect.appendChild(option);
+            });
+
+            // Populate AMR Classes dropdown
+            const amrClassSelect = document.getElementById('amrClassFilter');
+            const amrClassLabels = AMR_CLASS_LABELS_PLACEHOLDER;
+            amrClassLabels.forEach(cls => {
+                const option = document.createElement('option');
+                option.value = cls;
+                option.textContent = cls;
+                amrClassSelect.appendChild(option);
+            });
+
+            // Populate Plasmid Inc Groups dropdown
+            const plasmidSelect = document.getElementById('plasmidFilter');
+            const incGroupLabels = INC_GROUP_LABELS_PLACEHOLDER;
+            incGroupLabels.forEach(inc => {
+                const option = document.createElement('option');
+                option.value = inc;
+                option.textContent = inc;
+                plasmidSelect.appendChild(option);
+            });
+        }
+
+        // Apply quick filter from dropdown
+        function applyQuickFilter(column, value) {
+            if (!value) return;  // Empty selection, do nothing
+            filterTableByFeature(column, value);
+            // Reset dropdown to placeholder
+            event.target.selectedIndex = 0;
+        }
+
+        // Search for any feature
+        function searchForFeature() {
+            const input = document.getElementById('featureSearchInput');
+            const searchTerm = input.value.trim();
+            if (!searchTerm) return;
+
+            // Search across all relevant columns
+            filterTableByFeature('any', searchTerm);
+        }
+
+        // Main feature filter function
+        function filterTableByFeature(column, searchValue) {
+            currentFeatureFilter = { column, searchValue };
+
+            const table = document.getElementById('dataTable');
+            const rows = table.querySelectorAll('tbody tr');
+            let visibleCount = 0;
+            const totalCount = rows.length;
+
+            // Get column index
+            const headers = Array.from(table.querySelectorAll('thead th'));
+            let columnIndex = -1;
+
+            if (column !== 'any') {
+                columnIndex = headers.findIndex(th => th.textContent.trim() === column);
+            }
+
+            // Filter rows
+            rows.forEach(row => {
+                let shouldShow = false;
+
+                if (column === 'any') {
+                    // Search all cells
+                    const text = row.textContent.toUpperCase();
+                    shouldShow = text.includes(searchValue.toUpperCase());
+                } else if (columnIndex >= 0) {
+                    // Search specific column (comma-separated values)
+                    const cell = row.cells[columnIndex];
+                    if (cell) {
+                        const cellText = cell.textContent.trim();
+                        // Check if searchValue is in comma-separated list
+                        const values = cellText.split(',').map(v => v.trim());
+                        shouldShow = values.some(v => v.toUpperCase().includes(searchValue.toUpperCase()));
+                    }
+                }
+
+                if (shouldShow) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Update filter banner
+            showFilterBanner(column, searchValue, visibleCount, totalCount);
+
+            // Switch to Data Table tab
+            switchTab(null, 'data-table');
+
+            // Update visible count
+            document.getElementById('visibleRows').textContent = visibleCount;
+            document.getElementById('totalRows').textContent = totalCount;
+
+            // Clear search box
+            document.getElementById('searchBox').value = '';
+        }
+
+        // Show filter banner
+        function showFilterBanner(column, value, visibleCount, totalCount) {
+            const banner = document.getElementById('filterBanner');
+            const label = document.getElementById('filterLabel');
+            const count = document.getElementById('filterCount');
+
+            // Format filter label
+            let filterType = 'Feature';
+            if (column === 'top_amr_genes') filterType = 'AMR Gene';
+            else if (column === 'amr_classes') filterType = 'AMR Class';
+            else if (column === 'inc_groups') filterType = 'Plasmid Inc Group';
+            else if (column === 'any') filterType = 'Search term';
+
+            label.textContent = `Filtered by: ${filterType} = ${value}`;
+            count.textContent = `Showing ${visibleCount} of ${totalCount} samples`;
+
+            banner.classList.add('active');
+        }
+
+        // Clear feature filter
+        function clearFeatureFilter() {
+            currentFeatureFilter = null;
+
+            // Show all rows
+            const table = document.getElementById('dataTable');
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(row => row.style.display = '');
+
+            // Hide filter banner
+            document.getElementById('filterBanner').classList.remove('active');
+
+            // Update counts
+            document.getElementById('visibleRows').textContent = rows.length;
+            document.getElementById('totalRows').textContent = rows.length;
+
+            // Clear feature search input
+            document.getElementById('featureSearchInput').value = '';
         }
 
         // Table filtering with count
@@ -2795,6 +3113,13 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
+                onClick: (event, activeElements) => {
+                    if (activeElements.length > 0) {
+                        const index = activeElements[0].index;
+                        const geneName = amrGeneLabels[index];
+                        filterTableByFeature('top_amr_genes', geneName);
+                    }
+                },
                 plugins: {
                     legend: {
                         display: false
@@ -2861,6 +3186,13 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                onClick: (event, activeElements) => {
+                    if (activeElements.length > 0) {
+                        const index = activeElements[0].index;
+                        const className = amrClassLabels[index];
+                        filterTableByFeature('amr_classes', className);
+                    }
+                },
                 plugins: {
                     legend: {
                         position: 'right',
@@ -2982,6 +3314,13 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
+                onClick: (event, activeElements) => {
+                    if (activeElements.length > 0) {
+                        const index = activeElements[0].index;
+                        const incGroup = incGroupLabels[index];
+                        filterTableByFeature('inc_groups', incGroup);
+                    }
+                },
                 plugins: {
                     legend: {
                         display: false
@@ -3030,6 +3369,13 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                onClick: (event, activeElements) => {
+                    if (activeElements.length > 0) {
+                        const index = activeElements[0].index;
+                        const mobType = mobTypeLabels[index];
+                        filterTableByFeature('mob_types', mobType);
+                    }
+                },
                 plugins: {
                     legend: {
                         position: 'right',
@@ -3520,6 +3866,11 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     }
                 }
             }
+        });
+
+        // Issue #8: Initialize feature filter dropdowns on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            populateFilterDropdowns();
         });
     </script>
 """

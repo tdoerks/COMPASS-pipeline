@@ -32,8 +32,8 @@ module load Nextflow || {
 # Set unique Nextflow home to avoid cache conflicts
 export NXF_HOME=/fastscratch/tylerdoe/.nextflow_ecoli_monthly_100
 
-# Set output directory
-OUTPUT_DIR="/fastscratch/tylerdoe/ecoli_monthly_100_$(date +%Y%m%d)"
+# Set output directory (FIXED - no date suffix for proper resume)
+OUTPUT_DIR="/fastscratch/tylerdoe/ecoli_monthly_100"
 
 echo "Working directory: $(pwd)"
 echo "Input file: sra_accessions_ecoli_monthly_100_2020-2026.txt"

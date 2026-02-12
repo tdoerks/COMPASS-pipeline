@@ -56,6 +56,17 @@ workflow {
             .fromPath(params.input)
             .splitCsv(header:true)
             .map { row ->
+                // Validate required columns
+                if (!row.sample) {
+                    error "Missing 'sample' column in row: ${row}"
+                }
+                if (!row.organism) {
+                    error "Missing 'organism' column in row: ${row}"
+                }
+                if (!row.fasta) {
+                    error "Missing 'fasta' column for sample ${row.sample}. Check CSV header and values."
+                }
+
                 def meta = [:]
                 meta.id = row.sample
                 meta.organism = row.organism

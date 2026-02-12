@@ -50,7 +50,8 @@ function Download-ETECGenome {
 
     # Concatenate chromosome + plasmids
     $finalFile = "${strain}.fasta"
-    Get-Content $chrFile, $plasmidFiles | Set-Content $finalFile
+    $allFiles = @($chrFile) + $plasmidFiles
+    Get-Content $allFiles | Set-Content $finalFile
 
     # Clean up individual files
     Remove-Item $chrFile

@@ -53,6 +53,37 @@ def parse_phage_data(phage_files):
         return pd.concat(phage_data, ignore_index=True)
     return pd.DataFrame()
 
+def identify_phage_encoded_amr(amr_df, prophage_coords):
+    """
+    Identify AMR genes that fall within prophage regions
+    Returns list of phage-encoded AMR genes
+    """
+    phage_amr = []
+    
+    for _, amr in amr_df.iterrows():
+        if 'contig' not in amr or 'start' not in amr or 'end' not in amr:
+            continue
+            
+        sample = amr['sample_id']
+        contig = amr['contig']
+        amr_start = int(amr['start'])
+        amr_end = int(amr['end'])
+        
+        # Check if this AMR gene overlaps any prophage region
+        if sample in prophage_coords:
+            for prophage in prophage_coords[sample]:
+                if (prophage['contig'] == contig and
+                    not (amr_end < prophage['start'] or amr_start > prophage['end'])):
+                    phage_amr.append({
+                        'sample_id': sample,
+                        'gene': amr.get('gene', 'Unknown'),
+                        'resistance_class': amr.get('resistance_class', 'Unknown'),
+                        'prophage_region': f"{prophage['contig']}:{prophage['start']}-{prophage['end']}"
+                    })
+                    break
+    
+    return pd.DataFrame(phage_amr)
+
 def generate_summary_stats(amr_df, phage_df, mut_df):
     """Generate overview statistics"""
     stats = {
@@ -78,7 +109,7 @@ def generate_summary_stats(amr_df, phage_df, mut_df):
     if not phage_df.empty:
         samples_phage = set(phage_df['sample_id'].unique())
         samples.update(samples_phage)
-        stats['total_phages'] = int(phage_df['phage_count'].sum()) if 'phage_count' in phage_df else 0
+        stats['total_phages'] = phage_df['phage_count'].sum() if 'phage_count' in phage_df else 0
     
     stats['total_samples'] = len(samples)
     stats['samples_with_amr'] = len(samples_amr)
@@ -89,6 +120,7 @@ def generate_summary_stats(amr_df, phage_df, mut_df):
 
 def create_integrated_table(amr_df, phage_df, mut_df):
     """Create integrated sample summary table"""
+    # Get unique samples
     samples = set()
     if not amr_df.empty:
         samples.update(amr_df['sample_id'].unique())
@@ -106,7 +138,7 @@ def create_integrated_table(amr_df, phage_df, mut_df):
         
         if not sample_amr.empty and 'resistance_class' in sample_amr:
             classes = sample_amr['resistance_class'].unique()
-            row['resistance_classes'] = ', '.join(sorted(classes)[:5])
+            row['resistance_classes'] = ', '.join(sorted(classes)[:5])  # Top 5
             if len(classes) > 5:
                 row['resistance_classes'] += f' (+{len(classes)-5} more)'
         else:
@@ -119,10 +151,10 @@ def create_integrated_table(amr_df, phage_df, mut_df):
         # Phage data
         sample_phage = phage_df[phage_df['sample_id'] == sample] if not phage_df.empty else pd.DataFrame()
         if not sample_phage.empty:
-            row['phage_count'] = int(sample_phage['phage_count'].iloc[0]) if 'phage_count' in sample_phage else 0
-            row['lytic_count'] = int(sample_phage['lytic_count'].iloc[0]) if 'lytic_count' in sample_phage else 0
-            row['lysogenic_count'] = int(sample_phage['lysogenic_count'].iloc[0]) if 'lysogenic_count' in sample_phage else 0
-            row['quality'] = str(sample_phage['quality_summary'].iloc[0]) if 'quality_summary' in sample_phage else 'N/A'
+            row['phage_count'] = sample_phage['phage_count'].iloc[0] if 'phage_count' in sample_phage else 0
+            row['lytic_count'] = sample_phage['lytic_count'].iloc[0] if 'lytic_count' in sample_phage else 0
+            row['lysogenic_count'] = sample_phage['lysogenic_count'].iloc[0] if 'lysogenic_count' in sample_phage else 0
+            row['quality'] = sample_phage['quality_summary'].iloc[0] if 'quality_summary' in sample_phage else 'N/A'
         else:
             row['phage_count'] = 0
             row['lytic_count'] = 0
@@ -133,7 +165,7 @@ def create_integrated_table(amr_df, phage_df, mut_df):
     
     return pd.DataFrame(table_data)
 
-def generate_html_report(stats, integrated_table, amr_df, phage_df, mut_df, output_file):
+def generate_html_report(stats, integrated_table, amr_df, phage_df, mut_df, phage_amr_df, output_file):
     """Generate comprehensive HTML report with visualizations"""
     
     # Prepare data for visualizations
@@ -148,6 +180,16 @@ def generate_html_report(stats, integrated_table, amr_df, phage_df, mut_df, outp
             for q in qualities:
                 if q and q != 'N/A':
                     phage_quality_counts[q] = phage_quality_counts.get(q, 0) + 1
+    
+    # Create heatmap data (samples vs resistance classes)
+    heatmap_data = []
+    if not amr_df.empty and 'resistance_class' in amr_df:
+        for sample in integrated_table['sample_id']:
+            sample_amr = amr_df[amr_df['sample_id'] == sample]
+            row = {'sample': sample}
+            for cls in sorted(amr_df['resistance_class'].unique()):
+                row[cls] = len(sample_amr[sample_amr['resistance_class'] == cls])
+            heatmap_data.append(row)
     
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -312,6 +354,11 @@ def generate_html_report(stats, integrated_table, amr_df, phage_df, mut_df, outp
             color: #7b1fa2;
         }}
         
+        .badge-warning {{
+            background: #fff3e0;
+            color: #f57c00;
+        }}
+        
         .expandable {{
             margin-top: 20px;
         }}
@@ -351,6 +398,24 @@ def generate_html_report(stats, integrated_table, amr_df, phage_df, mut_df, outp
         
         .arrow.active {{
             transform: rotate(180deg);
+        }}
+        
+        .alert {{
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }}
+        
+        .alert-info {{
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            color: #1565c0;
+        }}
+        
+        .alert-warning {{
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            color: #e65100;
         }}
     </style>
 </head>
@@ -446,7 +511,44 @@ def generate_html_report(stats, integrated_table, amr_df, phage_df, mut_df, outp
                 </tbody>
             </table>
         </div>
-        
+"""
+    
+    # Add phage-encoded AMR section if data exists
+    if not phage_amr_df.empty:
+        html += """
+        <div class="section">
+            <h2 class="section-title">⚠️ Phage-Encoded AMR Genes</h2>
+            <div class="alert alert-warning">
+                <strong>Warning:</strong> The following AMR genes were detected within prophage regions, indicating potential for horizontal gene transfer.
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Sample</th>
+                        <th>Gene</th>
+                        <th>Resistance Class</th>
+                        <th>Prophage Region</th>
+                    </tr>
+                </thead>
+                <tbody>
+"""
+        for _, row in phage_amr_df.iterrows():
+            html += f"""
+                    <tr>
+                        <td>{row['sample_id']}</td>
+                        <td><strong>{row['gene']}</strong></td>
+                        <td>{row['resistance_class']}</td>
+                        <td><code>{row['prophage_region']}</code></td>
+                    </tr>
+"""
+        html += """
+                </tbody>
+            </table>
+        </div>
+"""
+    
+    # Detailed expandable sections
+    html += """
         <div class="section">
             <h2 class="section-title">🔍 Detailed Results</h2>
             
@@ -473,8 +575,8 @@ def generate_html_report(stats, integrated_table, amr_df, phage_df, mut_df, outp
                         <tbody>
 """
         for _, row in amr_df.iterrows():
-            identity = f"{row['identity']:.1f}" if 'identity' in row and pd.notna(row['identity']) else 'N/A'
-            coverage = f"{row['coverage']:.1f}" if 'coverage' in row and pd.notna(row['coverage']) else 'N/A'
+            identity = f"{row['identity']:.1f}" if 'identity' in row else 'N/A'
+            coverage = f"{row['coverage']:.1f}" if 'coverage' in row else 'N/A'
             html += f"""
                             <tr>
                                 <td>{row['sample_id']}</td>
@@ -555,7 +657,6 @@ def generate_html_report(stats, integrated_table, amr_df, phage_df, mut_df, outp
                                 <th>Lysogenic</th>
                                 <th>Quality Summary</th>
                                 <th>Prophage Hits</th>
-                                <th>Predicted Genes</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -569,7 +670,6 @@ def generate_html_report(stats, integrated_table, amr_df, phage_df, mut_df, outp
                                 <td>{row.get('lysogenic_count', 0)}</td>
                                 <td>{row.get('quality_summary', 'N/A')}</td>
                                 <td>{row.get('prophage_hits', 0)}</td>
-                                <td>{row.get('predicted_genes', 0)}</td>
                             </tr>
 """
         html += """
@@ -583,198 +683,148 @@ def generate_html_report(stats, integrated_table, amr_df, phage_df, mut_df, outp
                 </div>
             </div>
         </div>
+"""
+    
+    # JavaScript for charts and interactions
+    html += f"""
     </div>
     
     <script>
-        function toggleExpand(id) {
+        // Toggle expandable sections
+        function toggleExpand(id) {{
             const content = document.getElementById(id);
             const arrow = document.getElementById(id + '-arrow');
             content.classList.toggle('active');
             arrow.classList.toggle('active');
-        }
+        }}
         
+        // Chart colors
         const colors = [
             '#667eea', '#764ba2', '#f093fb', '#4facfe',
             '#43e97b', '#fa709a', '#fee140', '#30cfd0'
         ];
         
-        const amrClassData = """ + json.dumps(amr_class_counts) + """;
-        if (Object.keys(amrClassData).length > 0) {
-            new Chart(document.getElementById('amrClassChart'), {
+        // AMR Classes Chart
+        const amrClassData = {json.dumps(amr_class_counts)};
+        if (Object.keys(amrClassData).length > 0) {{
+            new Chart(document.getElementById('amrClassChart'), {{
                 type: 'bar',
-                data: {
+                data: {{
                     labels: Object.keys(amrClassData),
-                    datasets: [{
+                    datasets: [{{
                         label: 'Gene Count',
                         data: Object.values(amrClassData),
                         backgroundColor: colors[0],
                         borderRadius: 8
-                    }]
-                },
-                options: {
+                    }}]
+                }},
+                options: {{
                     responsive: true,
                     maintainAspectRatio: true,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        y: {
+                    plugins: {{
+                        legend: {{ display: false }}
+                    }},
+                    scales: {{
+                        y: {{
                             beginAtZero: true,
-                            ticks: { stepSize: 1 }
-                        }
-                    }
-                }
-            });
-        }
+                            ticks: {{ stepSize: 1 }}
+                        }}
+                    }}
+                }}
+            }});
+        }}
         
-        const phageQualityData = """ + json.dumps(phage_quality_counts) + """;
-        if (Object.keys(phageQualityData).length > 0) {
-            new Chart(document.getElementById('phageQualityChart'), {
+        // Phage Quality Chart
+        const phageQualityData = {json.dumps(phage_quality_counts)};
+        if (Object.keys(phageQualityData).length > 0) {{
+            new Chart(document.getElementById('phageQualityChart'), {{
                 type: 'doughnut',
-                data: {
+                data: {{
                     labels: Object.keys(phageQualityData),
-                    datasets: [{
+                    datasets: [{{
                         data: Object.values(phageQualityData),
                         backgroundColor: colors,
                         borderWidth: 0
-                    }]
-                },
-                options: {
+                    }}]
+                }},
+                options: {{
                     responsive: true,
                     maintainAspectRatio: true,
-                    plugins: {
-                        legend: {
+                    plugins: {{
+                        legend: {{
                             position: 'bottom'
-                        }
-                    }
-                }
-            });
-        }
+                        }}
+                    }}
+                }}
+            }});
+        }}
         
-        const phageCounts = """ + integrated_table[['sample_id', 'phage_count']].to_json(orient='values') + """;
-        if (phageCounts.length > 0) {
-            new Chart(document.getElementById('phageCountChart'), {
+        // Phage Count Chart
+        const phageCounts = {integrated_table[['sample_id', 'phage_count']].to_json(orient='values')};
+        if (phageCounts.length > 0) {{
+            new Chart(document.getElementById('phageCountChart'), {{
                 type: 'bar',
-                data: {
+                data: {{
                     labels: phageCounts.map(d => d[0]),
-                    datasets: [{
+                    datasets: [{{
                         label: 'Phages per Sample',
                         data: phageCounts.map(d => d[1]),
                         backgroundColor: colors[1],
                         borderRadius: 8
-                    }]
-                },
-                options: {
+                    }}]
+                }},
+                options: {{
                     responsive: true,
                     maintainAspectRatio: true,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        y: {
+                    plugins: {{
+                        legend: {{ display: false }}
+                    }},
+                    scales: {{
+                        y: {{
                             beginAtZero: true,
-                            ticks: { stepSize: 1 }
-                        }
-                    }
-                }
-            });
-        }
+                            ticks: {{ stepSize: 1 }}
+                        }}
+                    }}
+                }}
+            }});
+        }}
         
-        const correlationData = """ + integrated_table[['amr_gene_count', 'phage_count', 'sample_id']].to_json(orient='values') + """;
-        if (correlationData.length > 0) {
-            new Chart(document.getElementById('correlationChart'), {
+        // Correlation Chart (AMR vs Phages)
+        const correlationData = {integrated_table[['amr_gene_count', 'phage_count', 'sample_id']].to_json(orient='values')};
+        if (correlationData.length > 0) {{
+            new Chart(document.getElementById('correlationChart'), {{
                 type: 'scatter',
-                data: {
-                    datasets: [{
+                data: {{
+                    datasets: [{{
                         label: 'Samples',
-                        data: correlationData.map(d => ({x: d[0], y: d[1], label: d[2]})),
+                        data: correlationData.map(d => ({{x: d[0], y: d[1], label: d[2]}})),
                         backgroundColor: colors[0],
                         pointRadius: 6,
                         pointHoverRadius: 8
-                    }]
-                },
-                options: {
+                    }}]
+                }},
+                options: {{
                     responsive: true,
                     maintainAspectRatio: true,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
+                    plugins: {{
+                        legend: {{ display: false }},
+                        tooltip: {{
+                            callbacks: {{
+                                label: function(context) {{
                                     return context.raw.label + ': AMR=' + context.raw.x + ', Phages=' + context.raw.y;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            title: {
+                                }}
+                            }}
+                        }}
+                    }},
+                    scales: {{
+                        x: {{
+                            title: {{
                                 display: true,
                                 text: 'AMR Gene Count'
-                            },
+                            }},
                             beginAtZero: true
-                        },
-                        y: {
-                            title: {
+                        }},
+                        y: {{
+                            title: {{
                                 display: true,
                                 text: 'Phage Count'
-                            },
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
-        }
-    </script>
-</body>
-</html>
-"""
-    
-    with open(output_file, 'w') as f:
-        f.write(html)
-    
-    print(f"Enhanced HTML report generated: {output_file}")
-
-def main():
-    if len(sys.argv) < 4:
-        print("Usage: python generate_compass_report.py <output_dir> <amr_genes.tsv> <amr_mutations.tsv> <phage_summary.tsv>")
-        sys.exit(1)
-    
-    output_dir = Path(sys.argv[1])
-    amr_file = sys.argv[2]
-    mut_file = sys.argv[3]
-    phage_file = sys.argv[4]
-    
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    print(f"Loading data files...")
-    print(f"  AMR genes: {amr_file}")
-    print(f"  Mutations: {mut_file}")
-    print(f"  Phage data: {phage_file}")
-    
-    # Parse all data
-    amr_df = parse_amr_data([amr_file])
-    mut_df = parse_mutation_data([mut_file])
-    phage_df = parse_phage_data([phage_file])
-    
-    print(f"Loaded {len(amr_df)} AMR genes, {len(mut_df)} mutations, {len(phage_df)} phage samples")
-    
-    # Generate summary statistics
-    stats = generate_summary_stats(amr_df, phage_df, mut_df)
-    
-    # Create integrated table
-    integrated_table = create_integrated_table(amr_df, phage_df, mut_df)
-    
-    # Save integrated summary as TSV
-    summary_file = output_dir / 'compass_integrated_summary.tsv'
-    integrated_table.to_csv(summary_file, sep='\t', index=False)
-    print(f"Integrated summary saved: {summary_file}")
-    
-    # Generate HTML report
-    html_file = output_dir / 'compass_report.html'
-    generate_html_report(stats, integrated_table, amr_df, phage_df, mut_df, html_file)
-    
-    print("Report generation complete!")
-
-if __name__ == '__main__':
-    main()

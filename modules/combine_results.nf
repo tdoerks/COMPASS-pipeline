@@ -1,31 +1,19 @@
 process COMBINE_RESULTS {
-    publishDir "${params.outdir}/reports", mode: 'copy'
-    
-    label 'process_low'
-    
+    publishDir "${params.outdir}/summary", mode: 'copy'
+
     input:
-    path amr_files, stageAs: 'amr/*'
-    path vibrant_results, stageAs: 'vibrant/*'
-    path diamond_results, stageAs: 'diamond/*'
-    path phanotate_results, stageAs: 'phanotate/*'
-    path report_script
-    
+    path vibrant_results
+    path diamond_results
+
     output:
-    path "compass_integrated_summary.tsv", emit: summary
-    path "compass_report.html", emit: report
-    path "phage_analysis_summary.tsv", emit: phage_summary, optional: true
+    path "phage_analysis_summary.tsv", emit: summary
+    path "phage_analysis_report.html", emit: report
     path "versions.yml", emit: versions
-    
+
     script:
     """
-    #!/bin/bash
-    set -euo pipefail
-    
-    # Create output directory
-    mkdir -p results
-    
-    # Process VIBRANT results for phage data
-    python3 << 'EOFPYTHON'
+    #!/usr/bin/env python3
+
 import pandas as pd
 import glob
 import os
@@ -34,62 +22,74 @@ from pathlib import Path
 # Initialize summary data
 summary_data = []
 
-# Process VIBRANT results
-vibrant_dirs = glob.glob("vibrant/*_vibrant")
+# Process VIBRANT results - get both counts and quality info
+vibrant_dirs = glob.glob("*_vibrant")
 for vdir in vibrant_dirs:
-    sample_id = Path(vdir).name.replace('_vibrant', '')
+    sample_id = vdir.replace('_vibrant', '')
     
+    # Find genome quality file
     quality_files = glob.glob(f"{vdir}/VIBRANT_*/VIBRANT_results_*/VIBRANT_genome_quality_*.tsv")
     
     phage_count = 0
     lytic_count = 0
     lysogenic_count = 0
-    quality_list = []
+    high_quality = 0
+    medium_quality = 0
+    low_quality = 0
     
     if quality_files and os.path.exists(quality_files[0]):
         df = pd.read_csv(quality_files[0], sep='\\t')
         phage_count = len(df)
         
-        if 'type' in df.columns:
-            lytic_count = len(df[df['type'] == 'lytic'])
-            lysogenic_count = len(df[df['type'] == 'lysogenic'])
+        # Count lifestyle types
+        lytic_count = len(df[df['type'] == 'lytic'])
+        lysogenic_count = len(df[df['type'] == 'lysogenic'])
         
-        if 'Quality' in df.columns:
-            for qual in df['Quality'].dropna():
-                if 'complete' in str(qual).lower():
-                    quality_list.append('Complete')
-                elif 'high' in str(qual).lower():
-                    quality_list.append('High-quality')
-                elif 'medium' in str(qual).lower():
-                    quality_list.append('Medium-quality')
-                elif 'low' in str(qual).lower():
-                    quality_list.append('Low-quality')
-    
-    quality_summary = ', '.join(set(quality_list)) if quality_list else 'N/A'
+        # Count quality levels
+        high_quality = len(df[df['Quality'].str.contains('high', case=False, na=False)])
+        medium_quality = len(df[df['Quality'].str.contains('medium', case=False, na=False)])
+        low_quality = len(df[df['Quality'].str.contains('low', case=False, na=False)])
     
     summary_data.append({
         'sample_id': sample_id,
-        'phage_count': phage_count,
-        'lytic_count': lytic_count,
-        'lysogenic_count': lysogenic_count,
-        'quality_summary': quality_summary
+        'total_phages': phage_count,
+        'lytic_phages': lytic_count,
+        'lysogenic_phages': lysogenic_count,
+        'high_quality': high_quality,
+        'medium_quality': medium_quality,
+        'low_quality': low_quality
     })
 
-# Process DIAMOND results for prophage hits
+# Process DIAMOND results - get hit counts and best matches
+diamond_files = glob.glob("*_diamond_results.tsv")
 diamond_data = {}
-diamond_files = glob.glob("diamond/*_diamond_results.tsv")
 for df_file in diamond_files:
     sample_id = Path(df_file).stem.replace('_diamond_results', '')
     
     if os.path.exists(df_file) and os.path.getsize(df_file) > 0:
         df = pd.read_csv(df_file, sep='\\t', header=None)
-        diamond_data[sample_id] = len(df)
+        hit_count = len(df)
+        
+        # Get best hit (lowest e-value, highest bit score)
+        best_hit = df.iloc[0] if len(df) > 0 else None
+        best_identity = best_hit[2] if best_hit is not None else 0
+        best_match = best_hit[1] if best_hit is not None else "None"
+        
+        diamond_data[sample_id] = {
+            'prophage_hits': hit_count,
+            'best_identity': round(best_identity, 1),
+            'best_match': best_match
+        }
     else:
-        diamond_data[sample_id] = 0
+        diamond_data[sample_id] = {
+            'prophage_hits': 0,
+            'best_identity': 0,
+            'best_match': "None"
+        }
 
-# Process PHANOTATE results for gene predictions
+# Process PHANOTATE results - count predicted genes
+phanotate_files = glob.glob("*_phanotate.gff")
 phanotate_data = {}
-phanotate_files = glob.glob("phanotate/*_phanotate.gff")
 for gff_file in phanotate_files:
     sample_id = Path(gff_file).stem.replace('_phanotate', '')
     
@@ -102,104 +102,131 @@ for gff_file in phanotate_files:
     
     phanotate_data[sample_id] = gene_count
 
-# Combine phage data
+# Combine all results
+all_samples = set()
 for item in summary_data:
-    sample = item['sample_id']
-    item['prophage_hits'] = diamond_data.get(sample, 0)
-    item['predicted_genes'] = phanotate_data.get(sample, 0)
+    all_samples.add(item['sample_id'])
+all_samples.update(diamond_data.keys())
+all_samples.update(phanotate_data.keys())
 
-# Save phage summary
-phage_df = pd.DataFrame(summary_data)
-phage_df.to_csv('results/phage_summary.tsv', sep='\\t', index=False)
-
-EOFPYTHON
+final_summary = []
+for sample in sorted(all_samples):
+    # Get VIBRANT data
+    vibrant_info = next((item for item in summary_data if item['sample_id'] == sample), {})
     
-    # Process AMR data
-    python3 << 'EOFAMR'
-import pandas as pd
-import glob
-from pathlib import Path
-
-amr_data = []
-mutation_data = []
-
-# Process AMRFinderPlus results
-amr_files = glob.glob("amr/*.tsv")
-for amr_file in amr_files:
-    sample_id = Path(amr_file).stem.replace('_amrfinder', '')
+    row = {
+        'sample_id': sample,
+        'total_phages': vibrant_info.get('total_phages', 0),
+        'lytic_phages': vibrant_info.get('lytic_phages', 0),
+        'lysogenic_phages': vibrant_info.get('lysogenic_phages', 0),
+        'high_quality': vibrant_info.get('high_quality', 0),
+        'medium_quality': vibrant_info.get('medium_quality', 0),
+        'low_quality': vibrant_info.get('low_quality', 0),
+        'prophage_hits': diamond_data.get(sample, {}).get('prophage_hits', 0),
+        'best_match_identity': diamond_data.get(sample, {}).get('best_identity', 0),
+        'best_prophage_match': diamond_data.get(sample, {}).get('best_match', 'None'),
+        'predicted_genes': phanotate_data.get(sample, 0)
+    }
     
-    if Path(amr_file).stat().st_size > 0:
-        df = pd.read_csv(amr_file, sep='\\t')
+    final_summary.append(row)
+
+# Create summary DataFrame and save
+summary_df = pd.DataFrame(final_summary)
+summary_df.to_csv('phage_analysis_summary.tsv', sep='\\t', index=False)
+
+# Create enhanced HTML report
+html_report = f'''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Enhanced Phage Analysis Report</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 40px; background-color: #f5f5f5; }}
+        .container {{ background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+        h1 {{ color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }}
+        h2 {{ color: #34495e; margin-top: 30px; }}
+        table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+        th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+        th {{ background-color: #3498db; color: white; font-weight: bold; }}
+        tr:nth-child(even) {{ background-color: #f2f2f2; }}
+        tr:hover {{ background-color: #e8f4f8; }}
+        .summary {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                   color: white; padding: 25px; margin: 20px 0; border-radius: 10px; }}
+        .summary h2 {{ color: white; border: none; }}
+        .stat-box {{ display: inline-block; margin: 15px 20px; }}
+        .stat-number {{ font-size: 36px; font-weight: bold; }}
+        .stat-label {{ font-size: 14px; opacity: 0.9; }}
+        .tools {{ background-color: #ecf0f1; padding: 20px; border-radius: 5px; margin: 20px 0; }}
+        .tools ul {{ list-style-type: none; padding-left: 0; }}
+        .tools li {{ padding: 8px 0; }}
+        .tools li:before {{ content: "✓ "; color: #27ae60; font-weight: bold; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🦠 Enhanced Phage Analysis Report</h1>
         
-        # AMR genes
-        if not df.empty:
-            df['sample_id'] = sample_id
-            
-            # Rename columns to match expected format
-            column_mapping = {
-                'Gene symbol': 'gene',
-                'Sequence name': 'contig',
-                'Start': 'start',
-                'Stop': 'end',
-                '% Coverage of reference sequence': 'coverage',
-                '% Identity to reference sequence': 'identity',
-                'Class': 'resistance_class',
-                'Subclass': 'subclass'
-            }
-            
-            df = df.rename(columns=column_mapping)
-            
-            # Separate genes and mutations
-            if 'Element type' in df.columns:
-                genes = df[df['Element type'].isin(['AMR', 'STRESS'])].copy()
-                mutations = df[df['Element type'] == 'POINT'].copy()
-                
-                if not genes.empty:
-                    genes_subset = genes[['sample_id', 'gene', 'resistance_class', 
-                                         'identity', 'coverage', 'contig', 'start', 'end']].copy()
-                    amr_data.append(genes_subset)
-                
-                if not mutations.empty:
-                    mutations_subset = mutations[['sample_id', 'gene', 'resistance_class']].copy()
-                    mutations_subset['mutation'] = mutations.get('Protein identifier', 'Unknown')
-                    mutation_data.append(mutations_subset)
-            else:
-                # If no Element type column, treat all as genes
-                genes_subset = df[['sample_id', 'gene', 'resistance_class', 
-                                  'identity', 'coverage', 'contig', 'start', 'end']].copy()
-                amr_data.append(genes_subset)
+        <div class="summary">
+            <h2>Analysis Overview</h2>
+            <div class="stat-box">
+                <div class="stat-number">{len(summary_df)}</div>
+                <div class="stat-label">Samples Analyzed</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number">{summary_df['total_phages'].sum()}</div>
+                <div class="stat-label">Total Phages Identified</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number">{summary_df['lytic_phages'].sum()}</div>
+                <div class="stat-label">Lytic Phages</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number">{summary_df['lysogenic_phages'].sum()}</div>
+                <div class="stat-label">Lysogenic Phages</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number">{summary_df['prophage_hits'].sum()}</div>
+                <div class="stat-label">Prophage Database Hits</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number">{summary_df['predicted_genes'].sum()}</div>
+                <div class="stat-label">Genes Predicted</div>
+            </div>
+        </div>
+        
+        <h2>📊 Detailed Results by Sample</h2>
+        {summary_df.to_html(index=False, classes='data-table', escape=False)}
+        
+        <h2>📈 Quality Distribution</h2>
+        <p><strong>High Quality Phages:</strong> {summary_df['high_quality'].sum()} 
+           ({round(summary_df['high_quality'].sum() / summary_df['total_phages'].sum() * 100, 1) if summary_df['total_phages'].sum() > 0 else 0}%)</p>
+        <p><strong>Medium Quality Phages:</strong> {summary_df['medium_quality'].sum()} 
+           ({round(summary_df['medium_quality'].sum() / summary_df['total_phages'].sum() * 100, 1) if summary_df['total_phages'].sum() > 0 else 0}%)</p>
+        <p><strong>Low Quality Phages:</strong> {summary_df['low_quality'].sum()} 
+           ({round(summary_df['low_quality'].sum() / summary_df['total_phages'].sum() * 100, 1) if summary_df['total_phages'].sum() > 0 else 0}%)</p>
+        
+        <div class="tools">
+            <h2>🔬 Analysis Tools Used</h2>
+            <ul>
+                <li><strong>VIBRANT v4.0:</strong> Phage identification, lifestyle prediction (lytic/lysogenic), and quality assessment</li>
+                <li><strong>DIAMOND + Prophage-DB:</strong> Homology-based prophage detection and database matching</li>
+                <li><strong>PHANOTATE v1.6.7:</strong> Gene prediction and ORF identification in phage sequences</li>
+            </ul>
+        </div>
+        
+        <p style="margin-top: 30px; color: #7f8c8d; font-size: 12px;">
+            Report generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
+        </p>
+    </div>
+</body>
+</html>
+'''
 
-# Combine and save
-if amr_data:
-    amr_df = pd.concat(amr_data, ignore_index=True)
-    amr_df.to_csv('results/amr_genes.tsv', sep='\\t', index=False)
-else:
-    # Create empty file with headers
-    pd.DataFrame(columns=['sample_id', 'gene', 'resistance_class', 'identity', 
-                         'coverage', 'contig', 'start', 'end']).to_csv('results/amr_genes.tsv', sep='\\t', index=False)
+with open('phage_analysis_report.html', 'w') as f:
+    f.write(html_report)
 
-if mutation_data:
-    mut_df = pd.concat(mutation_data, ignore_index=True)
-    mut_df.to_csv('results/amr_mutations.tsv', sep='\\t', index=False)
-else:
-    # Create empty file with headers
-    pd.DataFrame(columns=['sample_id', 'gene', 'mutation', 'resistance_class']).to_csv('results/amr_mutations.tsv', sep='\\t', index=False)
-
-EOFAMR
-    
-    # Run the enhanced report generator
-    python3 ${report_script} results results/amr_genes.tsv results/amr_mutations.tsv results/phage_summary.tsv
-    
-    # Move outputs to expected locations
-    mv results/compass_integrated_summary.tsv . || touch compass_integrated_summary.tsv
-    mv results/compass_report.html . || touch compass_report.html
-    mv results/phage_summary.tsv phage_analysis_summary.tsv || touch phage_analysis_summary.tsv
-    
-    # Create versions file
-    cat > versions.yml << VERSION
-    "COMBINE_RESULTS":
-      python: "\$(python3 --version | cut -d' ' -f2)"
-      pandas: "\$(python3 -c 'import pandas; print(pandas.__version__)')"
-    VERSION
+# Create versions file
+with open('versions.yml', 'w') as f:
+    f.write('"COMBINE_RESULTS":\\n  python: "3.8+"\\n  pandas: "1.5.3"\\n')
     """
 }

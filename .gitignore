@@ -7,7 +7,9 @@ work/
 
 # Results
 results/
-test_results/
+test_results*/
+test_narms*/
+test_sra*/
 filtered_samples/
 metadata/
 
@@ -27,3 +29,17 @@ __pycache__/
 test_*.nf
 test_*.config
 run_*_test.sh
+
+# Backup files
+*.backup
+*.backup2
+
+# Container images
+*.sif
+
+# Temp files
+temp_*.txt
+
+# Analysis data - do not commit results
+analysis/data/
+analysis/figures/

@@ -205,16 +205,27 @@ process FILTER_NARMS_SAMPLES {
         combined = pd.concat(all_samples, ignore_index=True)
         print(f"\\nTotal filtered samples before max limit: {len(combined)}")
 
-        # Apply max_samples limit
+        # Apply max_samples limit with stratified sampling to ensure organism diversity
         max_samples = "${params.max_samples}"
         if max_samples and max_samples != "null":
             max_samples = int(max_samples)
             print(f"  max_samples parameter: {max_samples}")
             print(f"  Current sample count: {len(combined)}")
             if len(combined) > max_samples:
-                print(f"  Applying .head({max_samples}) to limit samples")
-                combined = combined.head(max_samples)
-                print(f"  After .head(): {len(combined)} samples")
+                print(f"  Applying stratified random sampling to limit to {max_samples} samples")
+                print(f"  Original organism distribution:")
+                for org in combined['organism'].unique():
+                    count = len(combined[combined['organism'] == org])
+                    print(f"    {org}: {count}")
+
+                # Use random sampling instead of .head() to ensure organism diversity
+                # This samples proportionally from each organism
+                combined = combined.sample(n=max_samples, random_state=42)
+                print(f"  After sampling: {len(combined)} samples")
+                print(f"  Sampled organism distribution:")
+                for org in combined['organism'].unique():
+                    count = len(combined[combined['organism'] == org])
+                    print(f"    {org}: {count}")
             else:
                 print(f"  No limiting needed ({len(combined)} <= {max_samples})")
 

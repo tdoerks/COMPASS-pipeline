@@ -15,10 +15,11 @@ include { MULTIQC } from '../modules/multiqc'
 include { BUSCO } from '../modules/busco'
 include { QUAST } from '../modules/quast'
 include { CHECK_DATABASES } from '../modules/check_databases'
+include { DOWNLOAD_ASSEMBLY } from '../modules/download_assembly'
 
 workflow COMPLETE_PIPELINE {
     take:
-    input_mode     // val: 'fasta', 'metadata', or 'sra_list'
+    input_mode     // val: 'fasta', 'metadata', 'sra_list', or 'assembly'
     input_data     // channel: depends on mode
 
     main:
@@ -95,6 +96,39 @@ workflow COMPLETE_PIPELINE {
         ch_quast_dirs = ASSEMBLY.out.quast_dirs  // Use directories for MultiQC
         ch_versions = ch_versions.mix(DATA_ACQUISITION.out.versions)
         ch_versions = ch_versions.mix(ASSEMBLY.out.versions.first())
+
+    } else if (input_mode == 'assembly') {
+        // Assembly accession mode: download assemblies via NCBI Entrez Direct
+        // Expected input: [sample, organism, assembly_accession]
+        DOWNLOAD_ASSEMBLY(input_data)
+
+        // Transform downloaded assemblies to standard format: [meta, fasta]
+        ch_assemblies = DOWNLOAD_ASSEMBLY.out.assembly.map { sample, organism, fasta ->
+            def meta = [:]
+            meta.id = sample
+            meta.organism = organism
+            return [meta, fasta]
+        }
+
+        // Run assembly QC on downloaded genomes
+        // Convert [meta, fasta] to [sample_id, fasta] for QC tools
+        ch_assemblies_for_qc = ch_assemblies.map { meta, fasta -> [meta.id, fasta] }
+
+        // BUSCO (optional)
+        if (!params.skip_busco) {
+            BUSCO(ch_assemblies_for_qc)
+            ch_busco_summary = BUSCO.out.summary
+            ch_versions = ch_versions.mix(BUSCO.out.versions)
+        } else {
+            ch_busco_summary = Channel.empty()
+        }
+
+        // QUAST
+        QUAST(ch_assemblies_for_qc)
+        ch_quast_report = QUAST.out.report
+        ch_quast_dirs = QUAST.out.results_dir  // Use directories for MultiQC
+        ch_versions = ch_versions.mix(QUAST.out.versions)
+        ch_versions = ch_versions.mix(DOWNLOAD_ASSEMBLY.out.versions)
     }
 
     // Make assemblies channel reusable for multiple downstream processes
@@ -143,8 +177,8 @@ workflow COMPLETE_PIPELINE {
     // Collect all QC outputs for MultiQC
     ch_multiqc = Channel.empty()
 
-    if (input_mode != 'fasta') {
-        // Include read QC when we assembled from reads
+    if (input_mode != 'fasta' && input_mode != 'assembly') {
+        // Include read QC when we assembled from reads (metadata or sra_list modes)
         ch_multiqc = ch_multiqc
             .mix(ch_qc_outputs.fastqc_html.collect().ifEmpty([]))
             .mix(ch_qc_outputs.fastp_json.collect().ifEmpty([]))

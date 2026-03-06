@@ -10,15 +10,15 @@ def validateParameters() {
     def errors = []
 
     // Validate input mode
-    def valid_modes = ['fasta', 'metadata', 'sra_list']
+    def valid_modes = ['fasta', 'metadata', 'sra_list', 'assembly']
     def input_mode = params.input_mode ?: 'fasta'
     if (!(input_mode in valid_modes)) {
         errors << "Invalid input_mode '${input_mode}'. Must be one of: ${valid_modes.join(', ')}"
         valid = false
     }
 
-    // Validate input file exists (for fasta and sra_list modes)
-    if (input_mode in ['fasta', 'sra_list']) {
+    // Validate input file exists (for fasta, sra_list, and assembly modes)
+    if (input_mode in ['fasta', 'sra_list', 'assembly']) {
         if (!params.input) {
             errors << "Parameter --input is required for ${input_mode} mode"
             valid = false
@@ -56,6 +56,17 @@ workflow {
             .fromPath(params.input)
             .splitCsv(header:true)
             .map { row ->
+                // Validate required columns
+                if (!row.sample) {
+                    error "Missing 'sample' column in row: ${row}"
+                }
+                if (!row.organism) {
+                    error "Missing 'organism' column in row: ${row}"
+                }
+                if (!row.fasta) {
+                    error "Missing 'fasta' column for sample ${row.sample}. Check CSV header and values."
+                }
+
                 def meta = [:]
                 meta.id = row.sample
                 meta.organism = row.organism
@@ -74,6 +85,17 @@ workflow {
             .fromPath(params.input)
             .splitText()
             .map { it.trim() }
+            .set { ch_input }
+
+    } else if (input_mode == 'assembly') {
+        // Assembly accession mode
+        // Expected columns: sample, organism, assembly_accession
+        Channel
+            .fromPath(params.input)
+            .splitCsv(header:true)
+            .map { row ->
+                return [row.sample, row.organism, row.assembly_accession]
+            }
             .set { ch_input }
     }
 

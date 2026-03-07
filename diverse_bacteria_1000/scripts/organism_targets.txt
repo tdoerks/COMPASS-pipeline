@@ -1,0 +1,24 @@
+# Diverse Bacterial Pathogen Targets
+# 50 samples per organism = 1,000 total samples
+# Format: Organism name|Samples|Category|Notes
+
+Listeria monocytogenes|50|Foodborne|Important surveillance pathogen, cold-tolerant
+Vibrio parahaemolyticus|50|Foodborne|Seafood-associated, thermostable direct hemolysin
+Yersinia enterocolitica|50|Foodborne|Cold-tolerant enteropathogen
+Shigella sonnei|50|Clinical|Most common Shigella in developed countries
+Clostridium perfringens|50|Foodborne|Anaerobic spore-former, enterotoxin producer
+Bacillus cereus|50|Foodborne|Spore-former, emetic and diarrheal toxins
+Staphylococcus aureus|50|Clinical|MRSA tracking, enterotoxin producer
+Enterococcus faecium|50|Clinical|VRE concern, nosocomial infections
+Klebsiella pneumoniae|50|Clinical|Carbapenem resistance, nosocomial
+Acinetobacter baumannii|50|Clinical|MDR, nosocomial, biofilm former
+Pseudomonas aeruginosa|50|Clinical|Opportunistic, biofilms, cystic fibrosis
+Cronobacter sakazakii|50|Foodborne|Infant formula contamination, neonatal infections
+Citrobacter freundii|50|Clinical|Opportunistic, UTI and sepsis
+Enterobacter cloacae|50|Clinical|Nosocomial, AMR concern
+Proteus mirabilis|50|Clinical|UTI pathogen, urease producer
+Serratia marcescens|50|Clinical|Nosocomial, red pigment producer
+Vibrio cholerae|50|Clinical|Cholera, epidemic potential
+Campylobacter coli|50|Foodborne|Complement to C. jejuni in NARMS
+Arcobacter butzleri|50|Foodborne|Emerging pathogen, zoonotic
+Helicobacter pylori|50|Clinical|Gastric ulcers, cancer association

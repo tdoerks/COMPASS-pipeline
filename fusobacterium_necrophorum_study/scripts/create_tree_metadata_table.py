@@ -56,7 +56,11 @@ def load_metadata(metadata_file):
         reader = csv.DictReader(f, delimiter='\t')
         for row in reader:
             # Try multiple possible column names for SRR accession
-            srr = row.get('Run', '') or row.get('PublicAccession', '') or row.get('sample', '')
+            # Note: Some metadata files have SRR in 'Genus' column (mislabeled)
+            srr = (row.get('Run', '') or
+                   row.get('PublicAccession', '') or
+                   row.get('sample', '') or
+                   row.get('Genus', ''))  # Sometimes mislabeled!
             if srr and srr.startswith('SRR'):
                 metadata[srr] = row
     return metadata

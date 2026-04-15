@@ -36,8 +36,9 @@ def load_metadata(metadata_file):
     with open(metadata_file, 'r') as f:
         reader = csv.DictReader(f, delimiter='\t')
         for row in reader:
-            srr = row.get('Run', '')
-            if srr:
+            # Try multiple possible column names for SRR accession
+            srr = row.get('Run', '') or row.get('PublicAccession', '') or row.get('sample', '')
+            if srr and srr.startswith('SRR'):
                 metadata[srr] = row
     return metadata
 
@@ -85,11 +86,14 @@ def create_quick_reference(tree_file, metadata_file, output_file):
 
             meta = metadata.get(srr, {})
 
-            # Extract key info
-            organism = meta.get('Organism', 'Unknown')
+            # Extract key info - try multiple column names
+            organism = (meta.get('Organism', '') or
+                       meta.get('organism', '') or
+                       meta.get('sub_species', '') or
+                       'Unknown')
 
             # Shorten subspecies name
-            if 'Fusobacterium' in organism:
+            if 'Fusobacterium' in organism or 'fusobacterium' in organism.lower():
                 # Extract just species name
                 parts = organism.split()
                 if len(parts) >= 2:
@@ -99,7 +103,7 @@ def create_quick_reference(tree_file, metadata_file, output_file):
             else:
                 subspecies = organism
 
-            host = meta.get('host', 'Unknown')
+            host = meta.get('host', '') or meta.get('Host', '') or 'Unknown'
             # Shorten host
             if 'Homo sapiens' in host:
                 host = 'Human'
@@ -108,7 +112,10 @@ def create_quick_reference(tree_file, metadata_file, output_file):
             elif 'Sus scrofa' in host:
                 host = 'Pig'
 
-            source = meta.get('isolation_source', 'Unknown').lower()
+            source = (meta.get('isolation_source', '') or
+                     meta.get('isolation source', '') or
+                     meta.get('isolation-source', '') or
+                     'Unknown').lower()
             # Categorize
             if any(kw in source for kw in ['oral', 'saliva', 'dental', 'plaque', 'mouth']):
                 source_cat = 'Oral'

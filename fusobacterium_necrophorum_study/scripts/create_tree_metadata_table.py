@@ -55,8 +55,9 @@ def load_metadata(metadata_file):
     with open(metadata_file, 'r') as f:
         reader = csv.DictReader(f, delimiter='\t')
         for row in reader:
-            srr = row.get('Run', '')
-            if srr:
+            # Try multiple possible column names for SRR accession
+            srr = row.get('Run', '') or row.get('PublicAccession', '') or row.get('sample', '')
+            if srr and srr.startswith('SRR'):
                 metadata[srr] = row
     return metadata
 
@@ -128,11 +129,18 @@ def create_supplementary_table(tree_file, metadata_file, prophage_file, output_f
         for srr in tree_samples:
             meta = metadata.get(srr, {})
 
-            # Extract organism/subspecies
-            organism = meta.get('Organism', meta.get('ScientificName', 'Unknown'))
+            # Extract organism/subspecies - try multiple column names
+            organism = (meta.get('Organism', '') or
+                       meta.get('organism', '') or
+                       meta.get('ScientificName', '') or
+                       meta.get('sub_species', '') or
+                       'Unknown')
 
-            # Categorize isolation source
-            source = meta.get('isolation_source', meta.get('source', '')).lower()
+            # Categorize isolation source - try multiple column names
+            source = (meta.get('isolation_source', '') or
+                     meta.get('isolation source', '') or
+                     meta.get('isolation-source', '') or
+                     meta.get('source', '')).lower()
             if any(kw in source for kw in ['oral', 'saliva', 'dental', 'plaque', 'mouth', 'tonsil', 'gingiv']):
                 source_category = 'Oral'
             elif any(kw in source for kw in ['stool', 'feces', 'fecal', 'colon', 'gut', 'intestin', 'ileum', 'caecum', 'cecum']):
@@ -144,8 +152,9 @@ def create_supplementary_table(tree_file, metadata_file, prophage_file, output_f
             else:
                 source_category = 'Other'
 
-            # Extract country from geo_loc_name
-            geo = meta.get('geo_loc_name', '')
+            # Extract country from geo_loc_name - try multiple column names
+            geo = (meta.get('geo_loc_name', '') or
+                  meta.get('geographic location (country and/or sea,region)', ''))
             country = geo.split(':')[0] if ':' in geo else geo
 
             # Get assembly size
@@ -158,20 +167,25 @@ def create_supplementary_table(tree_file, metadata_file, prophage_file, output_f
             row = {
                 'Sample_ID': srr,
                 'Subspecies': organism,
-                'Host': meta.get('host', meta.get('Host', '')),
-                'Isolation_Source': meta.get('isolation_source', meta.get('source', '')),
+                'Host': meta.get('host', '') or meta.get('Host', ''),
+                'Isolation_Source': (meta.get('isolation_source', '') or
+                                    meta.get('isolation source', '') or
+                                    meta.get('isolation-source', '') or
+                                    meta.get('source', '')),
                 'Isolation_Source_Category': source_category,
-                'Geographic_Location': meta.get('geo_loc_name', ''),
+                'Geographic_Location': geo,
                 'Country': country,
-                'Collection_Date': meta.get('collection_date', meta.get('Collection_date', '')),
-                'BioProject': meta.get('BioProject', ''),
+                'Collection_Date': (meta.get('collection_date', '') or
+                                   meta.get('collection date', '') or
+                                   meta.get('Collection_date', '')),
+                'BioProject': meta.get('BioProject', '') or meta.get('ProjectAccession', ''),
                 'BioSample': meta.get('BioSample', ''),
-                'Study_Title': meta.get('study_title', ''),
+                'Study_Title': meta.get('study_title', '') or meta.get('project_name', ''),
                 'Prophage_Count': prophage_counts.get(srr, 0),
                 'Assembly_Size_Mb': size_mb,
                 'Library_Strategy': meta.get('LibraryStrategy', ''),
                 'Platform': meta.get('Platform', ''),
-                'Center_Name': meta.get('Center Name', meta.get('CenterName', ''))
+                'Center_Name': meta.get('Center Name', '') or meta.get('CenterName', '')
             }
 
             writer.writerow(row)

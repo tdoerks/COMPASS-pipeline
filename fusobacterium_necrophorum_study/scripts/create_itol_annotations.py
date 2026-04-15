@@ -10,8 +10,29 @@ Generates color-coded annotations for:
 
 import csv
 import sys
+import re
 
-def create_itol_colorstrip(metadata_file, output_prefix):
+def extract_srr_from_label(label):
+    """Extract SRR accession from tree label like _R_SRR848065_NODE_6_..."""
+    # Remove _R_ prefix if present
+    if label.startswith('_R_'):
+        label = label[3:]
+    # Extract SRR accession
+    match = re.match(r'(SRR\d+)', label)
+    if match:
+        return match.group(1)
+    return None
+
+def parse_tree_labels(tree_file):
+    """Extract all tip labels from tree file"""
+    with open(tree_file, 'r') as f:
+        tree_string = f.read()
+
+    # Extract all labels (pattern: label followed by colon and branch length)
+    labels = re.findall(r'([A-Za-z0-9_\.]+):', tree_string)
+    return labels
+
+def create_itol_colorstrip(tree_file, metadata_file, output_prefix):
     """
     Create iTOL color strip annotation files
 
@@ -29,14 +50,24 @@ def create_itol_colorstrip(metadata_file, output_prefix):
     print("="*70)
     print()
 
+    # Parse tree to get all tip labels
+    print(f"Parsing tree: {tree_file}")
+    tree_labels = parse_tree_labels(tree_file)
+    print(f"Found {len(tree_labels)} tip labels in tree")
+    print()
+
     # Load metadata
     print(f"Loading metadata from: {metadata_file}")
-    samples = []
+    metadata = {}
     with open(metadata_file, 'r') as f:
         reader = csv.DictReader(f, delimiter='\t')
         for row in reader:
-            samples.append(row)
-    print(f"Loaded {len(samples)} samples")
+            srr = (row.get('sample', '') or
+                   row.get('Run', '') or
+                   row.get('Genus', ''))
+            if srr and srr.startswith('SRR'):
+                metadata[srr] = row
+    print(f"Loaded metadata for {len(metadata)} samples")
     print()
 
     # 1. SUBSPECIES ANNOTATION
@@ -56,24 +87,28 @@ def create_itol_colorstrip(metadata_file, output_prefix):
         'Other': '#CCCCCC'  # Light gray
     }
 
-    # Extract subspecies from organism field
-    if samples and 'Organism' in samples[0]:
-        subspecies_data = []
-        for row in samples:
-            sample = row.get('Run', row.get('sample', ''))
-            org = str(row.get('Organism', ''))
+    # Create annotations for each tree label
+    subspecies_data = []
+    for label in tree_labels:
+        srr = extract_srr_from_label(label)
+        if not srr or srr not in metadata:
+            continue
 
-            # Try to match known subspecies
-            matched = False
-            for species, color in subspecies_colors.items():
-                if species.lower() in org.lower():
-                    subspecies_data.append((sample, color, species))
-                    matched = True
-                    break
+        meta = metadata[srr]
+        org = str(meta.get('organism', '') or meta.get('Organism', '') or meta.get('sub_species', ''))
 
-            if not matched:
-                subspecies_data.append((sample, subspecies_colors['Other'], 'Other'))
+        # Try to match known subspecies
+        matched = False
+        for species, color in subspecies_colors.items():
+            if species.lower() in org.lower():
+                subspecies_data.append((label, color, species))
+                matched = True
+                break
 
+        if not matched:
+            subspecies_data.append((label, subspecies_colors['Other'], 'Other'))
+
+    if subspecies_data:
         # Write subspecies annotation file
         with open(f"{output_prefix}_subspecies.txt", 'w') as f:
             f.write("DATASET_COLORSTRIP\n")
@@ -90,11 +125,14 @@ def create_itol_colorstrip(metadata_file, output_prefix):
             f.write("LEGEND_LABELS\t" + "\t".join(subspecies_colors.keys()) + "\n")
             f.write("\n")
             f.write("DATA\n")
-            for sample, color, label in subspecies_data:
-                f.write(f"{sample}\t{color}\t{label}\n")
+            for full_label, color, species_name in subspecies_data:
+                f.write(f"{full_label}\t{color}\t{species_name}\n")
 
         print(f"✓ Created: {output_prefix}_subspecies.txt")
         print(f"  Unique subspecies: {len(set([x[2] for x in subspecies_data]))}")
+        print(f"  Annotated {len(subspecies_data)} tree tips")
+    else:
+        print("WARNING: No subspecies data found")
 
     print()
 
@@ -108,17 +146,21 @@ def create_itol_colorstrip(metadata_file, output_prefix):
         'Other': '#E7298A'  # Pink
     }
 
-    if samples and 'host' in samples[0]:
-        host_data = []
-        for row in samples:
-            sample = row.get('Run', row.get('sample', ''))
-            host = str(row.get('host', ''))
+    host_data = []
+    for label in tree_labels:
+        srr = extract_srr_from_label(label)
+        if not srr or srr not in metadata:
+            continue
 
-            if host in host_colors:
-                host_data.append((sample, host_colors[host], host))
-            else:
-                host_data.append((sample, host_colors['Other'], 'Other'))
+        meta = metadata[srr]
+        host = str(meta.get('host', '') or meta.get('Host', ''))
 
+        if host in host_colors:
+            host_data.append((label, host_colors[host], host))
+        else:
+            host_data.append((label, host_colors['Other'], 'Other'))
+
+    if host_data:
         # Write host annotation file
         with open(f"{output_prefix}_host.txt", 'w') as f:
             f.write("DATASET_COLORSTRIP\n")
@@ -135,11 +177,12 @@ def create_itol_colorstrip(metadata_file, output_prefix):
             f.write("LEGEND_LABELS\t" + "\t".join(host_colors.keys()) + "\n")
             f.write("\n")
             f.write("DATA\n")
-            for sample, color, label in host_data:
-                f.write(f"{sample}\t{color}\t{label}\n")
+            for full_label, color, host_name in host_data:
+                f.write(f"{full_label}\t{color}\t{host_name}\n")
 
         print(f"✓ Created: {output_prefix}_host.txt")
         print(f"  Unique hosts: {len(set([x[2] for x in host_data]))}")
+        print(f"  Annotated {len(host_data)} tree tips")
 
     print()
 
@@ -153,24 +196,30 @@ def create_itol_colorstrip(metadata_file, output_prefix):
         'Other': '#BEBADA'  # Light purple
     }
 
-    if samples and 'isolation_source' in samples[0]:
-        source_data = []
-        for row in samples:
-            sample = row.get('Run', row.get('sample', ''))
-            source = str(row.get('isolation_source', '')).lower()
+    source_data = []
+    for label in tree_labels:
+        srr = extract_srr_from_label(label)
+        if not srr or srr not in metadata:
+            continue
 
-            # Classify source
-            if any(kw in source for kw in ['oral', 'saliva', 'dental', 'plaque', 'mouth', 'tonsil']):
-                category = 'Oral'
-            elif any(kw in source for kw in ['stool', 'feces', 'colon', 'gut', 'intestin', 'ileum', 'caecum']):
-                category = 'GI'
-            elif any(kw in source for kw in ['blood', 'serum', 'plasma']):
-                category = 'Blood'
-            else:
-                category = 'Other'
+        meta = metadata[srr]
+        source = str(meta.get('isolation_source', '') or
+                    meta.get('isolation source', '') or
+                    meta.get('isolation-source', '')).lower()
 
-            source_data.append((sample, source_colors[category], category))
+        # Classify source
+        if any(kw in source for kw in ['oral', 'saliva', 'dental', 'plaque', 'mouth', 'tonsil']):
+            category = 'Oral'
+        elif any(kw in source for kw in ['stool', 'feces', 'colon', 'gut', 'intestin', 'ileum', 'caecum']):
+            category = 'GI'
+        elif any(kw in source for kw in ['blood', 'serum', 'plasma']):
+            category = 'Blood'
+        else:
+            category = 'Other'
 
+        source_data.append((label, source_colors[category], category))
+
+    if source_data:
         # Write source annotation file
         with open(f"{output_prefix}_source.txt", 'w') as f:
             f.write("DATASET_COLORSTRIP\n")
@@ -187,11 +236,12 @@ def create_itol_colorstrip(metadata_file, output_prefix):
             f.write("LEGEND_LABELS\t" + "\t".join(source_colors.keys()) + "\n")
             f.write("\n")
             f.write("DATA\n")
-            for sample, color, label in source_data:
-                f.write(f"{sample}\t{color}\t{label}\n")
+            for full_label, color, source_name in source_data:
+                f.write(f"{full_label}\t{color}\t{source_name}\n")
 
         print(f"✓ Created: {output_prefix}_source.txt")
         print(f"  Unique sources: {len(set([x[2] for x in source_data]))}")
+        print(f"  Annotated {len(source_data)} tree tips")
 
     print()
     print("="*70)
@@ -208,15 +258,18 @@ def create_itol_colorstrip(metadata_file, output_prefix):
     print()
 
 def main():
-    metadata_file = "fusobacterium_necrophorum_study/data/fusobacterium_metadata.tsv"
+    tree_file = "fusobacterium_results/analysis/phylogenomics/prophage_tree.nwk"
+    metadata_file = "fusobacterium_necrophorum_study/data/fusobacterium_metadata_prophage_merged.tsv"
     output_prefix = "fusobacterium_necrophorum_study/data/itol"
 
     if len(sys.argv) > 1:
-        metadata_file = sys.argv[1]
+        tree_file = sys.argv[1]
     if len(sys.argv) > 2:
-        output_prefix = sys.argv[2]
+        metadata_file = sys.argv[2]
+    if len(sys.argv) > 3:
+        output_prefix = sys.argv[3]
 
-    create_itol_colorstrip(metadata_file, output_prefix)
+    create_itol_colorstrip(tree_file, metadata_file, output_prefix)
 
 if __name__ == "__main__":
     main()

@@ -17,7 +17,8 @@ echo ""
 PIPELINE_DIR="/fastscratch/tylerdoe/COMPASS-pipeline-1.2.0-candidate"
 RESULTS_DIR="/fastscratch/tylerdoe/fusobacterium_results"
 TREE_FILE="${RESULTS_DIR}/analysis/phylogenomics/prophage_tree.nwk"
-METADATA_FILE="${PIPELINE_DIR}/fusobacterium_necrophorum_study/data/fusobacterium_metadata.tsv"
+# Use merged file for both metadata and prophage counts (has 'sample' column that works)
+METADATA_FILE="${PIPELINE_DIR}/fusobacterium_necrophorum_study/data/fusobacterium_metadata_prophage_merged.tsv"
 PROPHAGE_FILE="${PIPELINE_DIR}/fusobacterium_necrophorum_study/data/fusobacterium_metadata_prophage_merged.tsv"
 OUTPUT_FILE="${PIPELINE_DIR}/fusobacterium_necrophorum_study/data/tree_sample_metadata_supplementary.tsv"
 

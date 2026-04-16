@@ -1041,17 +1041,17 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         print(df['mdr_status'].value_counts().to_dict(), file=sys.stderr)
 
     # Ensure prophage counts are numeric before summing
-    total_prophages = int(df['num_prophages'].replace('-', 0).fillna(0).astype(float).sum())
-    samples_with_prophages = len(df[df['num_prophages'].replace('-', 0).fillna(0).astype(float) > 0])
+    total_prophages = int(df['num_prophages'].replace('-', 0).fillna(0).astype(float).sum()) if 'num_prophages' in df.columns and total_samples > 0 else 0
+    samples_with_prophages = len(df[df['num_prophages'].replace('-', 0).fillna(0).astype(float) > 0]) if 'num_prophages' in df.columns and total_samples > 0 else 0
     avg_prophages = total_prophages / total_samples if total_samples > 0 else 0
 
     # AMR statistics - ensure numeric values
-    total_amr_genes = int(df['num_amr_genes'].replace('-', 0).fillna(0).astype(float).sum())
-    samples_with_amr = len(df[df['num_amr_genes'].replace('-', 0).fillna(0).astype(float) > 0])
+    total_amr_genes = int(df['num_amr_genes'].replace('-', 0).fillna(0).astype(float).sum()) if 'num_amr_genes' in df.columns and total_samples > 0 else 0
+    samples_with_amr = len(df[df['num_amr_genes'].replace('-', 0).fillna(0).astype(float) > 0]) if 'num_amr_genes' in df.columns and total_samples > 0 else 0
 
     # Plasmid statistics - ensure numeric values
-    total_plasmids = int(df['num_plasmids'].replace('-', 0).fillna(0).astype(float).sum())
-    samples_with_plasmids = len(df[df['num_plasmids'].replace('-', 0).fillna(0).astype(float) > 0])
+    total_plasmids = int(df['num_plasmids'].replace('-', 0).fillna(0).astype(float).sum()) if 'num_plasmids' in df.columns and total_samples > 0 else 0
+    samples_with_plasmids = len(df[df['num_plasmids'].replace('-', 0).fillna(0).astype(float) > 0]) if 'num_plasmids' in df.columns and total_samples > 0 else 0
 
     # Prepare functional diversity data for chart
     functional_labels = []

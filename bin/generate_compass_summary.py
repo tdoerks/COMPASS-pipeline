@@ -2570,7 +2570,6 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     unique_prophage_amr_classes = list(set(all_prophage_amr_classes))
 
     # Count gene frequencies
-    from collections import Counter
     gene_counts = Counter(all_prophage_amr_genes)
     class_counts = Counter(all_prophage_amr_classes)
 

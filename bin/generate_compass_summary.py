@@ -1037,7 +1037,8 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     print(f"  Non-MDR samples: {total_samples - mdr_samples}", file=sys.stderr)
     print(f"  MDR percentage: {mdr_pct:.2f}%", file=sys.stderr)
     print(f"  MDR status distribution:", file=sys.stderr)
-    print(df['mdr_status'].value_counts().to_dict(), file=sys.stderr)
+    if 'mdr_status' in df.columns and total_samples > 0:
+        print(df['mdr_status'].value_counts().to_dict(), file=sys.stderr)
 
     # Ensure prophage counts are numeric before summing
     total_prophages = int(df['num_prophages'].replace('-', 0).fillna(0).astype(float).sum())

@@ -231,7 +231,7 @@ def intersect_coordinates(prophage_df, amr_df, terminal_buffer=5000):
 
     if retained > 0:
         print(f"\n⚠️  PROPHAGE-ENCODED AMR GENES DETECTED:")
-        for _, row in result_df[~row['excluded']].iterrows():
+        for _, row in result_df[~result_df['excluded']].iterrows():
             print(f"    - {row['amr_gene']} ({row['amr_class']}) in {row['prophage_fragment']}")
 
     return result_df
@@ -273,7 +273,7 @@ def write_results(result_df, output_file, sample_name):
         if retained > 0:
             f.write("PROPHAGE-ENCODED AMR GENES (RETAINED):\n")
             f.write("-" * 60 + "\n")
-            for _, row in result_df[~row['excluded']].iterrows():
+            for _, row in result_df[~result_df['excluded']].iterrows():
                 f.write(f"\nGene: {row['amr_gene']}\n")
                 f.write(f"  Class: {row['amr_class']}\n")
                 f.write(f"  Subclass: {row['amr_subclass']}\n")

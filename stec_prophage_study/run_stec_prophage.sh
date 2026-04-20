@@ -20,7 +20,7 @@ echo "Node: $(hostname)"
 echo ""
 
 # Change to pipeline directory
-PIPELINE_DIR="/fastscratch/tylerdoe/COMPASS-pipeline-1.1.0-candidate"
+PIPELINE_DIR="/fastscratch/tylerdoe/COMPASS-pipeline-1.2.0-candidate"
 PROJECT_DIR="$PIPELINE_DIR/stec_prophage_study"
 
 cd "$PIPELINE_DIR" || {

@@ -3,7 +3,7 @@
 #SBATCH --output=/fastscratch/tylerdoe/slurm-clostridium-%j.out
 #SBATCH --error=/fastscratch/tylerdoe/slurm-clostridium-%j.err
 #SBATCH --time=672:00:00
-#SBATCH --partition=ksu-gen-highmem.q,ksu-plantpath-sanders.q,batch.q
+#SBATCH --partition=batch.q
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
@@ -80,9 +80,14 @@ echo ""
 cd ${PIPELINE_DIR}
 
 nextflow run main.nf \
-    --samplesheet "${SAMPLESHEET}" \
-    --outdir "${OUTPUT_DIR}" \
     -profile beocat \
+    --input_mode sra_list \
+    --input "${SAMPLESHEET}" \
+    --skip_busco false \
+    --busco_download_path /fastscratch/tylerdoe/databases/busco_downloads \
+    --prophage_db /fastscratch/tylerdoe/databases/prophage_db.dmnd \
+    --outdir "${OUTPUT_DIR}" \
+    -w work_clostridium \
     -resume
 
 echo ""

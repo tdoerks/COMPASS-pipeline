@@ -65,8 +65,10 @@ echo ""
 
 # Load modules
 echo "Loading modules..."
-module load Java/17.0.4
-module load Nextflow/23.04.1
+module load Nextflow || {
+    echo "ERROR: Failed to load Nextflow module"
+    exit 1
+}
 
 echo ""
 echo "========================================================================"

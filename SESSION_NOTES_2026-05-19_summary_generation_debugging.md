@@ -265,6 +265,29 @@ git checkout 1.2.0-candidate
 
 ---
 
+## BREAKTHROUGH: Found Working Version in v1.2-mod! 🎉
+
+**Discovery**: User reported that v1.2-mod (used for Kansas 2021-2025 run) has working summary generation!
+
+**Key Finding**: v1.2-mod has:
+1. ✅ Complete `recreate_filtered_metadata.py` that actually works
+   - Scans QUAST directories for `*_quast` folders (not TSV files)
+   - Also checks busco, amrfinder, mlst, mobsuite, vibrant
+   - Loads original metadata from `metadata/` directory
+   - Much more robust than my simple version
+
+2. ✅ `generate_compass_summary.py` with better defensive checks
+
+**Action Taken**: Copied working `recreate_filtered_metadata.py` from v1.2-mod to `1.0.1-candidate-fasta-fix`
+- **Commit**: `5f57dbf` - "Replace with working recreate_filtered_metadata.py from v1.2-mod"
+- **Pushed to**: `origin/1.0.1-candidate-fasta-fix`
+
+**Next Test**: Pull this on Beocat and rerun validation - should now find the 8 ETEC samples!
+
+**Future Consideration**: If still getting KeyErrors, consider copying the entire `generate_compass_summary.py` from v1.2-mod (it may have all the defensive checks already).
+
+---
+
 ## Summary
 
 **What we accomplished**:

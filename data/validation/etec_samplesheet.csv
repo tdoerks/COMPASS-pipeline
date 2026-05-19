@@ -1,4 +1,4 @@
-sample,assembly,organism
+sample,fasta,organism
 E925,data/validation/etec_genomes/E925.fasta,Escherichia
 E1649,data/validation/etec_genomes/E1649.fasta,Escherichia
 E36,data/validation/etec_genomes/E36.fasta,Escherichia

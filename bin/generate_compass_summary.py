@@ -580,8 +580,8 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     failed_qc = total_samples - passed_qc
 
     # Convert numeric columns, replacing '-' with 0 and handling NaN
-    avg_contigs = df['num_contigs'].replace('-', 0).astype(float).mean()
-    avg_n50 = df['n50'].replace('-', 0).astype(float).mean()
+    avg_contigs = df['num_contigs'].replace('-', 0).astype(float).mean() if 'num_contigs' in df.columns else 0
+    avg_n50 = df['n50'].replace('-', 0).astype(float).mean() if 'n50' in df.columns else 0
     avg_length = df['assembly_length'].replace('-', 0).astype(float).mean() if 'assembly_length' in df.columns else 0
     avg_gc = df['gc_percent'].replace('-', 0).astype(float).mean() if 'gc_percent' in df.columns else 0
 
@@ -595,20 +595,36 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     print(f"  Non-MDR samples: {total_samples - mdr_samples}", file=sys.stderr)
     print(f"  MDR percentage: {mdr_pct:.2f}%", file=sys.stderr)
     print(f"  MDR status distribution:", file=sys.stderr)
-    print(df['mdr_status'].value_counts().to_dict(), file=sys.stderr)
+    if 'mdr_status' in df.columns:
+        print(df['mdr_status'].value_counts().to_dict(), file=sys.stderr)
+    else:
+        print("  (mdr_status column not available)", file=sys.stderr)
 
     # Ensure prophage counts are numeric before summing
-    total_prophages = int(df['num_prophages'].replace('-', 0).fillna(0).astype(float).sum())
-    samples_with_prophages = len(df[df['num_prophages'].replace('-', 0).fillna(0).astype(float) > 0])
-    avg_prophages = total_prophages / total_samples if total_samples > 0 else 0
+    if 'num_prophages' in df.columns:
+        total_prophages = int(df['num_prophages'].replace('-', 0).fillna(0).astype(float).sum())
+        samples_with_prophages = len(df[df['num_prophages'].replace('-', 0).fillna(0).astype(float) > 0])
+        avg_prophages = total_prophages / total_samples if total_samples > 0 else 0
+    else:
+        total_prophages = 0
+        samples_with_prophages = 0
+        avg_prophages = 0
 
     # AMR statistics - ensure numeric values
-    total_amr_genes = int(df['num_amr_genes'].replace('-', 0).fillna(0).astype(float).sum())
-    samples_with_amr = len(df[df['num_amr_genes'].replace('-', 0).fillna(0).astype(float) > 0])
+    if 'num_amr_genes' in df.columns:
+        total_amr_genes = int(df['num_amr_genes'].replace('-', 0).fillna(0).astype(float).sum())
+        samples_with_amr = len(df[df['num_amr_genes'].replace('-', 0).fillna(0).astype(float) > 0])
+    else:
+        total_amr_genes = 0
+        samples_with_amr = 0
 
     # Plasmid statistics - ensure numeric values
-    total_plasmids = int(df['num_plasmids'].replace('-', 0).fillna(0).astype(float).sum())
-    samples_with_plasmids = len(df[df['num_plasmids'].replace('-', 0).fillna(0).astype(float) > 0])
+    if 'num_plasmids' in df.columns:
+        total_plasmids = int(df['num_plasmids'].replace('-', 0).fillna(0).astype(float).sum())
+        samples_with_plasmids = len(df[df['num_plasmids'].replace('-', 0).fillna(0).astype(float) > 0])
+    else:
+        total_plasmids = 0
+        samples_with_plasmids = 0
 
     # Prepare functional diversity data for chart
     functional_labels = []

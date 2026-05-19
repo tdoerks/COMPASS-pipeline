@@ -576,7 +576,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 
     # Calculate summary statistics
     total_samples = len(df)
-    passed_qc = len(df[df['assembly_quality'] == 'Pass'])
+    passed_qc = len(df[df['assembly_quality'] == 'Pass']) if 'assembly_quality' in df.columns else 0
     failed_qc = total_samples - passed_qc
 
     # Convert numeric columns, replacing '-' with 0 and handling NaN
@@ -585,7 +585,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     avg_length = df['assembly_length'].replace('-', 0).astype(float).mean() if 'assembly_length' in df.columns else 0
     avg_gc = df['gc_percent'].replace('-', 0).astype(float).mean() if 'gc_percent' in df.columns else 0
 
-    mdr_samples = len(df[df['mdr_status'] == 'Yes'])
+    mdr_samples = len(df[df['mdr_status'] == 'Yes']) if 'mdr_status' in df.columns else 0
     mdr_pct = (mdr_samples / total_samples * 100) if total_samples > 0 else 0
 
     # Debug: Print MDR statistics

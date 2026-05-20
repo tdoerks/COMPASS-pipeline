@@ -18,6 +18,7 @@ process COMPASS_SUMMARY {
     path "versions.yml", emit: versions
 
     script:
+    def outdir_abs = file(params.outdir).toAbsolutePath()
     """
     echo "==================================================="
     echo "COMPASS Enhanced Summary Report Generation"
@@ -26,7 +27,7 @@ process COMPASS_SUMMARY {
 
     # Step 1: Recreate filtered metadata from analyzed samples
     echo "Step 1: Recreating filtered metadata from analyzed samples..."
-    recreate_filtered_metadata.py --outdir ${params.outdir} || {
+    recreate_filtered_metadata.py --outdir ${outdir_abs} || {
         echo "⚠️  WARNING: Metadata recreation failed, continuing anyway..."
     }
     echo ""
@@ -34,8 +35,8 @@ process COMPASS_SUMMARY {
     # Step 2: Generate comprehensive enhanced HTML report
     echo "Step 2: Generating enhanced COMPASS summary report..."
     generate_compass_summary.py \\
-        --outdir ${params.outdir} \\
-        --metadata ${params.outdir}/filtered_samples/filtered_samples.csv \\
+        --outdir ${outdir_abs} \\
+        --metadata ${outdir_abs}/filtered_samples/filtered_samples.csv \\
         --output_tsv compass_summary.tsv \\
         --output_html compass_summary.html || {
             echo "❌ Summary generation failed, creating minimal outputs"

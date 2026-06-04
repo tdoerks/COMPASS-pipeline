@@ -17,9 +17,16 @@ echo "Job ID: $SLURM_JOB_ID"
 echo "Start time: $(date)"
 echo ""
 
-# Get the directory where this script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-COMPASS_DIR="$( cd "$SCRIPT_DIR/../.." && pwd )"
+# SLURM sets SLURM_SUBMIT_DIR to the directory where sbatch was called
+# This is more reliable than trying to detect script location
+if [ -n "$SLURM_SUBMIT_DIR" ]; then
+    COMPASS_DIR="$SLURM_SUBMIT_DIR"
+else
+    # Fallback for interactive testing
+    COMPASS_DIR="$(pwd)"
+fi
+
+echo "Detected COMPASS directory: $COMPASS_DIR"
 
 # Change to COMPASS directory
 cd "$COMPASS_DIR" || {

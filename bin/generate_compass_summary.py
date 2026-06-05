@@ -780,8 +780,20 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 
     # Get metadata field names that are both in our whitelist AND in the dataframe
     # NOTE: Only whitelisted metadata fields will appear in the Metadata Explorer dropdown
+
+    # Debug: Print available columns and whitelisted matches
+    available_metadata_cols = [col for col in df.columns if col not in excluded_fields]
+    print(f"DEBUG: Available metadata columns in dataframe: {available_metadata_cols}", file=sys.stderr)
+
     metadata_fields = [col for col in df.columns
                       if col not in excluded_fields and col in metadata_whitelist]
+
+    print(f"DEBUG: Whitelisted metadata fields found: {metadata_fields}", file=sys.stderr)
+
+    # If no whitelisted fields found, use ALL available metadata fields (fallback)
+    if len(metadata_fields) == 0:
+        print(f"WARNING: No whitelisted metadata fields found. Using all available fields as fallback.", file=sys.stderr)
+        metadata_fields = available_metadata_cols
 
     # Create aggregation data structure for ALL metadata fields
     # This allows the JavaScript to dynamically generate charts for any field

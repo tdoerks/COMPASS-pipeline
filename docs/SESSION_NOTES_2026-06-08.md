@@ -76,6 +76,21 @@ the function, shadowing the module-level import and throwing
 re-import. (Pipeline always passed `generation_time`, so it never bit in prod —
 fixed before it could.)
 
+### 5. Follow-up: Metadata Explorer group-by only showed "organism"
+On the first real pull, the **Metadata Explorer** field dropdown (the
+group-by selector — distinct from the Data Table facet bar) listed only
+`organism`. Root cause: that dropdown was populated **solely from whitelisted
+SRA runinfo metadata**, and on FASTA/assembly-input runs the SRA metadata is
+sparse, so only `organism` survived.
+
+**Fix:** also offer the pipeline's own always-present categorical columns as
+group-by dimensions — `mlst_st`, `mlst_scheme`, `serovar`, `mdr_status`,
+`assembly_quality` (single-valued only; multi-valued `amr_classes` /
+`inc_groups` / `mob_types` excluded because the aggregator buckets on the raw
+cell value). Added friendly display labels (e.g. "Sequence Type (ST)",
+"MDR Status"). Verified on a sparse-metadata synthetic df: dropdown now shows
+all six fields instead of one.
+
 ---
 
 ## 🧪 Verification
@@ -87,6 +102,9 @@ fixed before it could.)
   **14/14 cases** passed: exact, multi-valued contains, presence, AND
   combinations, search+facet, clear, no-filter ✅
 - `generation_time=None` path confirmed fixed ✅
+- Sparse-metadata df: Metadata Explorer group-by dropdown now lists all six
+  fields (organism, ST, MLST scheme, serovar, MDR status, assembly quality)
+  with friendly labels ✅
 
 ---
 
@@ -94,16 +112,19 @@ fixed before it could.)
 
 - `fae9b19` — Add faceted filtering to Metadata Explorer Data Table
 - `6c5b51b` — Fix datetime shadowing in generate_html_report
+- `783ecea` — Add COMPASS categorical columns to Metadata Explorer group-by
 
 ---
 
 ## 🚀 Next Steps
 
 ### Immediate
+- [ ] Pull `1.0.1-candidate-fasta-fix` (now at `783ecea`) before the next run
 - [ ] Watch validation **job 9425974** (ETEC clean-clone) complete through
       `COMPASS_SUMMARY`
-- [ ] Open `compass_summary.html` → **Metadata Explorer → Data Table**; confirm
-      the filter bar renders with real run values
+- [ ] Open `compass_summary.html` → **Metadata Explorer**; confirm the group-by
+      dropdown now lists ST / serovar / MDR status / assembly quality (not just
+      organism), and the **Data Table** facet bar renders with real run values
 - [ ] Spot-check: AND combining (e.g. Organism = *E. coli* + Has prophage),
       AMR Gene free-text, presence checkboxes, pagination+sort with a filter
       active, CSV export of filtered rows, Clear filters

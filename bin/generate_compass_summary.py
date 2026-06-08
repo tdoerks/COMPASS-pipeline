@@ -2039,6 +2039,108 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             </script>
         </div>"""
 
+    # ============================================================
+    # FACETED FILTER BAR for the Data Table
+    # ============================================================
+    # Builds per-field filter controls (organism, ST, AMR class/gene, plasmid
+    # Inc group, MDR status, assembly quality, prophage/plasmid presence) that
+    # combine with AND. Dropdowns auto-populate from values actually present in
+    # this run; controls are only emitted for columns that exist and have data.
+    def _facet_escape(v):
+        return str(v).replace('&', '&amp;').replace('"', '&quot;').replace('<', '&lt;').replace('>', '&gt;')
+
+    def _facet_unique_simple(col):
+        if col not in df.columns:
+            return []
+        vals = set()
+        for v in df[col].dropna():
+            s = str(v).strip()
+            if s and s not in ('-', 'Unknown', 'nan'):
+                vals.add(s)
+        return sorted(vals)
+
+    def _facet_unique_multi(col):
+        if col not in df.columns:
+            return []
+        vals = set()
+        for v in df[col].dropna():
+            s = str(v).strip()
+            if not s or s in ('-', 'Unknown', 'nan'):
+                continue
+            for part in s.split(','):
+                p = part.strip()
+                if p and p not in ('-', 'Unknown', 'nan'):
+                    vals.add(p)
+        return sorted(vals)
+
+    def _facet_select(col, mode, label, values):
+        if not values:
+            return ''
+        opts = '\n'.join(
+            f'                        <option value="{_facet_escape(v)}">{_facet_escape(v)}</option>'
+            for v in values
+        )
+        return f'''
+                <div class="facet-group">
+                    <label class="facet-label">{label}</label>
+                    <select class="facet" data-col="{col}" data-mode="{mode}" onchange="applyFilters()">
+                        <option value="">All</option>
+{opts}
+                    </select>
+                </div>'''
+
+    facet_parts = []
+    facet_parts.append(_facet_select('organism', 'exact', 'Organism', _facet_unique_simple('organism')))
+    facet_parts.append(_facet_select('mlst_st', 'exact', 'Sequence Type (ST)', _facet_unique_simple('mlst_st')))
+    facet_parts.append(_facet_select('amr_classes', 'contains', 'AMR Class', _facet_unique_multi('amr_classes')))
+    if 'top_amr_genes' in df.columns:
+        facet_parts.append('''
+                <div class="facet-group">
+                    <label class="facet-label">AMR Gene</label>
+                    <input type="text" class="facet" data-col="top_amr_genes" data-mode="contains"
+                           placeholder="e.g. blaCTX-M" onkeyup="applyFilters()">
+                </div>''')
+    facet_parts.append(_facet_select('inc_groups', 'contains', 'Plasmid Inc Group', _facet_unique_multi('inc_groups')))
+    facet_parts.append(_facet_select('mdr_status', 'exact', 'MDR Status', _facet_unique_simple('mdr_status')))
+    if 'assembly_quality' in df.columns:
+        facet_parts.append(_facet_select('assembly_quality', 'contains', 'Assembly Quality', ['Pass', 'Fail']))
+    if 'num_prophages' in df.columns:
+        facet_parts.append('''
+                <div class="facet-group facet-check">
+                    <label class="facet-label"><input type="checkbox" class="facet" data-col="num_prophages" data-mode="presence" onchange="applyFilters()"> Has prophage</label>
+                </div>''')
+    if 'num_plasmids' in df.columns:
+        facet_parts.append('''
+                <div class="facet-group facet-check">
+                    <label class="facet-label"><input type="checkbox" class="facet" data-col="num_plasmids" data-mode="presence" onchange="applyFilters()"> Has plasmid</label>
+                </div>''')
+
+    facet_controls = ''.join(p for p in facet_parts if p)
+    if facet_controls.strip():
+        facet_filter_html = f'''
+            <style>
+                .facet-bar {{ background: #f8f9ff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px; }}
+                .facet-bar-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }}
+                .facet-controls {{ display: flex; flex-wrap: wrap; gap: 12px; }}
+                .facet-group {{ display: flex; flex-direction: column; min-width: 150px; }}
+                .facet-group.facet-check {{ justify-content: flex-end; }}
+                .facet-label {{ font-size: 0.8em; font-weight: 600; color: #555; margin-bottom: 4px; }}
+                .facet-group.facet-check .facet-label {{ flex-direction: row; font-weight: 500; }}
+                .facet select, .facet[type="text"] {{ padding: 7px 9px; border: 1px solid #ccd; border-radius: 5px; font-size: 0.9em; }}
+                .clear-facets-btn {{ padding: 6px 14px; background: white; border: 1px solid #ccd; border-radius: 5px; cursor: pointer; font-size: 0.85em; color: #555; }}
+                .clear-facets-btn:hover {{ background: #eef; }}
+            </style>
+            <div class="facet-bar">
+                <div class="facet-bar-header">
+                    <strong>🔎 Filter samples</strong>
+                    <button type="button" class="clear-facets-btn" onclick="clearFilters()">Clear filters</button>
+                </div>
+                <div class="facet-controls">{facet_controls}
+                </div>
+            </div>'''
+    else:
+        facet_filter_html = ''
+
     html += """
     </div>
 
@@ -2052,6 +2154,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     📥 Export to CSV
                 </button>
             </div>
+            <!-- FACET_FILTER_BAR -->
             <input type="text" class="search-box" id="searchBox" placeholder="Search samples..." onkeyup="filterTable()">
             <div style="margin-bottom: 15px; color: #666; font-size: 0.9em;" id="tableStats">
                 Showing <span id="visibleRows">0</span> of <span id="totalRows">0</span> samples
@@ -2193,35 +2296,118 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
 
             table.dataset.sortColumn = column;
             table.dataset.sortDir = newDir;
+
+            // Re-apply current page/filter state to the newly ordered rows
+            if (typeof renderTable === 'function') renderTable();
         }
 
         // Table filtering with count
-        function filterTable() {
-            const input = document.getElementById('searchBox');
-            const filter = input.value.toUpperCase();
-            const table = document.getElementById('dataTable');
-            const rows = table.querySelectorAll('tbody tr');
+        // ============================================================
+        // FACETED FILTERING + SEARCH + PAGINATION (single source of truth)
+        // ============================================================
+        // getVisibleRows() = rows passing the global search AND every active
+        // facet (combined with AND). renderTable() paginates over that matching
+        // set. All search/facet/pagination/sort actions funnel through these.
 
-            var visibleCount = 0;
-            rows.forEach(row => {
-                const text = row.textContent.toUpperCase();
-                if (text.includes(filter)) {
-                    row.style.display = '';
-                    visibleCount++;
+        // Resolve active facet controls to {idx, mode, val} once per render.
+        function getActiveFacets() {
+            const headers = Array.from(document.querySelectorAll('#dataTable thead th'))
+                .map(h => h.textContent.trim());
+            const active = [];
+            document.querySelectorAll('.facet').forEach(f => {
+                let val;
+                if (f.type === 'checkbox') {
+                    if (!f.checked) return;
+                    val = true;
                 } else {
-                    row.style.display = 'none';
+                    val = f.value;
+                    if (!val) return;
                 }
+                const idx = headers.indexOf(f.dataset.col);
+                if (idx < 0) return;
+                active.push({ idx: idx, mode: f.dataset.mode, val: val });
             });
+            return active;
+        }
 
-            // Update count display
-            document.getElementById('visibleRows').textContent = visibleCount;
-            document.getElementById('totalRows').textContent = rows.length;
+        function getVisibleRows() {
+            const search = (document.getElementById('searchBox').value || '').toUpperCase();
+            const active = getActiveFacets();
+            const rows = Array.from(document.querySelectorAll('#dataTable tbody tr'));
+            return rows.filter(row => {
+                if (search && !row.textContent.toUpperCase().includes(search)) return false;
+                for (var i = 0; i < active.length; i++) {
+                    const f = active[i];
+                    const cell = (row.cells[f.idx] ? row.cells[f.idx].textContent.trim() : '');
+                    if (f.mode === 'exact') {
+                        if (cell !== f.val) return false;
+                    } else if (f.mode === 'contains') {
+                        if (!cell.toUpperCase().includes(String(f.val).toUpperCase())) return false;
+                    } else if (f.mode === 'presence') {
+                        const num = parseFloat(cell.replace(/[^0-9.-]/g, ''));
+                        if (!(num > 0)) return false;
+                    }
+                }
+                return true;
+            });
+        }
+
+        // Render the current page of the matching set; updates counts + controls.
+        function renderTable() {
+            const allRows = Array.from(document.querySelectorAll('#dataTable tbody tr'));
+            const matching = getVisibleRows();
+            const totalRows = matching.length;
+            const totalPages = Math.max(1, Math.ceil(totalRows / rowsPerPage));
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+
+            allRows.forEach(r => r.style.display = 'none');
+            matching.forEach((r, i) => { if (i >= start && i < end) r.style.display = ''; });
+
+            document.getElementById('visibleRows').textContent = totalRows;
+            document.getElementById('totalRows').textContent = allRows.length;
+            const pageInfo = document.getElementById('pageInfo');
+            if (pageInfo) {
+                pageInfo.textContent = 'Page ' + currentPage + ' of ' + totalPages + ' (' + totalRows + ' matching)';
+            }
+            const setDisabled = (id, state) => { const el = document.getElementById(id); if (el) el.disabled = state; };
+            setDisabled('prevPage', currentPage === 1);
+            setDisabled('firstPage', currentPage === 1);
+            setDisabled('nextPage', currentPage === totalPages);
+            setDisabled('lastPage', currentPage === totalPages);
+        }
+
+        // Any filter change resets to page 1 then re-renders.
+        function applyFilters() {
+            currentPage = 1;
+            renderTable();
+        }
+
+        // Search box delegates to the unified engine.
+        function filterTable() {
+            applyFilters();
+        }
+
+        // Reset every facet + the search box.
+        function clearFilters() {
+            document.querySelectorAll('.facet').forEach(f => {
+                if (f.type === 'checkbox') { f.checked = false; }
+                else { f.value = ''; }
+            });
+            const sb = document.getElementById('searchBox');
+            if (sb) sb.value = '';
+            applyFilters();
         }
 
         // Export table to CSV
         function exportTableToCSV(filename) {
             const table = document.getElementById('dataTable');
-            const rows = table.querySelectorAll('tr');
+            // Export the header plus only the rows matching the current filters
+            const headerRow = table.querySelector('thead tr');
+            const rows = [headerRow].concat(getVisibleRows());
             const csv = [];
 
             // Process all rows (including header)
@@ -2483,70 +2669,38 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         var currentPage = 1;
         var rowsPerPage = 100;
 
-        // Update table pagination
+        // Pagination now renders over the filtered/matching set (renderTable).
+        // updatePagination kept as an alias for the load-time initializer.
         function updatePagination() {
-            const table = document.getElementById('dataTable');
-            const rows = Array.from(table.querySelectorAll('tbody tr'));
-            const totalRows = rows.length;
-            const totalPages = Math.ceil(totalRows / rowsPerPage);
-
-            // Hide all rows first
-            rows.forEach(row => row.style.display = 'none');
-
-            // Show only rows for current page
-            const start = (currentPage - 1) * rowsPerPage;
-            const end = start + rowsPerPage;
-            for (var i = start; i < end && i < totalRows; i++) {
-                rows[i].style.display = '';
-            }
-
-            // Update pagination info
-            document.getElementById('pageInfo').textContent =
-                'Page ' + currentPage + ' of ' + totalPages + ' (' + totalRows + ' total rows)';
-
-            // Update button states
-            document.getElementById('prevPage').disabled = currentPage === 1;
-            document.getElementById('nextPage').disabled = currentPage === totalPages;
-            document.getElementById('firstPage').disabled = currentPage === 1;
-            document.getElementById('lastPage').disabled = currentPage === totalPages;
+            renderTable();
         }
 
-        // Pagination controls
+        // Pagination controls — renderTable() clamps currentPage to valid range.
         function firstPage() {
             currentPage = 1;
-            updatePagination();
+            renderTable();
         }
 
         function prevPage() {
-            if (currentPage > 1) {
-                currentPage--;
-                updatePagination();
-            }
+            currentPage--;
+            renderTable();
         }
 
         function nextPage() {
-            const table = document.getElementById('dataTable');
-            const rows = table.querySelectorAll('tbody tr');
-            const totalPages = Math.ceil(rows.length / rowsPerPage);
-            if (currentPage < totalPages) {
-                currentPage++;
-                updatePagination();
-            }
+            currentPage++;
+            renderTable();
         }
 
         function lastPage() {
-            const table = document.getElementById('dataTable');
-            const rows = table.querySelectorAll('tbody tr');
-            const totalPages = Math.ceil(rows.length / rowsPerPage);
-            currentPage = totalPages;
-            updatePagination();
+            currentPage = Number.MAX_SAFE_INTEGER;  // clamped to last page in renderTable
+            renderTable();
         }
 
         function changePageSize() {
             const select = document.getElementById('pageSizeSelect');
             rowsPerPage = parseInt(select.value);
             currentPage = 1;  // Reset to first page
-            updatePagination();
+            renderTable();
         }
 
         // Note: All charts are created on page load for immediate availability
@@ -3667,6 +3821,9 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = js_code.replace('__PROPHAGE_PREVALENCE_1F__', f'{samples_with_prophages/total_samples*100:.1f}')
     js_code = js_code.replace('__AVG_PROPHAGES__', f'{avg_prophages:.2f}')
     js_code = js_code.replace('__AVG_PROPHAGES_1F__', f'{avg_prophages:.1f}')
+
+    # Insert the faceted filter bar into the Data Table tab
+    html = html.replace('<!-- FACET_FILTER_BAR -->', facet_filter_html)
 
     # Append JavaScript to HTML
     html += js_code

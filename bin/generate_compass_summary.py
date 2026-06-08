@@ -778,15 +778,25 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         'datastore_provider', 'datastore_region'
     }
 
-    # Get metadata field names that are both in our whitelist AND in the dataframe
-    # NOTE: Only whitelisted metadata fields will appear in the Metadata Explorer dropdown
+    # COMPASS analysis-result columns that ALSO make useful group-by dimensions.
+    # These are derived by the pipeline (QUAST/MLST/SISTR/AMR) and are present
+    # regardless of how rich the input SRA metadata is. Without these, a run
+    # with sparse metadata (e.g. FASTA/assembly input) shows only "organism"
+    # in the Metadata Explorer field dropdown. Single-valued categoricals only —
+    # multi-valued columns (amr_classes, inc_groups, mob_types) are excluded
+    # here because the aggregator buckets on the raw cell value.
+    analysis_grouping_fields = {
+        'mlst_st', 'mlst_scheme', 'serovar', 'mdr_status', 'assembly_quality',
+    }
 
-    # Debug: Print available columns and whitelisted matches
+    # Get metadata field names available for grouping: whitelisted SRA metadata
+    # fields PLUS the COMPASS analysis grouping fields above, that exist in df.
+    # Debug: Print available columns and matches
     available_metadata_cols = [col for col in df.columns if col not in excluded_fields]
     print(f"DEBUG: Available metadata columns in dataframe: {available_metadata_cols}", file=sys.stderr)
 
     metadata_fields = [col for col in df.columns
-                      if col not in excluded_fields and col in metadata_whitelist]
+                      if col in metadata_whitelist or col in analysis_grouping_fields]
 
     print(f"DEBUG: Whitelisted metadata fields found: {metadata_fields}", file=sys.stderr)
 
@@ -865,8 +875,25 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         }
 
     # Generate dropdown options for metadata field selector
+    # Friendly labels for known fields; fall back to title-cased field name.
+    field_display_names = {
+        'mlst_st': 'Sequence Type (ST)',
+        'mlst_scheme': 'MLST Scheme',
+        'mdr_status': 'MDR Status',
+        'assembly_quality': 'Assembly Quality',
+        'serovar': 'Serovar',
+        'organism': 'Organism',
+        'scientificname': 'Scientific Name',
+        'geo_loc_name': 'Geographic Location',
+        'isolation_source': 'Isolation Source',
+        'librarystrategy': 'Library Strategy',
+        'librarysource': 'Library Source',
+        'librarylayout': 'Library Layout',
+        'bioproject': 'BioProject',
+        'biosample': 'BioSample',
+    }
     metadata_field_options = '\n'.join([
-        f'<option value="{field}">{field.replace("_", " ").title()}</option>'
+        f'<option value="{field}">{field_display_names.get(field, field.replace("_", " ").title())}</option>'
         for field in sorted(metadata_aggregations.keys())
     ])
 

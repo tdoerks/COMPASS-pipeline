@@ -3787,7 +3787,8 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = js_code.replace('SEROVAR_COUNTS_PLACEHOLDER', json.dumps(serovar_counts))
 
     # Replace summary statistics placeholders
-    from datetime import datetime
+    # (datetime is imported at module level; a local re-import here previously
+    #  shadowed it and broke the generation_time=None path)
     js_code = js_code.replace('__GENERATION_TIMESTAMP__', datetime.now().isoformat())
     js_code = js_code.replace('__GENERATION_DATETIME__', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     js_code = js_code.replace('__TOTAL_SAMPLES__', str(total_samples))

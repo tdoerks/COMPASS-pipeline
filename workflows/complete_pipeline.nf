@@ -203,8 +203,18 @@ workflow COMPLETE_PIPELINE {
         .collect()
         .map { 'ready' }
 
+    // Select the metadata source handed to the summary report:
+    //   - metadata mode:        full SRA runinfo CSV (40+ fields) via ch_sra_runinfo
+    //   - fasta/assembly modes:  the input samplesheet, which carries 'sample' and
+    //                            'organism' columns so the Metadata Explorer is populated
+    //   - sra_list mode:         no samplesheet metadata -> NO_FILE placeholder
+    ch_summary_metadata = ch_sra_runinfo
+    if (input_mode in ['fasta', 'assembly']) {
+        ch_summary_metadata = Channel.fromPath(params.input)
+    }
+
     COMPASS_SUMMARY(
-        ch_sra_runinfo.ifEmpty(file('NO_FILE')),  // Pass full SRA runinfo CSV (40+ fields) not filtered_samples.csv
+        ch_summary_metadata.ifEmpty(file('NO_FILE')),  // SRA runinfo (metadata mode) or samplesheet (fasta/assembly)
         ch_summary_ready
     )
     ch_versions = ch_versions.mix(COMPASS_SUMMARY.out.versions)

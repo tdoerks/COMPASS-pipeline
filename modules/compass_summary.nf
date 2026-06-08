@@ -26,17 +26,38 @@ process COMPASS_SUMMARY {
     echo ""
 
     # Step 1: Recreate filtered metadata from analyzed samples
+    # This only succeeds for SRA-download modes that populate \${outdir}/metadata.
+    # For FASTA/assembly input there is no metadata/ directory, so this is expected
+    # to fail and we fall back to the staged samplesheet below.
     echo "Step 1: Recreating filtered metadata from analyzed samples..."
     recreate_filtered_metadata.py --outdir ${outdir_abs} || {
-        echo "⚠️  WARNING: Metadata recreation failed, continuing anyway..."
+        echo "⚠️  WARNING: Metadata recreation failed (expected for FASTA/assembly input)"
     }
     echo ""
 
-    # Step 2: Generate comprehensive enhanced HTML report
-    echo "Step 2: Generating enhanced COMPASS summary report..."
+    # Step 2: Pick a metadata source for the summary report.
+    # Preference order:
+    #   1. Recreated filtered_samples.csv  (rich SRA runinfo; metadata/sra_list modes)
+    #   2. Staged metadata file            (input samplesheet for FASTA/assembly modes,
+    #                                        which carries 'sample' and 'organism')
+    echo "Step 2: Selecting metadata source..."
+    META_ARG=""
+    if [ -f "${outdir_abs}/filtered_samples/filtered_samples.csv" ]; then
+        echo "  → Using recreated filtered_samples.csv"
+        META_ARG="--metadata ${outdir_abs}/filtered_samples/filtered_samples.csv"
+    elif [ -s metadata.csv ]; then
+        echo "  → Using staged samplesheet/metadata file (metadata.csv)"
+        META_ARG="--metadata metadata.csv"
+    else
+        echo "  → No metadata source available; Metadata Explorer fields will be omitted"
+    fi
+    echo ""
+
+    # Step 3: Generate comprehensive enhanced HTML report
+    echo "Step 3: Generating enhanced COMPASS summary report..."
     generate_compass_summary.py \\
         --outdir ${outdir_abs} \\
-        --metadata ${outdir_abs}/filtered_samples/filtered_samples.csv \\
+        \$META_ARG \\
         --output_tsv compass_summary.tsv \\
         --output_html compass_summary.html || {
             echo "❌ Summary generation failed, creating minimal outputs"

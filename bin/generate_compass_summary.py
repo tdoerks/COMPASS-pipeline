@@ -2262,9 +2262,9 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         <div class="table-container">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2 style="margin: 0;">Sample Details</h2>
-                <button onclick="exportTableToCSV('compass_summary_export.csv')"
+                <button onclick="exportTableToTSV('compass_summary_export.tsv')"
                         style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1em; transition: background 0.2s;">
-                    📥 Export to CSV
+                    📥 Export to TSV
                 </button>
             </div>
             <!-- FACET_FILTER_BAR -->
@@ -2516,34 +2516,31 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         }
 
         // Export table to CSV
-        function exportTableToCSV(filename) {
+        function exportTableToTSV(filename) {
             const table = document.getElementById('dataTable');
             // Export the header plus only the rows matching the current filters
             const headerRow = table.querySelector('thead tr');
             const rows = [headerRow].concat(getVisibleRows());
-            const csv = [];
+            const tsv = [];
 
             // Process all rows (including header)
             for (var i = 0; i < rows.length; i++) {
                 const row = rows[i];
                 const cols = row.querySelectorAll('td, th');
-                const csvRow = [];
+                const tsvRow = [];
 
                 for (var j = 0; j < cols.length; j++) {
-                    // Get cell text and escape quotes
-                    var cellText = cols[j].textContent.replace(/"/g, '""');
-                    // Wrap in quotes if contains comma, quote, or newline
-                    if (cellText.includes(',') || cellText.includes('"') || cellText.includes('\\n')) {
-                        cellText = '"' + cellText + '"';
-                    }
-                    csvRow.push(cellText);
+                    // Tabs and newlines are the TSV delimiters, so flatten any
+                    // that appear inside a cell to single spaces to keep columns aligned
+                    var cellText = cols[j].textContent.replace(/[\\t\\r\\n]+/g, ' ').trim();
+                    tsvRow.push(cellText);
                 }
-                csv.push(csvRow.join(','));
+                tsv.push(tsvRow.join('\\t'));
             }
 
             // Create download link
-            const csvContent = csv.join('\\n');
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const tsvContent = tsv.join('\\n');
+            const blob = new Blob([tsvContent], { type: 'text/tab-separated-values;charset=utf-8;' });
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
 

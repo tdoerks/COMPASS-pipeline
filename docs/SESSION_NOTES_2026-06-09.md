@@ -20,22 +20,43 @@ COMPASS summary regenerated successfully; the field dropdown now lists
 organism, sequence type, MDR status, assembly quality, etc. (not just
 organism). The June 8 fix (`783ecea`) is validated on real output.
 
-### 2. PHINDER overnight run — found it had FAILED, fixed root cause
+### 2. PHINDER CheckV crash — fully diagnosed (took 3 hypotheses; **real cause: DIAMOND db/binary build skew**)
 - Job **9425907** (`phinder_3phages`) **FAILED** (exit 1) after ~2h49m. No
   email because the submission script had no `--mail-*` directives.
-- Root cause (from `phinder_3phages_9425907.log`): **CheckV** died at the
-  completeness step — `[3/8] Running DIAMOND blastp search... DIAMOND task
-  failed.` All 3 samples failed at the same point → not transient.
-- Real cause: `checkv_db` pointed at **`/homes/`** (NFS). DIAMOND blastp needs
-  fast random disk; the contamination step (HMMER, sequential) passed but
-  completeness (DIAMOND) consistently failed. The pharokka + prophage DBs were
-  already on `/fastscratch/`.
+- Symptom (consistent across all 3 samples, from `.command.err`): **CheckV**
+  contamination (HMMER) completes fine, then completeness dies immediately at
+  `[3/8] Running DIAMOND blastp search... DIAMOND task failed. Program should
+  be rerun.`
 
-**Fixes pushed to PHINDER `main`:**
-- `nextflow.config`: `checkv_db` `/homes/...` → `/fastscratch/tylerdoe/databases/checkv-db-v1.5`
-- `bin/run_phinder_3phages_beocat.sh`: added `--mail-user` + `--mail-type=END,FAIL`
-- Copied the CheckV DB to `/fastscratch/` (genome_db/ + hmm_db/ present)
-- Resubmitted → job **9429044** (running on warlock33, `-resume` reusing all
+**Hypotheses tried — first two were WRONG (documented so we don't repeat):**
+1. ❌ **DB on NFS `/homes/`** — moved CheckV DB to `/fastscratch/`. No change.
+   (Both `/homes` and `/fastscratch` are NFS anyway.)
+2. ❌ **DIAMOND temp on NFS** — `bin/diagnose_checkv_diamond.sh` ran the exact
+   failing blastp by hand with temp on local `/tmp` vs NFS `/fastscratch`:
+   **both passed** (exit 0, 28138 alignments). Filesystem ruled out.
+3. ✅ **DIAMOND db/binary build skew** — the *real* cause. The shipped
+   `checkv_reps.dmnd` was built with DIAMOND **build 167**; the
+   `checkv:1.0.2` container bundles DIAMOND **build 162** (`v2.1.8.162`).
+   `diamond dbinfo` reads the header fine (which masked it), but `blastp`
+   needs index structures the older binary can't parse → the generic
+   "DIAMOND task failed." HMMER never touches DIAMOND, so contamination
+   always worked.
+
+**The fix (already applied):** rebuild `checkv_reps.dmnd` from the shipped
+`checkv_reps.faa` using the *container's own* `diamond makedb`, so db build
+matches the binary. After rebuild, manual blastp passes on both local and NFS
+temp → confirmed.
+
+**Pushed to PHINDER `main`:**
+- `nextflow.config`: `checkv_db` `/homes/...` → `/fastscratch/...` (kept; on
+  fast(er) storage even though it wasn't the bug)
+- `bin/run_phinder_3phages_beocat.sh`: added `--mail-*`, then corrected the
+  address to **tdoerks@vet.k-state.edu** (had grabbed Tyler's gmail from session context)
+- `bin/diagnose_checkv_diamond.sh`: the A/B blastp temp-location diagnostic
+- `docs/DATABASE_SETUP.md`: documented the **required one-time `.dmnd` rebuild**
+  so fresh CheckV DB installs don't hit this
+- Resubmitted with rebuilt db → job **9429958**
+- (superseded earlier resubmit job **9429044** on warlock33 — `-resume` reusing all
   cached upstream steps; only CHECKV/PHAROKKA/PHANOTATE/MULTIQC/SUMMARY rerun)
 
 ### 3. Virulence factor tracking added to COMPASS (the big one)
@@ -59,6 +80,16 @@ classes / MDR-status calc were computed over **all** element types — virulence
 genes leaked into the "top AMR genes" chart, and STRESS (biocide/metal) +
 POINT classes inflated the MDR class count. Now AMR rows only.
 
+### 4. COMPASS dashboard export: CSV → TSV (commit `213d4dd`)
+Verified the paper's section 1.5 against the code — accurate except the export
+claim. Paper says "download filtered datasets as **TSV**", but the dashboard
+button emitted **CSV** (`exportTableToCSV`, comma-joined, `.csv`). Switched it
+to true TSV (`exportTableToTSV`, tab-joined, `.tsv`, `text/tab-separated-values`;
+in-cell tabs/newlines flattened to spaces). Still exports only the filtered
+(`getVisibleRows`) set. Now matches the paper *and* the pipeline's own
+`compass_summary.tsv`. (Manuscript nit to fix on their side: doubled "download"
+in that sentence.)
+
 ---
 
 ## 🧪 Verification
@@ -76,24 +107,29 @@ POINT classes inflated the MDR class count. Now AMR rows only.
 
 **COMPASS (`1.0.1-candidate-fasta-fix`):**
 - `99bc1de` — Add virulence factor tracking (parse AMRFinder --plus VIRULENCE rows)
+- `213d4dd` — Dashboard export: emit TSV instead of CSV (matches paper + pipeline output)
 
 **PHINDER (`main`):**
 - `444033c` — Add SLURM email notifications (END,FAIL) to 3phages script
-- `ea4bd05` — Fix CheckV DB path: /homes/ (NFS) → /fastscratch/ to fix DIAMOND failures
+- `ea4bd05` — Fix CheckV DB path: /homes/ → /fastscratch/ (kept, but NOT the bug)
+- `a4bf362` — Add CheckV DIAMOND completeness diagnostic script
+- `f5b0ea1` — Fix SLURM notification email → tdoerks@vet.k-state.edu
+- `ba109da` — Document required CheckV DIAMOND db rebuild (build-version skew fix)
 
 ---
 
 ## 🚀 Next Steps
 
 ### Immediate
-- [ ] Watch PHINDER **job 9429044** — confirm CHECKV gets past `[3/8] DIAMOND
-      blastp` to `[8/8] Writing results` on all 3 samples (the fix proof).
-      Running in `killable` partition on warlock33 — may get preempted; resume
-      will recover from cache.
+- [ ] Watch PHINDER **job 9429958** (resubmit with rebuilt db + correct email)
+      — confirm CHECKV now gets past `[3/8] DIAMOND blastp` to `[8/8] Writing
+      results` on all 3 samples, then PHAROKKA/PHANOTATE/MULTIQC/SUMMARY flow
+      to completion. This is the build-skew fix proof.
 - [ ] Watch COMPASS validation **job 9429084** (ETEC clean-clone) → open
       `compass_summary.html` → confirm the new **Virulence Factors** tab
-      populates (ETEC carries `stx`, `eae`, `est`/`elt`), and check the
-      Data Table columns / facet / Metadata Explorer metric.
+      populates (ETEC carries `stx`, `eae`, `est`/`elt`), check the
+      Data Table columns / facet / Metadata Explorer metric, and that the
+      **Export** button now downloads a `.tsv`.
 
 ### ⚠️ Sanity check
 - [ ] Because of the MDR latent-bug fix, MDR counts *could* shift slightly vs
@@ -108,9 +144,16 @@ POINT classes inflated the MDR class count. Now AMR rows only.
 
 ## 🔑 Lessons / Patterns
 
-- **DB location matters on HPC.** A DIAMOND-backed tool failing only at its
-  blastp step, consistently, on every sample → suspect the DB filesystem, not
-  the data. NFS (`/homes/`) vs scratch (`/fastscratch/`) was the whole bug.
+- **Reproduce the failing step in isolation before theorizing.** We burned two
+  hypotheses (DB-on-NFS, DIAMOND-temp-on-NFS) on the CheckV crash. The thing
+  that actually settled it was running the exact `diamond blastp` by hand
+  (`bin/diagnose_checkv_diamond.sh`) — local vs NFS temp *both passed*, killing
+  the filesystem theory instantly. Should have done that first.
+- **`dbinfo` passing ≠ db is usable.** `diamond dbinfo` reads only the header,
+  so it green-lit a `.dmnd` that `blastp` couldn't use. The real tell was the
+  **build numbers**: db build 167 vs container binary build 162. A wrapper
+  tool's generic error ("DIAMOND task failed") hides the version skew — check
+  builds, don't trust a header read.
 - **`--plus` ≠ surfaced.** AMRFinder was producing virulence calls the whole
   time; the data was on disk, just filtered out at parse. Verify the parser,
   not just the tool flags, before assuming a feature is missing.
@@ -120,9 +163,12 @@ POINT classes inflated the MDR class count. Now AMR rows only.
 
 ---
 
-**Session End Status:** Virulence tracking implemented, tested, pushed; PHINDER
-CheckV DB-path bug fixed + email added; two validation jobs in flight
-(COMPASS 9429084, PHINDER 9429044) awaiting real-data confirmation.
+**Session End Status:** COMPASS — virulence tracking + TSV export implemented,
+tested, pushed (section 1.5 of the paper now accurate). PHINDER — CheckV crash
+root-caused to DIAMOND db/binary build skew (build 167 vs 162), db rebuilt,
+rebuild step documented, notification email corrected. Validation jobs in
+flight: COMPASS **9429084** (ETEC) and PHINDER **9429958** (rebuilt db),
+awaiting real-data confirmation.
 
 **Last Updated:** 2026-06-09
 **Maintained By:** Tyler Doerksen

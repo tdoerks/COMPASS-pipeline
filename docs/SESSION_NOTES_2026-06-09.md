@@ -163,12 +163,70 @@ in that sentence.)
 
 ---
 
-**Session End Status:** COMPASS — virulence tracking + TSV export implemented,
-tested, pushed (section 1.5 of the paper now accurate). PHINDER — CheckV crash
-root-caused to DIAMOND db/binary build skew (build 167 vs 162), db rebuilt,
-rebuild step documented, notification email corrected. Validation jobs in
-flight: COMPASS **9429084** (ETEC) and PHINDER **9429958** (rebuilt db),
-awaiting real-data confirmation.
+## 6. PHINDER long-read / hybrid assembly — Phase 1 implemented (`feature/long-reads`)
+
+Decided to add long-read + hybrid assembly to PHINDER (in-scope for a phage
+isolate pipeline; kept SPAdes on `main` for short reads, untouched).
+
+**Branch audit first:**
+- `feature/unicycler-assembly` — dead (0 unique commits, 13 behind). PHINDER
+  started on Unicycler, abandoned it (commit `028d43c9`) after persistent
+  **SIGSEGV (signal -11)** crashes in Unicycler's internal SPAdes on Lambda
+  data → switched to bare SPAdes for stability. Recommend deleting this branch.
+- `feature/long-reads` — had a good planning doc but was 20 commits behind main.
+  **Refreshed onto current main**, then rewrote the plan.
+
+**Key design decision: assembler = Flye → Medaka → Polypolish (NOT Unicycler).**
+The crash history is too clear to design hybrid around Unicycler. Flye is solid
+for phage-sized genomes and avoids the segfault; it's also what Unicycler's own
+author now recommends. Pure-long-read = Flye+Medaka; hybrid = + Polypolish.
+
+**Phase 1 (pure long-read) IMPLEMENTED & pushed to `feature/long-reads`:**
+- `modules/nanoplot.nf` (long-read QC), `modules/flye.nf`, `modules/medaka.nf`
+- `workflows/phinder_pipeline.nf`: new `input_mode='long_reads'` path —
+  NanoPlot → Flye → Medaka (nanopore only; PacBio HiFi passes through) → the
+  existing downstream (CheckV/Pharokka/VIBRANT/DIAMOND/Phanotate/Summary, which
+  already take a FASTA, so reused unchanged)
+- `nextflow.config`: params + NANOPLOT/FLYE/MEDAKA resource blocks
+- `samplesheet_longreads.csv`, `bin/simulate_longreads.sh` (Badread dev data)
+
+**Test data finding:** PRJEB56639 (the benchmark study's data) has Illumina +
+Nanopore + PacBio but it's a mock *community* ("viral metagenome"), not isolates
+— benchmark fit, not a clean isolate test. Dev plan: simulate Nanopore reads
+from Lambda/T4/T7 (Badread) for ground-truth wiring; find a real paired-platform
+phage *isolate* on SRA for validation (TODO).
+
+**⚠️ Phase 1 is UNTESTED.** Pre-run checklist is in `docs/LONG_READS_PLAN.md`:
+verify every container tag resolves (build-hash suffixes are best-guess — same
+lesson as Pharokka 404 / CheckV skew), simulate test data, run one phage.
+
+---
+
+## 🚧 Open / pick up tomorrow
+
+1. **PHINDER CheckV (job 9429958) — NOT fully clear yet.** With the rebuilt db,
+   the table moved to `CHECKV 1 of 3` (one sample passed — progress!) but
+   `SRR5131136` still threw exit 1 and retried. Grab the **new** `.command.err`
+   for that sample's failed work dir — could be a different cause now (that
+   sample's data) or the build-skew fix is partial. Don't assume it's solved.
+2. **COMPASS validation 9429084 (ETEC)** — verify Virulence Factors tab
+   populates + Export button yields `.tsv` once it lands.
+3. **PHINDER long-read Phase 1** — verify container tags, simulate test data,
+   run one simulated phage end-to-end through the `long_reads` path.
+4. **Phase 2 — hybrid** (`polypolish.nf`, `input_mode='hybrid'`); pick a
+   Polypolish container that also has a short-read aligner (bwa/bwa-mem2).
+5. **MDR sanity check** on COMPASS regen (AMR class fix may shift counts).
+6. **clostridium job 8759774** — 26 days running; decide keep vs kill.
+7. **Cleanup:** delete dead `feature/unicycler-assembly` branch.
+
+---
+
+**Session End Status:** COMPASS — virulence tracking + TSV export done, tested,
+pushed (paper §1.5 now accurate). PHINDER — CheckV build-skew root-caused + db
+rebuilt + documented (but job 9429958 not yet a clean 3/3 — one sample still
+erroring, revisit). Long-read/hybrid: `feature/long-reads` refreshed, Flye-stack
+decided, **Phase 1 implemented but untested**. Jobs in flight: COMPASS 9429084,
+PHINDER 9429958.
 
 **Last Updated:** 2026-06-09
 **Maintained By:** Tyler Doerksen

@@ -275,18 +275,26 @@ def parse_amrfinder(amr_dir):
                         'num_point_mutations': 0,
                         'amr_classes': '-',
                         'mdr_status': 'No',
-                        'top_amr_genes': '-'
+                        'top_amr_genes': '-',
+                        'num_virulence_genes': 0,
+                        'top_virulence_genes': '-'
                     }
                 else:
-                    # Count genes vs point mutations
-                    genes = df[df['Element type'] == 'AMR'] if 'Element type' in df.columns else df
-                    mutations = df[df['Element type'] == 'POINT'] if 'Element type' in df.columns else pd.DataFrame()
+                    # Split rows by Element type. AMRFinderPlus (--plus) reports
+                    # AMR genes, POINT mutations, VIRULENCE factors, and STRESS
+                    # response genes in a single table; keep each separate so
+                    # virulence factors are tracked without polluting AMR counts.
+                    has_type = 'Element type' in df.columns
+                    genes = df[df['Element type'] == 'AMR'] if has_type else df
+                    mutations = df[df['Element type'] == 'POINT'] if has_type else pd.DataFrame()
+                    virulence = df[df['Element type'] == 'VIRULENCE'] if has_type else pd.DataFrame()
 
-                    # Get AMR classes
+                    # Get AMR classes (from AMR rows only, not STRESS/VIRULENCE,
+                    # so MDR status reflects true antimicrobial resistance)
                     classes = []
-                    if 'Class' in df.columns:
-                        classes = [c for c in df['Class'].dropna().unique() if str(c) != 'nan']
-                    else:
+                    if 'Class' in genes.columns:
+                        classes = [c for c in genes['Class'].dropna().unique() if str(c) != 'nan']
+                    elif 'Class' not in df.columns:
                         # Debug: Warn if Class column is missing
                         if len(amr_data) < 5:  # Only print for first few samples to avoid spam
                             print(f"Warning: 'Class' column not found in AMRFinder results for {sample_id}", file=sys.stderr)
@@ -295,18 +303,26 @@ def parse_amrfinder(amr_dir):
                     # Determine MDR status (≥3 classes)
                     mdr_status = 'Yes' if len(classes) >= 3 else 'No'
 
-                    # Get top genes
+                    # Get top AMR genes (AMR rows only)
                     top_genes = []
-                    if 'Gene symbol' in df.columns:
-                        gene_counts = Counter(df['Gene symbol'].dropna())
+                    if 'Gene symbol' in genes.columns:
+                        gene_counts = Counter(genes['Gene symbol'].dropna())
                         top_genes = [gene for gene, count in gene_counts.most_common(5)]
+
+                    # Get top virulence factor genes (VIRULENCE rows only)
+                    top_vir_genes = []
+                    if 'Gene symbol' in virulence.columns:
+                        vir_counts = Counter(virulence['Gene symbol'].dropna())
+                        top_vir_genes = [gene for gene, count in vir_counts.most_common(5)]
 
                     amr_data[sample_id] = {
                         'num_amr_genes': len(genes),
                         'num_point_mutations': len(mutations),
                         'amr_classes': ', '.join(sorted(classes)) if classes else '-',
                         'mdr_status': mdr_status,
-                        'top_amr_genes': ', '.join(top_genes) if top_genes else '-'
+                        'top_amr_genes': ', '.join(top_genes) if top_genes else '-',
+                        'num_virulence_genes': len(virulence),
+                        'top_virulence_genes': ', '.join(top_vir_genes) if top_vir_genes else '-'
                     }
             except Exception as e:
                 print(f"Warning: Could not parse AMRFinder results for {amr_file}: {e}", file=sys.stderr)
@@ -618,6 +634,15 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         total_amr_genes = 0
         samples_with_amr = 0
 
+    # Virulence factor statistics (AMRFinderPlus --plus VIRULENCE rows)
+    if 'num_virulence_genes' in df.columns:
+        total_virulence_genes = int(df['num_virulence_genes'].replace('-', 0).fillna(0).astype(float).sum())
+        samples_with_virulence = len(df[df['num_virulence_genes'].replace('-', 0).fillna(0).astype(float) > 0])
+    else:
+        total_virulence_genes = 0
+        samples_with_virulence = 0
+    virulence_prevalence = (samples_with_virulence / total_samples * 100) if total_samples > 0 else 0
+
     # Plasmid statistics - ensure numeric values
     if 'num_plasmids' in df.columns:
         total_plasmids = int(df['num_plasmids'].replace('-', 0).fillna(0).astype(float).sum())
@@ -664,6 +689,21 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     # Get AMR class distribution for pie chart
     amr_class_labels = [cls for cls, count in amr_class_counter.most_common()]
     amr_class_counts = [count for cls, count in amr_class_counter.most_common()]
+
+    # Prepare Virulence factor data for visualization
+    # Parse top_virulence_genes column to get gene frequency across samples
+    virulence_gene_counter = Counter()
+    for _, row in df.iterrows():
+        vir_str = row.get('top_virulence_genes', '-')
+        if vir_str and vir_str != '-':
+            for gene in [g.strip() for g in str(vir_str).split(',')]:
+                if gene:  # Skip empty strings
+                    virulence_gene_counter[gene] += 1
+
+    # Get top 15 virulence factor genes for bar chart
+    top_virulence_genes_chart = virulence_gene_counter.most_common(15)
+    virulence_gene_labels = [gene for gene, count in top_virulence_genes_chart]
+    virulence_gene_counts = [count for gene, count in top_virulence_genes_chart]
 
     # Prepare Plasmid Analysis data for visualizations
     inc_group_counter = Counter()
@@ -824,7 +864,8 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             'mdr_samples': 0,
             'amr_gene_sum': 0,
             'prophage_sum': 0,
-            'plasmid_sum': 0
+            'plasmid_sum': 0,
+            'virulence_sum': 0
         })
 
         for _, row in df.iterrows():
@@ -861,6 +902,14 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     except (ValueError, TypeError):
                         pass
 
+                # Sum virulence factors
+                num_virulence = row.get('num_virulence_genes', 0)
+                if num_virulence and num_virulence != '-':
+                    try:
+                        field_data[field_val_str]['virulence_sum'] += int(num_virulence)
+                    except (ValueError, TypeError):
+                        pass
+
         # Store aggregation for this field
         # Sort by sample count (descending) and take top 15 for performance
         sorted_values = sorted(field_data.items(), key=lambda x: x[1]['total_samples'], reverse=True)[:15]
@@ -871,7 +920,8 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             'mdr_counts': [item[1]['mdr_samples'] for item in sorted_values],
             'amr_gene_sums': [item[1]['amr_gene_sum'] for item in sorted_values],
             'prophage_sums': [item[1]['prophage_sum'] for item in sorted_values],
-            'plasmid_sums': [item[1]['plasmid_sum'] for item in sorted_values]
+            'plasmid_sums': [item[1]['plasmid_sum'] for item in sorted_values],
+            'virulence_sums': [item[1]['virulence_sum'] for item in sorted_values]
         }
 
     # Generate dropdown options for metadata field selector
@@ -1537,6 +1587,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <button class="tab-button active" onclick="switchTab(event, 'overview')">Overview</button>
             <button class="tab-button" onclick="switchTab(event, 'quality-control')">Quality Control</button>
             <button class="tab-button" onclick="switchTab(event, 'amr-analysis')">AMR Analysis</button>
+            <button class="tab-button" onclick="switchTab(event, 'virulence-analysis')">Virulence Factors</button>
             <button class="tab-button" onclick="switchTab(event, 'plasmid-analysis')">Plasmid Analysis</button>
             <button class="tab-button" onclick="switchTab(event, 'prophage-functional')">Prophage Functional Diversity</button>
             <button class="tab-button" onclick="switchTab(event, 'metadata-explorer')">Metadata Explorer</button>
@@ -1655,6 +1706,35 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         </div>
     </div>
 
+    <!-- Virulence Factors Tab -->
+    <div id="virulence-analysis" class="tab-content">
+        <div class="summary-grid" style="margin-bottom: 30px;">
+            <div class="summary-card">
+                <h3>Total Virulence Factors</h3>
+                <div class="value">{total_virulence_genes}</div>
+                <div class="subtext">Across {samples_with_virulence} samples</div>
+            </div>
+            <div class="summary-card">
+                <h3>Samples with VFs</h3>
+                <div class="value">{samples_with_virulence}</div>
+                <div class="subtext">{virulence_prevalence:.1f}% of total</div>
+            </div>
+            <div class="summary-card">
+                <h3>Unique VF Genes</h3>
+                <div class="value">{len(virulence_gene_counter)}</div>
+                <div class="subtext">Detected across dataset</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h2>Top 15 Virulence Factor Genes</h2>
+            <p style="color: #666; margin-bottom: 20px;">Most frequently detected virulence factors (AMRFinderPlus) across all samples</p>
+            <div class="chart-wrapper">
+                <canvas id="virulenceGenesBarChart"></canvas>
+            </div>
+        </div>
+    </div>
+
     <!-- Plasmid Analysis Tab -->
     <div id="plasmid-analysis" class="tab-content">
         <div class="summary-grid" style="margin-bottom: 30px;">
@@ -1756,6 +1836,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                         <option value="count">Sample Count</option>
                         <option value="mdr_rate">MDR Rate (%)</option>
                         <option value="amr_gene_count">Avg AMR Genes</option>
+                        <option value="virulence_count">Avg Virulence Factors</option>
                         <option value="prophage_count">Avg Prophages</option>
                         <option value="plasmid_count">Avg Plasmids</option>
                     </select>
@@ -2140,6 +2221,11 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         facet_parts.append('''
                 <div class="facet-group facet-check">
                     <label class="facet-label"><input type="checkbox" class="facet" data-col="num_plasmids" data-mode="presence" onchange="applyFilters()"> Has plasmid</label>
+                </div>''')
+    if 'num_virulence_genes' in df.columns:
+        facet_parts.append('''
+                <div class="facet-group facet-check">
+                    <label class="facet-label"><input type="checkbox" class="facet" data-col="num_virulence_genes" data-mode="presence" onchange="applyFilters()"> Has virulence factor</label>
                 </div>''')
 
     facet_controls = ''.join(p for p in facet_parts if p)
@@ -2529,6 +2615,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             const chartIds = [
                 'amrGenesBarChart',
                 'amrClassPieChart',
+                'virulenceGenesBarChart',
                 'mdrComparisonChart',
                 'incGroupsBarChart',
                 'mobilityPieChart',
@@ -2794,6 +2881,14 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                     metricLabel = 'Avg AMR Genes';
                     yAxisLabel = 'Average AMR Genes per Sample';
                     break;
+                case 'virulence_count':
+                    // Calculate average virulence factors per sample
+                    chartData = fieldData.counts.map((count, idx) => {
+                        return count > 0 ? (fieldData.virulence_sums[idx] / count).toFixed(1) : 0;
+                    });
+                    metricLabel = 'Avg Virulence Factors';
+                    yAxisLabel = 'Average Virulence Factors per Sample';
+                    break;
                 case 'prophage_count':
                     // Calculate average prophages per sample
                     chartData = fieldData.counts.map((count, idx) => {
@@ -2968,6 +3063,53 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 }
             }
         });
+
+        // Virulence Factor Genes Bar Chart
+        const virulenceGeneLabels = VIRULENCE_GENE_LABELS_PLACEHOLDER;
+        const virulenceGeneCounts = VIRULENCE_GENE_COUNTS_PLACEHOLDER;
+
+        const virulenceGenesCanvas = document.getElementById('virulenceGenesBarChart');
+        if (virulenceGenesCanvas && virulenceGeneLabels.length > 0) {
+            const virulenceGenesCtx = virulenceGenesCanvas.getContext('2d');
+            const virulenceGenesBar = new Chart(virulenceGenesCtx, {
+                type: 'bar',
+                data: {
+                    labels: virulenceGeneLabels,
+                    datasets: [{
+                        label: 'Number of Samples',
+                        data: virulenceGeneCounts,
+                        backgroundColor: '#dd6b20',
+                        borderColor: '#c05621',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Samples'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Virulence Factor Gene'
+                            }
+                        }
+                    }
+                }
+            });
+        }
 
         // AMR Class Pie Chart
         const amrClassLabels = AMR_CLASS_LABELS_PLACEHOLDER;
@@ -3632,6 +3774,10 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = js_code.replace('AMR_GENE_COUNTS_PLACEHOLDER', json.dumps(amr_gene_counts))
     js_code = js_code.replace('AMR_CLASS_LABELS_PLACEHOLDER', json.dumps(amr_class_labels))
     js_code = js_code.replace('AMR_CLASS_COUNTS_PLACEHOLDER', json.dumps(amr_class_counts))
+
+    # Virulence factor data
+    js_code = js_code.replace('VIRULENCE_GENE_LABELS_PLACEHOLDER', json.dumps(virulence_gene_labels))
+    js_code = js_code.replace('VIRULENCE_GENE_COUNTS_PLACEHOLDER', json.dumps(virulence_gene_counts))
     # Replace NON_MDR first to avoid partial match with MDR_SAMPLES_PLACEHOLDER
     js_code = js_code.replace('NON_MDR_SAMPLES_PLACEHOLDER', str(total_samples - mdr_samples))
     js_code = js_code.replace('MDR_SAMPLES_PLACEHOLDER', str(mdr_samples))
@@ -4033,7 +4179,9 @@ def main():
                 'num_point_mutations': 0,
                 'amr_classes': '-',
                 'mdr_status': 'No',
-                'top_amr_genes': '-'
+                'top_amr_genes': '-',
+                'num_virulence_genes': 0,
+                'top_virulence_genes': '-'
             })
 
         # Mobile elements

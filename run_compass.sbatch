@@ -44,7 +44,13 @@ export NXF_OPTS='-Xms1g -Xmx4g'
 # Resolve sample paths against the submit dir (falls back to PWD if run interactively).
 : "${SLURM_SUBMIT_DIR:=$PWD}"
 
-PIPELINE="$HOME/COMPASS-pipeline/main.nf"
+# Use main.nf from the submit dir if present (i.e. you cloned the pipeline here),
+# otherwise fall back to ~/COMPASS-pipeline.
+if [ -f "${SLURM_SUBMIT_DIR}/main.nf" ]; then
+    PIPELINE="${SLURM_SUBMIT_DIR}/main.nf"
+else
+    PIPELINE="$HOME/COMPASS-pipeline/main.nf"
+fi
 INPUT="${SLURM_SUBMIT_DIR}/mic_campy/by_organism/Campylobacter_jejuni.csv"
 PROPHAGE_DB="/homes/tylerdoe/databases/prophage_db.dmnd"
 OUTDIR="${SLURM_SUBMIT_DIR}/results_campy"

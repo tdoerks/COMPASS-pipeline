@@ -5,12 +5,16 @@
 # The Nextflow orchestrator runs HERE (inside this batch job, not on the login
 # node) and submits one SLURM job per pipeline task via -profile beocat.
 #
-# Submit:   sbatch run_compass.sbatch
+# Submit FROM the directory that contains your mic_* samplesheet folder:
+#     sbatch run_compass.sbatch
 # Watch:    squeue -u $USER ;  tail -f compass.stdout.*
 #
-# NOTE: compare the #SBATCH lines below with a wrapper you already run
-# successfully on your account (e.g. run_arbor.sbatch) and reconcile the
-# partition / --gres / account bits — those are cluster/account specific.
+# Paths below resolve against $SLURM_SUBMIT_DIR (the dir you submit from), so it
+# works whether that's on /fastscratch, /homes, etc. Only PIPELINE + PROPHAGE_DB
+# are absolute.
+#
+# NOTE: reconcile the #SBATCH partition / --gres / account lines with a wrapper
+# that already runs on your account (e.g. run_arbor.sbatch).
 # ---------------------------------------------------------------------------
 #SBATCH -N 1
 #SBATCH -n 2
@@ -36,11 +40,23 @@ export NXF_OPTS='-Xms1g -Xmx4g'
 # Strongly recommended at this volume — get a key at NCBI > Account > Settings.
 # export NCBI_API_KEY=your_key_here
 
-# --- Run parameters (edit these) -------------------------------------------
+# --- Run parameters --------------------------------------------------------
+# Resolve sample paths against the submit dir (falls back to PWD if run interactively).
+: "${SLURM_SUBMIT_DIR:=$PWD}"
+
 PIPELINE="$HOME/COMPASS-pipeline/main.nf"
-INPUT="$HOME/beocat/mic_campy/by_organism/Campylobacter_jejuni.csv"
+INPUT="${SLURM_SUBMIT_DIR}/mic_campy/by_organism/Campylobacter_jejuni.csv"
 PROPHAGE_DB="/homes/tylerdoe/databases/prophage_db.dmnd"
-OUTDIR="$HOME/beocat/results_campy"
+OUTDIR="${SLURM_SUBMIT_DIR}/results_campy"
+
+cd "$SLURM_SUBMIT_DIR"
+
+echo "Pipeline:    $PIPELINE"
+echo "Input:       $INPUT"
+echo "Prophage DB: $PROPHAGE_DB"
+echo "Outdir:      $OUTDIR"
+[ -f "$INPUT" ] || { echo "ERROR: samplesheet not found: $INPUT"; exit 1; }
+[ -f "$PROPHAGE_DB" ] || { echo "ERROR: prophage db not found: $PROPHAGE_DB"; exit 1; }
 
 # --- Launch -----------------------------------------------------------------
 # --skip_busco to start fast; to enable BUSCO, drop it and add

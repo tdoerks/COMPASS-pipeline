@@ -19,6 +19,7 @@ Output:
 import csv
 import json
 import os
+import re
 import sys
 
 COMPASS_TSV  = os.environ.get('COMPASS_TSV',  'results_mic_ecoli_6k/summary/compass_summary.tsv')
@@ -89,6 +90,14 @@ def merge(compass, mic, sir_cols):
         for s in sir_cols:
             v = mrow.get(s, '').strip()
             rec[s] = v if v in ('S', 'I', 'R') else ''
+        # Shiga toxin (stx) classification from top_virulence_genes
+        _vf = crow.get('top_virulence_genes', '') or ''
+        _has1 = bool(re.search(r'\bstx\w*1\b', _vf, re.IGNORECASE))
+        _has2 = bool(re.search(r'\bstx\w*2\b', _vf, re.IGNORECASE))
+        rec['stx_status'] = ('stx1+stx2' if _has1 and _has2 else
+                             'stx1' if _has1 else 'stx2' if _has2 else 'negative')
+        rec['stx_genes'] = ', '.join(g.strip() for g in _vf.split(',')
+                                      if g.strip().lower().startswith('stx'))
         records.append(rec)
     print(f'Merged: {len(records)} records')
     return records
@@ -151,7 +160,8 @@ def mlst_summary(records, top_n=20):
 def build_html(records, sir_cols, res_summary, mlst_sum, out_path):
     # Slim records for table (all fields)
     table_cols = ['id','organism','mlst_st','num_prophages','num_lytic','num_lysogenic',
-                  'num_amr_genes','num_plasmids','mdr_status','assembly_quality','strain']
+                  'num_amr_genes','num_plasmids','mdr_status','assembly_quality','strain',
+                  'stx_status','stx_genes']
     table_rows = [{c: r.get(c,'') for c in table_cols} for r in records]
 
     # For boxplot data per drug: send full lists
@@ -180,6 +190,16 @@ def build_html(records, sir_cols, res_summary, mlst_sum, out_path):
     phage_hist = Counter(int(v) for v in phage_vals)
     phage_hist_data = [{'bin': k, 'count': v} for k, v in sorted(phage_hist.items()) if k <= 20]
 
+    # Shiga toxin summary
+    stx_counts = Counter(r.get('stx_status', 'negative') for r in records)
+    stx_summary = {
+        'stx1':     stx_counts.get('stx1', 0),
+        'stx2':     stx_counts.get('stx2', 0),
+        'stx1+stx2': stx_counts.get('stx1+stx2', 0),
+        'negative': stx_counts.get('negative', 0),
+        'n_positive': stx_counts.get('stx1', 0) + stx_counts.get('stx2', 0) + stx_counts.get('stx1+stx2', 0),
+    }
+
     payload = {
         'records': records,
         'table_rows': table_rows,
@@ -200,6 +220,7 @@ def build_html(records, sir_cols, res_summary, mlst_sum, out_path):
             'n_antibiotics': len(sir_cols),
         },
         'sir_cols': [c[4:] for c in sir_cols],
+        'stx_summary': stx_summary,
     }
 
     html = HTML_TEMPLATE.replace('__DATA__', json.dumps(payload, separators=(',', ':')))
@@ -249,6 +270,9 @@ tr:hover td{background:var(--panel2)}
 .badge{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:600}
 .S{background:#052e16;color:var(--S)}.I{background:#422006;color:var(--I)}.R{background:#450a0a;color:var(--R)}
 .Yes{background:#450a0a;color:var(--danger)}.No{background:#052e16;color:var(--ok)}
+.stx-chip{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:600}
+.stx-pos1{background:#422006;color:#f59e0b}.stx-pos2{background:#450a0a;color:#ef4444}
+.stx-both{background:#2d1b69;color:#a855f7}.stx-neg{background:#1e2a38;color:var(--muted)}
 .axis text{fill:var(--muted);font-size:11px}.axis path,.axis line{stroke:var(--line)}
 .grid line{stroke:var(--line);stroke-opacity:.5}
 .empty{color:var(--muted);text-align:center;padding:40px}
@@ -282,6 +306,11 @@ tr:hover td{background:var(--panel2)}
   <div class="two-col">
     <div class="card"><h3>Prophage burden distribution</h3><div id="phage-hist"></div></div>
     <div class="card"><h3>MDR status</h3><div id="mdr-pie"></div></div>
+  </div>
+  <div class="card">
+    <h3>Shiga Toxin (stx) Status</h3>
+    <div id="stx-kpis" class="kpis" style="margin-bottom:12px"></div>
+    <div id="stx-bar"></div>
   </div>
 </section>
 
@@ -353,6 +382,8 @@ tr:hover td{background:var(--panel2)}
       <input type="text" id="tbl-search" placeholder="Search sample ID, ST, organism..." style="width:280px"/>
       <label>MDR</label>
       <select id="tbl-mdr"><option value="">All</option><option>Yes</option><option>No</option></select>
+      <label>stx</label>
+      <select id="tbl-stx"><option value="">All</option><option value="stx1">stx1</option><option value="stx2">stx2</option><option value="stx1+stx2">stx1+stx2</option><option value="negative">negative</option></select>
       <label>Min prophages</label>
       <input type="text" id="tbl-phage" value="0" style="width:50px"/>
     </div>
@@ -368,6 +399,8 @@ tr:hover td{background:var(--panel2)}
         <th data-k="mdr_status">MDR</th>
         <th data-k="assembly_quality">Quality</th>
         <th data-k="strain">Strain</th>
+        <th data-k="stx_status">stx</th>
+        <th data-k="stx_genes">stx genes</th>
       </tr></thead>
       <tbody id="tbl-body"></tbody>
     </table></div>
@@ -419,6 +452,7 @@ const kpis = [
   {n: D.stats.pct_with_phage+'%', l: 'Has ≥1 prophage'},
   {n: D.stats.med_amr, l: 'Median AMR genes'},
   {n: D.stats.n_antibiotics, l: 'Antibiotics tested'},
+  {n: D.stx_summary.n_positive.toLocaleString(), l: 'stx-positive'},
 ];
 document.getElementById('kpi-row').innerHTML = kpis.map(k =>
   `<div class="kpi"><div class="n">${k.n}</div><div class="l">${k.l}</div></div>`).join('');
@@ -474,6 +508,38 @@ function renderMdrPie() {
   });
 }
 renderMdrPie();
+
+// ── stx card ──────────────────────────────────────────────────────────────────
+function renderStxCard() {
+  const stx = D.stx_summary;
+  const n_total = D.stats.n_total;
+  const kpiData = [
+    {n: stx.n_positive, l: 'stx-positive', color: 'var(--danger)'},
+    {n: stx.stx1, l: 'stx1 only', color: '#f59e0b'},
+    {n: stx['stx1+stx2'], l: 'stx1 + stx2', color: '#a855f7'},
+    {n: stx.stx2, l: 'stx2 only', color: 'var(--danger)'},
+  ];
+  document.getElementById('stx-kpis').innerHTML = kpiData.map(k =>
+    `<div class="kpi"><div class="n" style="color:${k.color}">${k.n}</div><div class="l">${k.l}</div></div>`
+  ).join('');
+  const segs = [
+    {k: 'stx1', color: '#f59e0b', label: 'stx1 only'},
+    {k: 'stx1+stx2', color: '#a855f7', label: 'stx1+stx2'},
+    {k: 'stx2', color: '#ef4444', label: 'stx2 only'},
+    {k: 'negative', color: '#1e2a38', label: 'negative'},
+  ];
+  const bars = segs.map(seg => {
+    const pct = (100 * stx[seg.k] / n_total).toFixed(1);
+    return `<div style="width:${pct}%;min-width:${stx[seg.k]?'2px':'0'};height:28px;background:${seg.color};display:inline-block;vertical-align:top" title="${seg.label}: ${stx[seg.k]} (${pct}%)"></div>`;
+  }).join('');
+  const legend = segs.filter(s => stx[s.k] > 0).map(s =>
+    `<span style="margin-right:14px;color:${s.color}">■ ${s.label}: ${stx[s.k]}</span>`
+  ).join('');
+  document.getElementById('stx-bar').innerHTML =
+    `<div style="display:flex;border-radius:4px;overflow:hidden;margin-bottom:8px">${bars}</div>
+     <div style="font-size:11px;color:var(--muted)">${legend}</div>`;
+}
+renderStxCard();
 
 // ── boxplot ───────────────────────────────────────────────────────────────────
 const drugSel = document.getElementById('drug-sel');
@@ -663,10 +729,12 @@ let tblSort={k:'num_prophages',dir:-1}, tblPage=0, tblPageSize=50, tblFiltered=[
 function filterTable() {
   const q=(document.getElementById('tbl-search').value||'').toLowerCase();
   const mdr=document.getElementById('tbl-mdr').value;
+  const stxF=document.getElementById('tbl-stx').value;
   const minP=parseInt(document.getElementById('tbl-phage').value)||0;
   tblFiltered=D.table_rows.filter(r=>{
     if(q&&!Object.values(r).some(v=>String(v).toLowerCase().includes(q))) return false;
     if(mdr&&r.mdr_status!==mdr) return false;
+    if(stxF&&r.stx_status!==stxF) return false;
     if((r.num_prophages||0)<minP) return false;
     return true;
   });
@@ -678,12 +746,15 @@ function renderTablePage() {
   const start=tblPage*tblPageSize, end=start+tblPageSize;
   const page=tblFiltered.slice(start,end);
   const badge=(v,cls)=>v?`<span class="badge ${cls}">${v}</span>`:'-';
+  const stxCls={'stx1':'stx-pos1','stx2':'stx-pos2','stx1+stx2':'stx-both','negative':'stx-neg'};
+  const stxBadge=s=>s?`<span class="stx-chip ${stxCls[s]||''}">${s}</span>`:'-';
   document.getElementById('tbl-body').innerHTML=page.map(r=>`<tr>
     <td><b>${r.id}</b></td><td>${r.mlst_st||'-'}</td>
     <td>${r.num_prophages??'-'}</td><td>${r.num_lytic??'-'}</td><td>${r.num_lysogenic??'-'}</td>
     <td>${r.num_amr_genes??'-'}</td><td>${r.num_plasmids??'-'}</td>
     <td>${badge(r.mdr_status,r.mdr_status)}</td>
     <td>${r.assembly_quality||'-'}</td><td>${r.strain||'-'}</td>
+    <td>${stxBadge(r.stx_status)}</td><td style="color:var(--muted);font-size:11px">${r.stx_genes||'-'}</td>
   </tr>`).join('');
   document.getElementById('pg-info').textContent=
     `${start+1}–${Math.min(end,tblFiltered.length)} of ${tblFiltered.length}`;
@@ -693,6 +764,7 @@ function renderTablePage() {
 
 document.getElementById('tbl-search').oninput=filterTable;
 document.getElementById('tbl-mdr').onchange=filterTable;
+document.getElementById('tbl-stx').onchange=filterTable;
 document.getElementById('tbl-phage').oninput=filterTable;
 document.getElementById('pg-prev').onclick=()=>{tblPage--;renderTablePage();};
 document.getElementById('pg-next').onclick=()=>{tblPage++;renderTablePage();};

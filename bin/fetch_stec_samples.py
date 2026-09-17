@@ -88,8 +88,8 @@ def parse_isolates(path, max_samples=None, require_ast=True):
                 ast_cols = [v for k, v in row.items()
                             if 'AST' in k or 'MIC' in k or 'SIR' in k.upper()]
                 has_ast = any(v.strip() in ('R', 'I', 'S') for v in ast_cols)
-                # Also check computed_types or amr_genotypes as proxy
-                amr = row.get('AMR_genotypes', '') or ''
+                # Fallback: AMR genotypes column (space or underscore) as proxy
+                amr = row.get('AMR genotypes', '') or row.get('AMR_genotypes', '') or ''
                 if not has_ast and not amr.strip():
                     skipped_no_ast += 1
                     continue

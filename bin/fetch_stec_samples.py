@@ -69,6 +69,7 @@ def parse_isolates(path, max_samples=None, require_ast=True):
         for row in reader:
             # Find stx virulence genes column
             vf = (row.get('virulence_genotypes', '') or
+                  row.get('AMR genotypes', '') or
                   row.get('AMR_genotypes', '') or
                   row.get('Computed types', '') or '')
             if not STX_PAT.search(vf):

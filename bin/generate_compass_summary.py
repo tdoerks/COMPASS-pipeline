@@ -2569,7 +2569,6 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     unique_prophage_amr_classes = list(set(all_prophage_amr_classes))
 
     # Count gene frequencies
-    from collections import Counter
     gene_counts = Counter(all_prophage_amr_genes)
     class_counts = Counter(all_prophage_amr_classes)
 
@@ -5191,7 +5190,6 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         js_code = js_code.replace('SNIPPY_MEAN_DIST_PLACEHOLDER', f'{mean_dist:.1f}')
 
     # Replace summary statistics placeholders
-    from datetime import datetime
     js_code = js_code.replace('__GENERATION_TIMESTAMP__', datetime.now().isoformat())
     js_code = js_code.replace('__GENERATION_DATETIME__', datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     js_code = js_code.replace('__TOTAL_SAMPLES__', str(total_samples))

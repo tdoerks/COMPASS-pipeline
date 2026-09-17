@@ -43,7 +43,7 @@ import re
 import sys
 from collections import Counter
 
-STX_PAT = re.compile(r'\bstx', re.IGNORECASE)
+STX_PAT = re.compile(r'\bstx|\bestX', re.IGNORECASE)
 
 
 def parse_isolates(path, max_samples=None, require_ast=True):
@@ -94,9 +94,9 @@ def parse_isolates(path, max_samples=None, require_ast=True):
                     skipped_no_ast += 1
                     continue
 
-            # Classify stx subtype
-            stx1 = bool(re.search(r'\bstx1', vf, re.IGNORECASE))
-            stx2 = bool(re.search(r'\bstx2', vf, re.IGNORECASE))
+            # Classify stx subtype (NCBI uses estX-1/estX-2/estX-3 naming)
+            stx1 = bool(re.search(r'\bstx1|\bestX-1', vf, re.IGNORECASE))
+            stx2 = bool(re.search(r'\bstx2|\bestX-[23456789]', vf, re.IGNORECASE))
             stx_type = ('stx1+stx2' if stx1 and stx2 else
                         'stx1' if stx1 else 'stx2' if stx2 else 'stx_unknown')
 

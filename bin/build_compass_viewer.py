@@ -149,16 +149,18 @@ def mlst_summary(records, top_n=20):
     for st, recs in sorted(sts.items(), key=lambda x: -len(x[1]))[:top_n]:
         mdr = sum(1 for r in recs if r['mdr_status'] == 'Yes')
         phages = [r['num_prophages'] or 0 for r in recs]
+        stx_pos = sum(1 for r in recs if r.get('stx_status', 'negative') != 'negative')
         result.append({
             'st': st, 'n': len(recs),
             'pct_mdr': round(100*mdr/len(recs), 1),
             'med_phage': sorted(phages)[len(phages)//2],
+            'stx_count': stx_pos,
         })
-    return result
+    return result, len(sts)
 
 # ── build HTML ────────────────────────────────────────────────────────────────
 
-def build_html(records, sir_cols, res_summary, mlst_sum, out_path):
+def build_html(records, sir_cols, res_summary, mlst_sum, out_path, n_unique_sts=0):
     # Slim records for table (all fields)
     table_cols = ['id','organism','mlst_st','num_prophages','num_lytic','num_lysogenic',
                   'num_amr_genes','num_plasmids','mdr_status','assembly_quality','strain',
@@ -207,6 +209,7 @@ def build_html(records, sir_cols, res_summary, mlst_sum, out_path):
         'res_summary': [{k:v for k,v in s.items() if k not in ('phage_S','phage_I','phage_R')} for s in res_summary],
         'boxplot_data': boxplot_data,
         'mlst_summary': mlst_sum,
+        'n_unique_sts': n_unique_sts,
         'scatter': scatter,
         'scatter2': scatter2,
         'phage_hist': phage_hist_data,
@@ -373,7 +376,22 @@ tr:hover td{background:var(--panel2)}
 
 <!-- MLST -->
 <section id="mlst" class="tab">
-  <div class="card"><h3>Top sequence types</h3><div id="mlst-chart"></div></div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div>
+        <h3 style="margin:0">Top sequence types</h3>
+        <div style="color:var(--muted);font-size:0.82em;margin-top:4px">
+          <span id="mlst-unique-count"></span> unique STs total &nbsp;|&nbsp;
+          <span style="display:inline-block;width:12px;height:12px;background:#f59e0b;border-radius:2px;vertical-align:middle"></span> stx-positive ST
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button id="mlst-sort-n"   onclick="mlstSort('n')"      style="padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:0.82em">Sort by count</button>
+        <button id="mlst-sort-p"   onclick="mlstSort('phage')"  style="padding:4px 12px;background:var(--card);color:var(--muted);border:1px solid #374151;border-radius:4px;cursor:pointer;font-size:0.82em">Sort by phage burden</button>
+      </div>
+    </div>
+    <div id="mlst-chart"></div>
+  </div>
 </section>
 
 <!-- DATA TABLE -->
@@ -699,27 +717,49 @@ function renderScatter2() {
 renders['correlations']=()=>{renderScatter1();renderScatter2();};
 
 // ── MLST ──────────────────────────────────────────────────────────────────────
+let mlstSortKey = 'n';
+function mlstSort(key) {
+  mlstSortKey = key;
+  document.getElementById('mlst-sort-n').style.background = key==='n' ? 'var(--accent)' : 'var(--card)';
+  document.getElementById('mlst-sort-n').style.color = key==='n' ? '#fff' : 'var(--muted)';
+  document.getElementById('mlst-sort-p').style.background = key==='phage' ? 'var(--accent)' : 'var(--card)';
+  document.getElementById('mlst-sort-p').style.color = key==='phage' ? '#fff' : 'var(--muted)';
+  renderMlst();
+}
 function renderMlst() {
+  // Set unique ST count header
+  const uniqEl = document.getElementById('mlst-unique-count');
+  if (uniqEl) uniqEl.textContent = D.n_unique_sts || D.mlst_summary.length + '+';
+
   const el=document.getElementById('mlst-chart'); el.innerHTML='';
-  const data=D.mlst_summary;
-  const W=el.clientWidth||700, H=Math.max(300,data.length*28), m={t:10,r:180,b:30,l:80};
+  let data = [...D.mlst_summary];
+  if (mlstSortKey === 'phage') data.sort((a,b) => b.med_phage - a.med_phage);
+  else data.sort((a,b) => b.n - a.n);
+
+  const W=el.clientWidth||700, H=Math.max(300,data.length*28), m={t:10,r:200,b:30,l:80};
   const svg=d3.select(el).append('svg').attr('width',W).attr('height',H);
-  const y=d3.scaleBand().domain(data.map(d=>d.st==='Unknown'?'Unknown':('ST'+d.st))).range([m.t,H-m.b]).padding(.25);
+  const stLab = d => d.st==='Unknown'?'Unknown':('ST'+d.st);
+  const y=d3.scaleBand().domain(data.map(stLab)).range([m.t,H-m.b]).padding(.25);
   const x=d3.scaleLinear().domain([0,d3.max(data,d=>d.n)]).range([m.l,W-m.r]);
   svg.append('g').attr('class','axis').attr('transform',`translate(0,${H-m.b})`).call(d3.axisBottom(x).ticks(5));
   svg.append('g').attr('class','axis').attr('transform',`translate(${m.l},0)`).call(d3.axisLeft(y));
   data.forEach(d=>{
-    const lab=d.st==='Unknown'?'Unknown':('ST'+d.st);
-    const yp=y(lab), bh=y.bandwidth();
-    // main bar
+    const lab=stLab(d), yp=y(lab), bh=y.bandwidth();
+    const hasStx = d.stx_count > 0;
+    // main bar — amber if stx-positive ST, accent otherwise
     svg.append('rect').attr('x',m.l).attr('y',yp).attr('width',x(d.n)-m.l).attr('height',bh)
-      .attr('fill','var(--accent)').attr('opacity',.7)
-      .append('title').text(`ST${d.st}: n=${d.n}, ${d.pct_mdr}% MDR, median ${d.med_phage} phages`);
+      .attr('fill', hasStx ? '#f59e0b' : 'var(--accent)').attr('opacity',.8)
+      .append('title').text(`${lab}: n=${d.n}, ${d.pct_mdr}% MDR, median ${d.med_phage} phages${hasStx ? ', '+d.stx_count+' stx+' : ''}`);
     // MDR overlay
     svg.append('rect').attr('x',m.l).attr('y',yp).attr('width',x(d.n*d.pct_mdr/100)-m.l).attr('height',bh)
-      .attr('fill','var(--danger)').attr('opacity',.5);
+      .attr('fill','var(--danger)').attr('opacity',.4);
+    // stx badge
+    if (hasStx) {
+      svg.append('text').attr('x',m.l+4).attr('y',yp+bh/2+4).attr('fill','#1f2937').attr('font-size',9).attr('font-weight','bold')
+        .text('stx');
+    }
     svg.append('text').attr('x',x(d.n)+6).attr('y',yp+bh/2+4).attr('fill','var(--muted)').attr('font-size',10)
-      .text(`n=${d.n} | ${d.pct_mdr}% MDR | med phage=${d.med_phage}`);
+      .text(`n=${d.n} | ${d.pct_mdr}% MDR | med phage=${d.med_phage}${hasStx ? ' | stx+:'+d.stx_count : ''}`);
   });
 }
 renders['mlst']=renderMlst;
@@ -795,8 +835,8 @@ def main():
     mic, sir_cols = load_mic(MIC_CSV)
     records = merge(compass, mic, sir_cols)
     res_sum = resistance_summary(records, sir_cols)
-    mlst_sum = mlst_summary(records)
-    build_html(records, sir_cols, res_sum, mlst_sum, OUT_HTML)
+    mlst_sum, n_unique_sts = mlst_summary(records)
+    build_html(records, sir_cols, res_sum, mlst_sum, OUT_HTML, n_unique_sts)
 
 if __name__ == '__main__':
     main()

@@ -91,9 +91,10 @@ def merge(compass, mic, sir_cols):
             v = mrow.get(s, '').strip()
             rec[s] = v if v in ('S', 'I', 'R') else ''
         # Shiga toxin (stx) classification from top_virulence_genes
+        # VFDB names subunits stx1A/stx1B/stx2A/stx2B — use prefix match, not word-boundary suffix
         _vf = crow.get('top_virulence_genes', '') or ''
-        _has1 = bool(re.search(r'\bstx\w*1\b', _vf, re.IGNORECASE))
-        _has2 = bool(re.search(r'\bstx\w*2\b', _vf, re.IGNORECASE))
+        _has1 = bool(re.search(r'\bstx1|\bstxA\b|\bstxB\b', _vf, re.IGNORECASE))
+        _has2 = bool(re.search(r'\bstx2', _vf, re.IGNORECASE))
         rec['stx_status'] = ('stx1+stx2' if _has1 and _has2 else
                              'stx1' if _has1 else 'stx2' if _has2 else 'negative')
         rec['stx_genes'] = ', '.join(g.strip() for g in _vf.split(',')

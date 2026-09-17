@@ -56,8 +56,8 @@ def parse_isolates(path, max_samples=None, require_ast=True):
     skipped_no_ast = 0
     skipped_no_stx = 0
 
-    with open(path) as f:
-        # NCBI export uses tab-delimited with # prefix on header
+    with open(path, encoding='utf-8-sig') as f:
+        # NCBI export uses tab-delimited with # prefix on header; utf-8-sig strips BOM
         first = f.readline()
         f.seek(0)
         delimiter = '\t' if '\t' in first else ','

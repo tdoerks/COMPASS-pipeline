@@ -689,7 +689,7 @@ def parse_vfdb(abricate_dir):
                 vfdb_data[sample_id] = {
                     'vf_gene_count': 0,
                     'vf_genes': '',
-                    'top_vf_genes': '',
+                    'top_virulence_genes': '',
                     'vf_avg_identity': 0,
                     'vf_avg_coverage': 0
                 }
@@ -699,8 +699,6 @@ def parse_vfdb(abricate_dir):
             unique_genes = df['GENE'].nunique()
             total_hits = len(df)
 
-            # Get top genes by coverage/identity
-            top_genes = df.nlargest(5, '%COVERAGE')['GENE'].tolist()
             all_genes = df['GENE'].unique().tolist()
 
             # Calculate average identity and coverage
@@ -710,8 +708,9 @@ def parse_vfdb(abricate_dir):
             vfdb_data[sample_id] = {
                 'vf_gene_count': unique_genes,
                 'vf_total_hits': total_hits,
-                'vf_genes': ', '.join(all_genes[:10]),  # First 10 genes
-                'top_vf_genes': ', '.join(top_genes),    # Top 5 by coverage
+                'vf_genes': ', '.join(all_genes[:10]),
+                # All unique gene names — viewer reads this for stx classification
+                'top_virulence_genes': ', '.join(all_genes),
                 'vf_avg_identity': round(avg_identity, 2),
                 'vf_avg_coverage': round(avg_coverage, 2)
             }
@@ -5497,7 +5496,7 @@ def main():
                 'vf_gene_count': 0,
                 'vf_total_hits': 0,
                 'vf_genes': '-',
-                'top_vf_genes': '-',
+                'top_virulence_genes': '-',
                 'vf_avg_identity': 0,
                 'vf_avg_coverage': 0
             })

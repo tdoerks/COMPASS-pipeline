@@ -68,7 +68,8 @@ def parse_isolates(path, max_samples=None, require_ast=True,
         reader.fieldnames = [h.lstrip('#').strip() for h in (reader.fieldnames or [])]
 
         for row in reader:
-            vf = (row.get('virulence_genotypes', '') or
+            vf = (row.get('Virulence genotypes', '') or
+                  row.get('virulence_genotypes', '') or
                   row.get('AMR genotypes', '') or
                   row.get('AMR_genotypes', '') or
                   row.get('Computed types', '') or '')
@@ -78,7 +79,11 @@ def parse_isolates(path, max_samples=None, require_ast=True,
                 continue
 
             acc = (row.get('Assembly', '') or
-                   row.get('assembly_accession', '') or '').strip()
+                   row.get('assembly_accession', '') or
+                   row.get('Isolate', '') or '').strip()
+            # Only accept GCA/GCF accessions
+            if acc and not re.match(r'^GC[AF]_', acc):
+                acc = ''
             if not acc or acc in ('-', 'NA', 'N/A'):
                 skipped_no_gca += 1
                 continue

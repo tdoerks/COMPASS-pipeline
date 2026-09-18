@@ -204,13 +204,16 @@ def build_html(records, sir_cols, res_summary, mlst_sum, out_path, n_unique_sts=
     phage_hist_data = [{'bin': k, 'count': v} for k, v in sorted(phage_hist.items()) if k <= 20]
 
     # Shiga toxin summary
+    # stx_positive = NCBI-confirmed stx but subtype undetermined (labeled "stx" without number)
     stx_counts = Counter(r.get('stx_status', 'negative') for r in records)
     stx_summary = {
-        'stx1':     stx_counts.get('stx1', 0),
-        'stx2':     stx_counts.get('stx2', 0),
-        'stx1+stx2': stx_counts.get('stx1+stx2', 0),
-        'negative': stx_counts.get('negative', 0),
-        'n_positive': stx_counts.get('stx1', 0) + stx_counts.get('stx2', 0) + stx_counts.get('stx1+stx2', 0),
+        'stx1':         stx_counts.get('stx1', 0),
+        'stx2':         stx_counts.get('stx2', 0),
+        'stx1+stx2':    stx_counts.get('stx1+stx2', 0),
+        'stx_positive': stx_counts.get('stx_positive', 0),
+        'negative':     stx_counts.get('negative', 0),
+        'n_positive':   (stx_counts.get('stx1', 0) + stx_counts.get('stx2', 0) +
+                         stx_counts.get('stx1+stx2', 0) + stx_counts.get('stx_positive', 0)),
     }
 
     payload = {
@@ -547,6 +550,7 @@ function renderStxCard() {
     {n: stx.stx1, l: 'stx1 only', color: '#f59e0b'},
     {n: stx['stx1+stx2'], l: 'stx1 + stx2', color: '#a855f7'},
     {n: stx.stx2, l: 'stx2 only', color: 'var(--danger)'},
+    {n: stx.stx_positive, l: 'stx type unknown', color: '#6b7280'},
   ];
   document.getElementById('stx-kpis').innerHTML = kpiData.map(k =>
     `<div class="kpi"><div class="n" style="color:${k.color}">${k.n}</div><div class="l">${k.l}</div></div>`
@@ -555,6 +559,7 @@ function renderStxCard() {
     {k: 'stx1', color: '#f59e0b', label: 'stx1 only'},
     {k: 'stx1+stx2', color: '#a855f7', label: 'stx1+stx2'},
     {k: 'stx2', color: '#ef4444', label: 'stx2 only'},
+    {k: 'stx_positive', color: '#6b7280', label: 'stx (type unknown)'},
     {k: 'negative', color: '#1e2a38', label: 'negative'},
   ];
   const bars = segs.map(seg => {

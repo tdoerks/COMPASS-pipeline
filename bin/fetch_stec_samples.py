@@ -146,6 +146,26 @@ def write_samplesheet(rows, out_path):
             writer.writerow({k: r[k] for k in ['sample', 'organism', 'assembly_accession']})
     print(f"Wrote {len(rows)} samples → {out_path}")
 
+    # Write companion metadata CSV with NCBI-derived stx classification.
+    # COMPASS VFDB only covers O157:H7 reference stx; AMRFinder needs --plus for
+    # VIRULENCE genes. This file lets build_compass_viewer.py use the authoritative
+    # NCBI classification instead.
+    meta_path = out_path.replace('.csv', '_stx_metadata.csv')
+    with open(meta_path, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=['sample', 'stx_type', 'stx_genes_ncbi',
+                                               'collection_date', 'source', 'mlst_st'])
+        writer.writeheader()
+        for r in rows:
+            writer.writerow({
+                'sample': r['sample'],
+                'stx_type': r['stx_type'],
+                'stx_genes_ncbi': re.sub(r'estX', 'stx', r.get('vf_genes', ''), flags=re.IGNORECASE),
+                'collection_date': r.get('collection_date', ''),
+                'source': r.get('source', ''),
+                'mlst_st': r.get('mlst_st', ''),
+            })
+    print(f"Wrote stx metadata → {meta_path}")
+
 
 def write_stats(rows, out_path, organism_name):
     stx_types = Counter(r['stx_type'] for r in rows)

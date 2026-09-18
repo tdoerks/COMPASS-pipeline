@@ -275,7 +275,8 @@ def parse_amrfinder(amr_dir):
                         'num_point_mutations': 0,
                         'amr_classes': '-',
                         'mdr_status': 'No',
-                        'top_amr_genes': '-'
+                        'top_amr_genes': '-',
+                        'amrfinder_stx_genes': ''
                     }
                 else:
                     # Count genes vs point mutations
@@ -301,12 +302,22 @@ def parse_amrfinder(amr_dir):
                         gene_counts = Counter(df['Gene symbol'].dropna())
                         top_genes = [gene for gene, count in gene_counts.most_common(5)]
 
+                    # Extract stx/estX virulence genes — AMRFinder marks these as
+                    # VIRULENCE element type, so they're missed by AMR-only filters
+                    _stx_pat = re.compile(r'\bstx|\bestX', re.IGNORECASE)
+                    stx_genes = []
+                    if 'Gene symbol' in df.columns:
+                        for gene in df['Gene symbol'].dropna():
+                            if _stx_pat.search(str(gene)):
+                                stx_genes.append(str(gene))
+
                     amr_data[sample_id] = {
                         'num_amr_genes': len(genes),
                         'num_point_mutations': len(mutations),
                         'amr_classes': ', '.join(sorted(classes)) if classes else '-',
                         'mdr_status': mdr_status,
-                        'top_amr_genes': ', '.join(top_genes) if top_genes else '-'
+                        'top_amr_genes': ', '.join(top_genes) if top_genes else '-',
+                        'amrfinder_stx_genes': ', '.join(sorted(set(stx_genes))) if stx_genes else ''
                     }
             except Exception as e:
                 print(f"Warning: Could not parse AMRFinder results for {amr_file}: {e}", file=sys.stderr)

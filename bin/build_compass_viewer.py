@@ -90,15 +90,18 @@ def merge(compass, mic, sir_cols):
         for s in sir_cols:
             v = mrow.get(s, '').strip()
             rec[s] = v if v in ('S', 'I', 'R') else ''
-        # Shiga toxin (stx) classification from top_virulence_genes
-        # VFDB names subunits stx1A/stx1B/stx2A/stx2B — use prefix match, not word-boundary suffix
+        # Shiga toxin classification: combine VFDB hits + AMRFinder estX/stx genes.
+        # VFDB only covers O157:H7 reference strains; AMRFinder uses HMMs and catches
+        # divergent stx variants in non-O157 STEC that VFDB misses.
         _vf = crow.get('top_virulence_genes', '') or ''
-        _has1 = bool(re.search(r'\bstx1|\bstxA\b|\bstxB\b', _vf, re.IGNORECASE))
-        _has2 = bool(re.search(r'\bstx2', _vf, re.IGNORECASE))
+        _amr_stx = crow.get('amrfinder_stx_genes', '') or ''
+        _stx_src = _vf + (',' + _amr_stx if _amr_stx else '')
+        _has1 = bool(re.search(r'\bstx1|\bstxA\b|\bstxB\b|\bestX-1\b', _stx_src, re.IGNORECASE))
+        _has2 = bool(re.search(r'\bstx2|\bestX-[23456789]', _stx_src, re.IGNORECASE))
         rec['stx_status'] = ('stx1+stx2' if _has1 and _has2 else
                              'stx1' if _has1 else 'stx2' if _has2 else 'negative')
-        rec['stx_genes'] = ', '.join(g.strip() for g in _vf.split(',')
-                                      if g.strip().lower().startswith('stx'))
+        rec['stx_genes'] = ', '.join(g.strip() for g in _stx_src.split(',')
+                                      if re.match(r'stx|estX', g.strip(), re.IGNORECASE))
         records.append(rec)
     print(f'Merged: {len(records)} records')
     return records

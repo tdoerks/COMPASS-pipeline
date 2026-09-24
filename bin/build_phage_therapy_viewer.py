@@ -1128,7 +1128,12 @@ def main():
     lr = sum(1 for r in records if r['last_resort'])
     print(f'Priority 1 candidates: {p1}')
     print(f'Last-resort resistance: {lr} ({100*lr/max(len(records),1):.1f}%)')
+    print(f'MDR / high AMR burden:  {stats["mdr_n"]} ({100*stats["mdr_n"]/max(len(records),1):.1f}%)')
     print(f'Unique STs: {stats["unique_sts"]}')
+    # Sample check — first record's key fields
+    if records:
+        r0 = records[0]
+        print(f'[debug] sample[0]: mdr_status={r0["mdr_status"]!r} amr_score={r0["amr_score"]} amr_classes={r0["amr_classes"]!r}')
 
 if __name__ == '__main__':
     main()

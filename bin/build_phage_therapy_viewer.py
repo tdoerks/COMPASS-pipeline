@@ -603,10 +603,11 @@ function renderStatsBar() {{
   const lr = RECORDS.filter(r => r.last_resort).length;
   const p1 = RECORDS.filter(r => r.priority === 1).length;
   const mdn_phg = median(RECORDS.map(r => r.num_prophages));
-  // Use mdr_status when populated; fall back to amr_score ≥ 2 (≥3 drug classes) when blank
+  // Use mdr_status when populated; fall back to amr_score ≥ 2 (≥3 drug classes) otherwise
+  const _mdrNull = new Set(['', '-', 'N/A', 'NA', 'Unknown', 'none']);
   const pct_mdr = RECORDS.filter(r =>
     ['MDR','XDR','PDR'].includes(r.mdr_status) ||
-    (!r.mdr_status && r.amr_score >= 2)
+    (_mdrNull.has(r.mdr_status) && r.amr_score >= 2)
   ).length;
   document.getElementById('hdr-sub').textContent = `${{n}} isolates`;
   document.getElementById('statsbar').innerHTML = [

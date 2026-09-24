@@ -227,6 +227,9 @@ def load_compass(path):
                 'num_lytic':      int(num(r.get('num_lytic'), 0)),
                 'num_lysogenic':  int(num(r.get('num_lysogenic'), 0)),
                 'top_prophage_matches': r.get('top_prophage_matches', '') or '',
+                'prophage_families_ictv': r.get('prophage_families_ictv', '') or '',
+                'top_prophage_family': r.get('top_prophage_family', '') or '',
+                'prophage_genera_ictv': r.get('prophage_genera_ictv', '') or '',
                 'num_plasmids':   int(num(r.get('num_plasmids'), 0)),
                 'inc_groups':     r.get('inc_groups', '') or '',
                 'top_vf_genes':   r.get('top_virulence_genes', '') or r.get('top_vf_genes', '') or '',
@@ -327,6 +330,33 @@ def summarize(records, resolve_names=False):
             for e in org_data['phage_freq']:
                 e['name'] = name_map.get(e['id'], '')
 
+    # ICTV-based exclusion: same structure but keyed by ICTV family names from geNomad
+    # Only populated when prophage_families_ictv column exists (phage-therapy branch)
+    has_ictv = any(r.get('prophage_families_ictv', '') not in ('', '-', 'unclassified')
+                   for r in records)
+    exclusion_ictv_by_org = {}
+    if has_ictv:
+        for org in orgs:
+            org_recs = [r for r in records if _org_label(r) == org]
+            n_org = len(org_recs)
+            family_counts = Counter()
+            for r in org_recs:
+                fam_str = r.get('prophage_families_ictv', '') or ''
+                if fam_str and fam_str not in ('-', 'unclassified'):
+                    seen = set()
+                    for fam in fam_str.split(';'):
+                        fam = fam.strip()
+                        if fam and fam not in seen:
+                            family_counts[fam] += 1
+                            seen.add(fam)
+            exclusion_ictv_by_org[org] = {
+                'n': n_org,
+                'phage_freq': [
+                    {'id': fam, 'count': cnt, 'pct': round(100 * cnt / n_org, 1), 'name': fam}
+                    for fam, cnt in family_counts.most_common(50)
+                ],
+            }
+
     # MDR count: handle 'MDR'/'XDR'/'PDR' format AND 'Yes'/'No' format
     _mdr_pos  = {'MDR', 'XDR', 'PDR', 'Yes', 'yes'}
     _mdr_null = {'', '-', 'N/A', 'NA', 'Unknown', 'none'}
@@ -349,6 +379,7 @@ def summarize(records, resolve_names=False):
         'st_freq': dict(st_freq.most_common(25)),
         'prophage_hist': build_histogram(prophage_vals, bins=list(range(0, 25))),
         'exclusion_by_org': exclusion_by_org,
+        'exclusion_ictv_by_org': exclusion_ictv_by_org,
     }
 
 def build_histogram(values, bins):
@@ -615,6 +646,11 @@ td {{ padding: 6px 9px; vertical-align: top; }}
   <div class="filter-bar">
     <label>Organism:</label>
     <select id="excl-org" onchange="renderExclusion()"></select>
+    <label style="margin-left:12px">Source:</label>
+    <select id="excl-source" onchange="renderExclusion()">
+      <option value="diamond">DIAMOND accessions</option>
+      <option value="ictv">ICTV families (geNomad)</option>
+    </select>
     <label style="margin-left:12px">Candidate threshold:</label>
     <select id="excl-thresh" onchange="renderExclusion()">
       <option value="5">≤ 5% of isolates (strict)</option>
@@ -629,6 +665,7 @@ td {{ padding: 6px 9px; vertical-align: top; }}
       <p style="font-size:11px;color:var(--muted);margin-bottom:8px">
         Red = common in this host species → likely excluded by superinfection immunity.
         Green = rare or absent → candidate therapeutic phage window.
+        <span id="excl-source-note"></span>
       </p>
       <div style="position:relative;height:360px"><canvas id="chart-excl-bar"></canvas></div>
     </div>
@@ -638,7 +675,7 @@ td {{ padding: 6px 9px; vertical-align: top; }}
     <div style="overflow-x:auto;margin-top:6px">
       <table id="tbl-excl">
         <thead><tr>
-          <th>Prophage ID / Accession</th>
+          <th id="excl-col-id">Prophage ID / Accession</th>
           <th>Organism / Description</th>
           <th>Isolates carrying it</th>
           <th>% of organism isolates</th>
@@ -1027,12 +1064,32 @@ function initExclusionOrgFilter() {{
   const orgs = Object.keys(STATS.exclusion_by_org).sort();
   const sel = document.getElementById('excl-org');
   sel.innerHTML = orgs.map(o => `<option value="${{o}}">${{o}}</option>`).join('');
+  // Hide ICTV option if no geNomad data available
+  const srcSel = document.getElementById('excl-source');
+  const hasICTV = Object.keys(STATS.exclusion_ictv_by_org||{{}}).length > 0;
+  srcSel.querySelector('option[value="ictv"]').disabled = !hasICTV;
+  if (!hasICTV) srcSel.querySelector('option[value="ictv"]').textContent += ' (not available — run geNomad)';
 }}
 
 function renderExclusion() {{
   const org    = document.getElementById('excl-org').value;
   const thresh = +document.getElementById('excl-thresh').value;
-  const data   = STATS.exclusion_by_org[org];
+  const src    = document.getElementById('excl-source').value;
+  const hasICTV = Object.keys(STATS.exclusion_ictv_by_org||{{}}).length > 0;
+
+  // Choose data source; fall back to DIAMOND if ICTV not available
+  let data;
+  if (src === 'ictv' && hasICTV) {{
+    data = (STATS.exclusion_ictv_by_org||{{}})[org];
+    document.getElementById('excl-source-note').textContent =
+      'Source: ICTV family names from geNomad.';
+    document.getElementById('excl-col-id').textContent = 'ICTV Family';
+  }} else {{
+    data = STATS.exclusion_by_org[org];
+    document.getElementById('excl-source-note').textContent =
+      hasICTV ? 'Source: DIAMOND prophage database accessions.' : '';
+    document.getElementById('excl-col-id').textContent = 'Prophage ID / Accession';
+  }}
   if (!data) return;
 
   const all    = data.phage_freq;          // [{{id, count, pct}}, ...] already sorted desc

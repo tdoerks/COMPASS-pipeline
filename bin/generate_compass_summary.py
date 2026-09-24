@@ -513,6 +513,62 @@ def parse_diamond_prophage(diamond_dir):
                 print(f"Warning: Could not parse DIAMOND results for {diamond_file}: {e}", file=sys.stderr)
     return diamond_data
 
+def parse_genomad_prophage_ictv(genomad_dir):
+    """Parse geNomad prophage ICTV taxonomy from per-sample virus_summary.tsv files."""
+    genomad_data = {}
+    genomad_path = Path(genomad_dir)
+    if not genomad_path.exists():
+        return genomad_data
+
+    from collections import Counter as _Counter
+
+    def _ictv_from_taxonomy(tax_str):
+        parts = [p.strip() for p in (tax_str or '').split(';')]
+        family = parts[6] if len(parts) > 6 and parts[6] else 'unclassified'
+        genus  = parts[8] if len(parts) > 8 and parts[8] else 'unclassified'
+        return family, genus
+
+    for sample_dir in sorted(genomad_path.iterdir()):
+        if not sample_dir.is_dir():
+            continue
+        sample_id = sample_dir.name
+        virus_tsv = sample_dir / f'{sample_id}_genomad' / f'{sample_id}_summary' / f'{sample_id}_virus_summary.tsv'
+        if not virus_tsv.is_file():
+            virus_tsv = sample_dir / f'{sample_id}_summary' / f'{sample_id}_virus_summary.tsv'
+        if not virus_tsv.is_file():
+            continue
+        try:
+            df = pd.read_csv(virus_tsv, sep='\t')
+            if df.empty:
+                genomad_data[sample_id] = {
+                    'prophage_count_genomad': 0,
+                    'prophage_families_ictv': '-',
+                    'prophage_genera_ictv': '-',
+                    'top_prophage_family': '-',
+                    'top_prophage_genus': '-',
+                }
+                continue
+            families, genera = [], []
+            for tax in df.get('taxonomy', []):
+                f, g = _ictv_from_taxonomy(tax)
+                families.append(f)
+                genera.append(g)
+            fam_counts = _Counter(families)
+            gen_counts = _Counter(genera)
+            unique_f = sorted(set(f for f in families if f != 'unclassified'))
+            unique_g = sorted(set(g for g in genera   if g != 'unclassified'))
+            genomad_data[sample_id] = {
+                'prophage_count_genomad': len(df),
+                'prophage_families_ictv': ';'.join(unique_f) if unique_f else 'unclassified',
+                'prophage_genera_ictv':   ';'.join(unique_g) if unique_g else 'unclassified',
+                'top_prophage_family': fam_counts.most_common(1)[0][0] if fam_counts else '-',
+                'top_prophage_genus':  gen_counts.most_common(1)[0][0] if gen_counts else '-',
+            }
+        except Exception as e:
+            print(f"Warning: Could not parse geNomad results for {sample_id}: {e}", file=sys.stderr)
+    return genomad_data
+
+
 def parse_prokka(prokka_dir):
     """Parse Prokka genome annotation results
 
@@ -5351,6 +5407,11 @@ def main():
     print("Parsing DIAMOND prophage matches...")
     diamond_data = parse_diamond_prophage(outdir / 'diamond_prophage')
 
+    print("Parsing geNomad prophage ICTV taxonomy...")
+    genomad_data = parse_genomad_prophage_ictv(outdir / 'genomad_prophage')
+    if genomad_data:
+        print(f"  → Found geNomad data for {len(genomad_data)} samples")
+
     print("Parsing Prokka genome annotations...")
     prokka_data = parse_prokka(outdir / 'prokka')
     if prokka_data:
@@ -5484,6 +5545,18 @@ def main():
                 'top_prophage_matches': '-'
             })
 
+        # geNomad prophage ICTV taxonomy
+        if sample in genomad_data:
+            row.update(genomad_data[sample])
+        else:
+            row.update({
+                'prophage_count_genomad': '-',
+                'prophage_families_ictv': '-',
+                'prophage_genera_ictv': '-',
+                'top_prophage_family': '-',
+                'top_prophage_genus': '-',
+            })
+
         # Prokka annotations
         if sample in prokka_data:
             row.update(prokka_data[sample])
@@ -5557,7 +5630,10 @@ def main():
         # Plasmids
         'num_plasmids', 'inc_groups', 'mob_types',
         # Phages
-        'num_prophages', 'num_lytic', 'num_lysogenic', 'num_prophage_hits', 'top_prophage_matches'
+        'num_prophages', 'num_lytic', 'num_lysogenic', 'num_prophage_hits', 'top_prophage_matches',
+        # geNomad ICTV taxonomy
+        'prophage_count_genomad', 'prophage_families_ictv', 'prophage_genera_ictv',
+        'top_prophage_family', 'top_prophage_genus'
     ])
 
     # Reorder columns: put known analysis columns first, then append ALL remaining columns (metadata)

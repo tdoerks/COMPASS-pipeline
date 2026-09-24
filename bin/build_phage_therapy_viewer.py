@@ -231,10 +231,14 @@ def summarize(records):
     # Prophage exclusion data: for each organism, count how many isolates carry each phage ID
     # Format of top_prophage_matches: "NC_001501.1(98.5%), phage_X(95.2%)" — extract IDs
     _phage_id_re = re.compile(r'([^\s,\(]+)\(\d+\.\d+%\)')
-    orgs = sorted(set(r['organism'] for r in records if r['organism']))
+    # Fall back to 'All isolates' when organism column is unpopulated
+    def _org_label(r):
+        o = r['organism'].strip()
+        return o if o else 'All isolates'
+    orgs = sorted(set(_org_label(r) for r in records))
     exclusion_by_org = {}
     for org in orgs:
-        org_recs = [r for r in records if r['organism'] == org]
+        org_recs = [r for r in records if _org_label(r) == org]
         n_org = len(org_recs)
         phage_counts = Counter()
         for r in org_recs:
@@ -599,7 +603,11 @@ function renderStatsBar() {{
   const lr = RECORDS.filter(r => r.last_resort).length;
   const p1 = RECORDS.filter(r => r.priority === 1).length;
   const mdn_phg = median(RECORDS.map(r => r.num_prophages));
-  const pct_mdr = RECORDS.filter(r => ['MDR','XDR','PDR'].includes(r.mdr_status)).length;
+  // Use mdr_status when populated; fall back to amr_score ≥ 2 (≥3 drug classes) when blank
+  const pct_mdr = RECORDS.filter(r =>
+    ['MDR','XDR','PDR'].includes(r.mdr_status) ||
+    (!r.mdr_status && r.amr_score >= 2)
+  ).length;
   document.getElementById('hdr-sub').textContent = `${{n}} isolates`;
   document.getElementById('statsbar').innerHTML = [
     ['Isolates', n],

@@ -42,8 +42,18 @@ def resolve_ncbi_names(accessions, batch=50, pause=0.4):
     Returns {accession: short_name} dict.
     """
     results = {}
-    # NCBI accessions start with uppercase letters; skip digit-prefix SAMN format and lowercase contig names
+    # NCBI accessions start with uppercase letters; extract embedded accession from SAMN format
+    # SAMN format: "{taxid}.{SAMN}.{accession}" e.g. "562.SAMN17373163.CP068990"
+    samn_map = {}   # extracted_accession -> original_id
+    for a in accessions:
+        if re.match(r'^\d', a):
+            parts = a.split('.')
+            if len(parts) >= 3:
+                embedded = parts[-1]
+                if re.match(r'^[A-Z]{2}\d', embedded):
+                    samn_map[embedded] = a
     refseq = [a for a in accessions if re.match(r'^[A-Z]', a)]
+    refseq += list(samn_map.keys())
     if not refseq:
         return results
     print(f'Resolving {len(refseq)} accession names from NCBI...')
@@ -66,8 +76,16 @@ def resolve_ncbi_names(accessions, batch=50, pause=0.4):
                 acc = doc.get('accessionversion', '')
                 base = acc.split('.')[0]
                 for orig in chunk:
-                    if orig.split('.')[0] == base:
+                    orig_base = orig.split('.')[0]
+                    if orig_base == base:
                         results[orig] = short[:80] if short else orig
+                    # Also map back SAMN-format originals via samn_map
+                    if orig in samn_map.values():
+                        pass  # handled below
+                # Map SAMN originals: if embedded accession resolves, store under original ID
+                if base in samn_map:
+                    orig_id = samn_map[base]
+                    results[orig_id] = short[:80] if short else orig_id
         except Exception as e:
             print(f'  NCBI lookup failed for batch {i//batch+1}: {e}')
         if i + batch < len(refseq):

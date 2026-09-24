@@ -25,10 +25,54 @@ import argparse
 import csv
 import json
 import math
+import time
+import urllib.request
+import urllib.parse
 import os
 import re
 import sys
 from collections import Counter, defaultdict
+
+# ── NCBI accession name resolver ─────────────────────────────────────────────
+
+def resolve_ncbi_names(accessions, batch=50, pause=0.4):
+    """
+    Query NCBI esummary to get sequence titles for RefSeq accessions.
+    Only attempts NC_/NZ_/CP_ style accessions; skips SAMN-format entries.
+    Returns {accession: short_name} dict.
+    """
+    results = {}
+    refseq = [a for a in accessions if re.match(r'^(NC|NZ|CP|AC|AE|AY|DQ|EU|FJ|GQ|HM|JN|KC|KF|KJ|KP|KT|KU|KX|KY|MF|MG|MH|MK|MN|MT|MW|MZ|OM|ON|OP|OQ|OR|OV|OW|PP|MZ)_?\d', a)]
+    if not refseq:
+        return results
+    print(f'Resolving {len(refseq)} accession names from NCBI...')
+    for i in range(0, len(refseq), batch):
+        chunk = refseq[i:i+batch]
+        ids   = ','.join(chunk)
+        url   = f'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=nuccore&id={urllib.parse.quote(ids)}&retmode=json'
+        try:
+            with urllib.request.urlopen(url, timeout=15) as r:
+                data = json.loads(r.read())
+            for uid, doc in data.get('result', {}).items():
+                if uid == 'uids':
+                    continue
+                title = doc.get('title', '') or doc.get('organism', '')
+                # Shorten: strip ", complete genome" / "complete sequence" / strain cruft
+                short = re.sub(r',?\s+(complete (genome|sequence)|partial (cds|sequence)|whole genome shotgun.*)', '', title, flags=re.IGNORECASE)
+                short = re.sub(r'\s+strain\s+\S+', '', short)
+                short = short.strip()
+                # Map back to original accession by accession field
+                acc = doc.get('accessionversion', '')
+                base = acc.split('.')[0]
+                for orig in chunk:
+                    if orig.split('.')[0] == base:
+                        results[orig] = short[:80] if short else orig
+        except Exception as e:
+            print(f'  NCBI lookup failed for batch {i//batch+1}: {e}')
+        if i + batch < len(refseq):
+            time.sleep(pause)
+    print(f'  Resolved {len(results)}/{len(refseq)} names')
+    return results
 
 # ── Drug class keywords that indicate last-resort resistance ─────────────────
 LAST_RESORT_CLASSES = {
@@ -197,7 +241,7 @@ def load_phinder(path):
 
 # ── aggregate stats ───────────────────────────────────────────────────────────
 
-def summarize(records):
+def summarize(records, resolve_names=False):
     n = len(records)
     if n == 0:
         return {}
@@ -250,10 +294,19 @@ def summarize(records):
         exclusion_by_org[org] = {
             'n': n_org,
             'phage_freq': [
-                {'id': pid, 'count': cnt, 'pct': round(100 * cnt / n_org, 1)}
+                {'id': pid, 'count': cnt, 'pct': round(100 * cnt / n_org, 1), 'name': ''}
                 for pid, cnt in phage_counts.most_common(50)
             ],
         }
+
+    # Resolve accession names via NCBI if requested
+    if resolve_names:
+        all_ids = list({e['id'] for org_data in exclusion_by_org.values()
+                        for e in org_data['phage_freq']})
+        name_map = resolve_ncbi_names(all_ids)
+        for org_data in exclusion_by_org.values():
+            for e in org_data['phage_freq']:
+                e['name'] = name_map.get(e['id'], '')
 
     # MDR count: handle 'MDR'/'XDR'/'PDR' format AND 'Yes'/'No' format
     _mdr_pos  = {'MDR', 'XDR', 'PDR', 'Yes', 'yes'}
@@ -567,6 +620,7 @@ td {{ padding: 6px 9px; vertical-align: top; }}
       <table id="tbl-excl">
         <thead><tr>
           <th>Prophage ID / Accession</th>
+          <th>Organism / Description</th>
           <th>Isolates carrying it</th>
           <th>% of organism isolates</th>
           <th>Verdict</th>
@@ -1019,8 +1073,12 @@ function renderExclusion() {{
     const badge = isCandidate
       ? `<span class="badge" style="background:#27ae60;color:#fff">Candidate window</span>`
       : `<span class="badge" style="background:#c0392b;color:#fff">Exclude</span>`;
+    const nameCell = p.name
+      ? `<td style="font-size:11px;color:#555;max-width:260px">${{p.name}}</td>`
+      : `<td style="color:var(--muted);font-size:11px">—</td>`;
     return `<tr>
       <td style="font-family:monospace;font-size:11px">${{p.id}}</td>
+      ${{nameCell}}
       <td style="text-align:center">${{p.count}}</td>
       <td style="text-align:center">${{p.pct}}%</td>
       <td>${{badge}}</td>
@@ -1115,6 +1173,8 @@ def parse_args():
                    help='Path to PHINDER summary TSV (optional, enables Phage Matching tab)')
     p.add_argument('--out', default='phage_therapy_viewer.html',
                    help='Output HTML path (default: phage_therapy_viewer.html)')
+    p.add_argument('--resolve-names', action='store_true',
+                   help='Query NCBI to resolve prophage accessions to organism names (requires internet, ~10s)')
     return p.parse_args()
 
 def main():
@@ -1123,7 +1183,7 @@ def main():
         sys.exit(f'ERROR: COMPASS summary not found: {args.compass}')
     records  = load_compass(args.compass)
     phinder  = load_phinder(args.phinder) if args.phinder else []
-    stats    = summarize(records)
+    stats    = summarize(records, resolve_names=args.resolve_names)
     build_html(records, phinder, stats, args.out)
     p1 = sum(1 for r in records if r['priority'] == 1)
     lr = sum(1 for r in records if r['last_resort'])

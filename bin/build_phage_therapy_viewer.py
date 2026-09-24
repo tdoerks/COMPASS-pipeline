@@ -228,6 +228,29 @@ def summarize(records):
     # ST frequency
     st_freq = Counter(sts)
 
+    # Prophage exclusion data: for each organism, count how many isolates carry each phage ID
+    # Format of top_prophage_matches: "NC_001501.1(98.5%), phage_X(95.2%)" — extract IDs
+    _phage_id_re = re.compile(r'([^\s,\(]+)\(\d+\.\d+%\)')
+    orgs = sorted(set(r['organism'] for r in records if r['organism']))
+    exclusion_by_org = {}
+    for org in orgs:
+        org_recs = [r for r in records if r['organism'] == org]
+        n_org = len(org_recs)
+        phage_counts = Counter()
+        for r in org_recs:
+            seen = set()
+            for m in _phage_id_re.findall(r['top_prophage_matches']):
+                if m not in seen:
+                    phage_counts[m] += 1
+                    seen.add(m)
+        exclusion_by_org[org] = {
+            'n': n_org,
+            'phage_freq': [
+                {'id': pid, 'count': cnt, 'pct': round(100 * cnt / n_org, 1)}
+                for pid, cnt in phage_counts.most_common(50)
+            ],
+        }
+
     return {
         'n': n,
         'mdr_counts': dict(mdr_counts),
@@ -241,6 +264,7 @@ def summarize(records):
         'family_freq': dict(family_freq.most_common(20)),
         'st_freq': dict(st_freq.most_common(25)),
         'prophage_hist': build_histogram(prophage_vals, bins=list(range(0, 25))),
+        'exclusion_by_org': exclusion_by_org,
     }
 
 def build_histogram(values, bins):
@@ -368,6 +392,7 @@ td {{ padding: 6px 9px; vertical-align: top; }}
   <button onclick="showTab('amr')">AMR Profile</button>
   <button onclick="showTab('prophage')">Prophage Landscape</button>
   <button onclick="showTab('strains')">Strain Diversity</button>
+  <button onclick="showTab('exclusion')">Prophage Exclusion</button>
   <button id="phinder-tab-btn" onclick="showTab('matching')">Phage Matching</button>
 </nav>
 
@@ -491,6 +516,51 @@ td {{ padding: 6px 9px; vertical-align: top; }}
     <div class="card">
       <h3>Phage Coverage Estimate</h3>
       <div id="coverage-content" style="margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── PROPHAGE EXCLUSION TAB ─────────────────────────────────────────── -->
+<div id="tab-exclusion" class="tab">
+  <div class="info-box">
+    <strong>Exclusion Principle:</strong> Bacteria carrying a prophage are already immune to re-infection
+    by that phage family (superinfection immunity). The most common prophages in a species are the ones
+    to <em>avoid</em> for phage therapy. The rare or absent ones represent the <strong>candidate window</strong>
+    — phage types the host population hasn't encountered and can't block.
+  </div>
+  <div class="filter-bar">
+    <label>Organism:</label>
+    <select id="excl-org" onchange="renderExclusion()"></select>
+    <label style="margin-left:12px">Candidate threshold:</label>
+    <select id="excl-thresh" onchange="renderExclusion()">
+      <option value="5">≤ 5% of isolates (strict)</option>
+      <option value="10" selected>≤ 10% of isolates (moderate)</option>
+      <option value="20">≤ 20% of isolates (relaxed)</option>
+    </select>
+    <span id="excl-summary" style="margin-left:auto;font-size:12px;color:var(--muted)"></span>
+  </div>
+  <div class="grid-2">
+    <div class="card" style="grid-column:1/-1">
+      <h3>Prophage Frequency in Selected Organism (top 30)</h3>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:8px">
+        Red = common in this host species → likely excluded by superinfection immunity.
+        Green = rare or absent → candidate therapeutic phage window.
+      </p>
+      <div style="position:relative;height:360px"><canvas id="chart-excl-bar"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Full Prophage Table</h3>
+    <div style="overflow-x:auto;margin-top:6px">
+      <table id="tbl-excl">
+        <thead><tr>
+          <th>Prophage ID / Accession</th>
+          <th>Isolates carrying it</th>
+          <th>% of organism isolates</th>
+          <th>Verdict</th>
+        </tr></thead>
+        <tbody id="excl-tbody"></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -865,6 +935,87 @@ function renderStrains() {{
   document.getElementById('coverage-content').innerHTML = coverageHTML;
 }}
 
+// ── prophage exclusion ────────────────────────────────────────────────────
+let _exclChart = null;
+
+function initExclusionOrgFilter() {{
+  const orgs = Object.keys(STATS.exclusion_by_org).sort();
+  const sel = document.getElementById('excl-org');
+  sel.innerHTML = orgs.map(o => `<option value="${{o}}">${{o}}</option>`).join('');
+}}
+
+function renderExclusion() {{
+  const org    = document.getElementById('excl-org').value;
+  const thresh = +document.getElementById('excl-thresh').value;
+  const data   = STATS.exclusion_by_org[org];
+  if (!data) return;
+
+  const all    = data.phage_freq;          // [{{id, count, pct}}, ...] already sorted desc
+  const top30  = all.slice(0, 30);
+  const nTotal = data.n;
+  const nCand  = all.filter(p => p.pct <= thresh).length;
+  const nExcl  = all.filter(p => p.pct > thresh).length;
+
+  document.getElementById('excl-summary').textContent =
+    `${{nTotal}} isolates · ${{nExcl}} excluded families · ${{nCand}} candidate families (≤${{thresh}}%)`;
+
+  // Bar chart
+  const labels  = top30.map(p => p.id.length > 28 ? p.id.slice(0,25)+'…' : p.id);
+  const vals    = top30.map(p => p.pct);
+  const colors  = top30.map(p => {{
+    const t = Math.min(p.pct / 50, 1);   // 0→green, 50%+→red
+    const r = Math.round(39  + t * (192 - 39));
+    const g = Math.round(174 + t * (57  - 174));
+    const b = Math.round(96  + t * (43  - 96));
+    return `rgba(${{r}},${{g}},${{b}},0.85)`;
+  }});
+  const threshLine = Array(top30.length).fill(thresh);
+
+  if (_exclChart) _exclChart.destroy();
+  _exclChart = new Chart(document.getElementById('chart-excl-bar'), {{
+    data: {{
+      labels,
+      datasets: [
+        {{ type:'bar', label:'% isolates carrying prophage', data:vals,
+           backgroundColor:colors, borderWidth:0, yAxisID:'y' }},
+        {{ type:'line', label:`Candidate threshold (${{thresh}}%)`, data:threshLine,
+           borderColor:'#2c3e50', borderDash:[6,4], borderWidth:1.5,
+           pointRadius:0, fill:false, yAxisID:'y' }},
+      ]
+    }},
+    options: {{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{{
+        legend:{{position:'top'}},
+        tooltip:{{callbacks:{{
+          label: ctx => ctx.datasetIndex===0
+            ? `${{ctx.raw.toFixed(1)}}% of ${{nTotal}} isolates (${{top30[ctx.dataIndex].count}} isolates)`
+            : `Candidate threshold: ${{thresh}}%`
+        }}}}
+      }},
+      scales:{{
+        x:{{ticks:{{font:{{size:10}}}}}},
+        y:{{min:0, max:100, title:{{display:true,text:'% of isolates'}}}}
+      }}
+    }}
+  }});
+
+  // Table
+  const tbody = document.getElementById('excl-tbody');
+  tbody.innerHTML = all.map(p => {{
+    const isCandidate = p.pct <= thresh;
+    const badge = isCandidate
+      ? `<span class="badge" style="background:#27ae60;color:#fff">Candidate window</span>`
+      : `<span class="badge" style="background:#c0392b;color:#fff">Exclude</span>`;
+    return `<tr>
+      <td style="font-family:monospace;font-size:11px">${{p.id}}</td>
+      <td style="text-align:center">${{p.count}}</td>
+      <td style="text-align:center">${{p.pct}}%</td>
+      <td>${{badge}}</td>
+    </tr>`;
+  }}).join('');
+}}
+
 // ── phage matching ────────────────────────────────────────────────────────
 function renderMatching() {{
   if (!HAS_PHINDER) return;
@@ -927,6 +1078,8 @@ window.addEventListener('DOMContentLoaded', () => {{
   renderAMR();
   renderProphage();
   renderStrains();
+  initExclusionOrgFilter();
+  renderExclusion();
   if (HAS_PHINDER) {{
     document.getElementById('phinder-tab-btn').style.display = '';
     renderMatching();

@@ -42,7 +42,8 @@ def resolve_ncbi_names(accessions, batch=50, pause=0.4):
     Returns {accession: short_name} dict.
     """
     results = {}
-    refseq = [a for a in accessions if re.match(r'^(NC|NZ|CP|AC|AE|AY|DQ|EU|FJ|GQ|HM|JN|KC|KF|KJ|KP|KT|KU|KX|KY|MF|MG|MH|MK|MN|MT|MW|MZ|OM|ON|OP|OQ|OR|OV|OW|PP|MZ)_?\d', a)]
+    # NCBI accessions start with uppercase letters; skip digit-prefix SAMN format and lowercase contig names
+    refseq = [a for a in accessions if re.match(r'^[A-Z]', a)]
     if not refseq:
         return results
     print(f'Resolving {len(refseq)} accession names from NCBI...')

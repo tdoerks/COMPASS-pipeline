@@ -255,10 +255,11 @@ def summarize(records):
             ],
         }
 
-    # MDR count: use mdr_status if populated, fall back to amr_score >= 2
+    # MDR count: handle 'MDR'/'XDR'/'PDR' format AND 'Yes'/'No' format
+    _mdr_pos  = {'MDR', 'XDR', 'PDR', 'Yes', 'yes'}
     _mdr_null = {'', '-', 'N/A', 'NA', 'Unknown', 'none'}
     mdr_n = sum(1 for r in records if
-                r['mdr_status'] in ('MDR', 'XDR', 'PDR') or
+                r['mdr_status'] in _mdr_pos or
                 (r['mdr_status'] in _mdr_null and r['amr_score'] >= 2))
 
     return {

@@ -255,8 +255,15 @@ def summarize(records):
             ],
         }
 
+    # MDR count: use mdr_status if populated, fall back to amr_score >= 2
+    _mdr_null = {'', '-', 'N/A', 'NA', 'Unknown', 'none'}
+    mdr_n = sum(1 for r in records if
+                r['mdr_status'] in ('MDR', 'XDR', 'PDR') or
+                (r['mdr_status'] in _mdr_null and r['amr_score'] >= 2))
+
     return {
         'n': n,
+        'mdr_n': mdr_n,
         'mdr_counts': dict(mdr_counts),
         'tier_counts': {str(k): v for k, v in tier_counts.items()},
         'last_resort_n': last_resort_n,
@@ -603,12 +610,7 @@ function renderStatsBar() {{
   const lr = RECORDS.filter(r => r.last_resort).length;
   const p1 = RECORDS.filter(r => r.priority === 1).length;
   const mdn_phg = median(RECORDS.map(r => r.num_prophages));
-  // Use mdr_status when populated; fall back to amr_score ≥ 2 (≥3 drug classes) otherwise
-  const _mdrNull = new Set(['', '-', 'N/A', 'NA', 'Unknown', 'none']);
-  const pct_mdr = RECORDS.filter(r =>
-    ['MDR','XDR','PDR'].includes(r.mdr_status) ||
-    (_mdrNull.has(r.mdr_status) && r.amr_score >= 2)
-  ).length;
+  const pct_mdr = STATS.mdr_n;
   document.getElementById('hdr-sub').textContent = `${{n}} isolates`;
   document.getElementById('statsbar').innerHTML = [
     ['Isolates', n],

@@ -16,12 +16,10 @@ process GENOMAD_PROPHAGE {
     def db = params.genomad_db ?: '/genomad_db'
     """
     # Skip if no prophages detected (empty FASTA from VIBRANT)
+    # Use printf instead of heredoc to avoid Nextflow stripIndent/<<- tab-vs-space issue
     if [ ! -s "${phage_fasta}" ]; then
         echo "No prophage sequences found for ${sample_id} — skipping geNomad" >&2
-        cat <<-END_VERSIONS > versions.yml
-        "${task.process}":
-            genomad: skipped_no_input
-        END_VERSIONS
+        printf '"${task.process}":\\n    genomad: skipped_no_input\\n' > versions.yml
         exit 0
     fi
 

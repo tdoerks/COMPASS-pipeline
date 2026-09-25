@@ -8,7 +8,7 @@
 #SBATCH -J compass-phage-therapy
 #SBATCH -o "compass_phage_therapy.stdout.%j.%N"
 #SBATCH -e "compass_phage_therapy.stderr.%j.%N"
-#SBATCH --mail-user=tyler.tyler.d@gmail.com
+#SBATCH --mail-user=tylerdoe@ksu.edu
 #SBATCH --mail-type=END,FAIL
 
 set -euo pipefail

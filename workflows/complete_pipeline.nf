@@ -12,6 +12,7 @@ include { MOBILE_ELEMENTS } from '../subworkflows/mobile_elements'
 include { COMPARATIVE_GENOMICS } from '../subworkflows/comparative_genomics'
 include { COMBINE_RESULTS } from '../modules/combine_results'
 include { COMPASS_SUMMARY } from '../modules/compass_summary'
+include { PHAGE_THERAPY_VIEWER } from '../modules/phage_therapy_viewer'
 include { MULTIQC } from '../modules/multiqc'
 include { BUSCO } from '../modules/busco'
 include { QUAST } from '../modules/quast'
@@ -280,11 +281,20 @@ workflow COMPLETE_PIPELINE {
     )
     ch_versions = ch_versions.mix(COMPASS_SUMMARY.out.versions)
 
+    // Build phage therapy viewer from summary TSV
+    ch_phage_therapy_html = Channel.empty()
+    if (!params.skip_phage_therapy_viewer) {
+        PHAGE_THERAPY_VIEWER(COMPASS_SUMMARY.out.tsv)
+        ch_phage_therapy_html = PHAGE_THERAPY_VIEWER.out.html
+        ch_versions = ch_versions.mix(PHAGE_THERAPY_VIEWER.out.versions)
+    }
+
     emit:
     summary = COMBINE_RESULTS.out.summary
     report = COMBINE_RESULTS.out.report
     compass_summary_tsv = COMPASS_SUMMARY.out.tsv
     compass_summary_html = COMPASS_SUMMARY.out.html
+    phage_therapy_html = ch_phage_therapy_html
     amr_results = AMR_ANALYSIS.out.results
     phage_results = PHAGE_ANALYSIS.out.vibrant_results
     diamond_results = PHAGE_ANALYSIS.out.diamond_results

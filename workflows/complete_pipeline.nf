@@ -162,6 +162,7 @@ workflow COMPLETE_PIPELINE {
     // Run Phage analysis - samples processed as they arrive
     PHAGE_ANALYSIS(ch_assemblies_split.phage)
     ch_versions = ch_versions.mix(PHAGE_ANALYSIS.out.versions)
+    ch_genomad_summaries = PHAGE_ANALYSIS.out.genomad_summaries
 
     // Run Typing analysis (MLST, serotyping) - samples processed as they arrive
     TYPING(ch_assemblies_split.typing)
@@ -269,9 +270,10 @@ workflow COMPLETE_PIPELINE {
     ch_multiqc_report = MULTIQC.out.report
 
     // Generate comprehensive COMPASS summary after all analyses complete
-    // Wait for COMBINE_RESULTS and MultiQC to finish before generating summary
+    // Wait for COMBINE_RESULTS, MultiQC, and geNomad (if enabled) before generating summary
     ch_summary_ready = COMBINE_RESULTS.out.summary
         .concat(ch_multiqc_report)
+        .concat(ch_genomad_summaries.ifEmpty(Channel.empty()).map { it[1] })
         .collect()
         .map { 'ready' }
 

@@ -1,6 +1,6 @@
 # Claude Code — Session Notes
 
-Last active: (updated 2026-09-28, session 18)
+Last active: (updated 2026-09-28, session 18 — later)
 
 ## Environment
 - WSL Ubuntu-24.04 on Windows (KSU — tylerdoe)
@@ -70,8 +70,11 @@ gh auth setup-git   # wires gh credentials to git
   - Rerun job 11503072 + 11519299 (Sep 28): geNomad still 95 FAILED (hidden by errorStrategy ignore) + PHAGE_THERAPY_VIEWER crashed
   - **Fix 639c6db**: viewer script chmod +x, called by name via PATH (like COMPASS_SUMMARY) — `python3 ${projectDir}/bin/...` fails under apptainer `--contain`
   - **Fix 687f8c9**: geNomad keys on first header word; VIBRANT `*_phages.fna` keeps full NCBI description → multiple prophages on one contig = duplicate IDs → "empty or contains multiple entries with the same identifier". Module now awk-sanitizes headers (whitespace→`_`, `_dupN` suffix)
-  - **Job 11519817 RUNNING** (`run_compass_phage_therapy_test.sbatch`, dir `/fastscratch/tylerdoe/COMPASS-phage-therapy/`) — all 497 geNomad rerun (module hash changed), rest cached
-  - **Next**: confirm `GENOMAD_PROPHAGE 497 of 497` with no failed + `summary/phage_therapy_viewer.html` exists
+  - **Job 11519817 COMPLETE** (55 min, `run_compass_phage_therapy_test.sbatch`, dir `/fastscratch/tylerdoe/COMPASS-phage-therapy/`) — GENOMAD_PROPHAGE **497/497, 0 failed** ✔, PHAGE_THERAPY_VIEWER ✔ — both fixes confirmed
+  - Viewer: `results_stec_500_pt/summary/phage_therapy_viewer.html` (outdir per notes — `find . -name phage_therapy_viewer.html` if not there)
+  - **Viewer caveats (DIAMOND accessions view)**: Name column all `—` (pipeline step has no internet → no `--resolve-names`); rows are reference ACCESSIONS (mostly `562.SAMN…` E. coli genomes, one metagenome contig `k141_…`), not phage families → one prophage type split across several accessions → max only 15%, 5 excluded / 45 "candidate" inflated
+  - For named version: `python3 bin/build_phage_therapy_viewer.py --compass results_stec_500_pt/summary/compass_summary.tsv --resolve-names --out phage_therapy_viewer_named.html` (login node)
+  - **Next**: read the "ICTV families (geNomad)" Source view (now all 497 isolates) for the real exclusion call
   - Check ignored failures: `L=.nextflow.log; grep GENOMAD_PROPHAGE $L | grep -oE "exit: [0-9]+" | sort | uniq -c`
   - Results in `results_stec_500_pt/`; after completion rebuild: `python3 bin/generate_compass_summary.py --outdir results_stec_500_pt && python3 bin/build_phage_therapy_viewer.py --compass compass_summary.tsv --out phage_therapy_viewer_pt.html`
   - Exclusion tab: "Source" dropdown → switch DIAMOND accessions ↔ ICTV families (geNomad)
@@ -91,7 +94,7 @@ gh auth setup-git   # wires gh credentials to git
   - **STEC results**: 165 Priority 1 candidates, 435/497 last-resort resistance, 497/497 MDR, 8.0 median prophages, 157 unique STs
   - **Prophage Exclusion tab**: 5 excluded families (>10%): Shigella sonnei, E. coli O16:H48, E. coli DSM 30083, E. coli generic, E. fergusonii — all core E. coli/Shigella lineage prophages
   - **Candidate window**: E. albertii, E. marmotae, E. ruysiae lineage prophages (<10% prevalence)
-  - **Next ideas**: ST-level exclusion filter; cross with PHINDER library (--phinder flag already built)
+  - **Next ideas**: **cluster DIAMOND hits by matched prophage (not accession) in exclusion tab** — accession-level splitting understates prevalence; ST-level exclusion filter; cross with PHINDER library (--phinder flag already built)
 
 ### NARMS bulk storage cleanup — `/bulk/tylerdoe/NARMS/`
 - **Goal**: Flatten FASTQs by year into `samples_clean/` folders, remove nested BaseSpace hash dirs
@@ -112,7 +115,24 @@ gh auth setup-git   # wires gh credentials to git
 - **Input modes**: SRA accessions, raw FASTQs, or pre-assembled FASTAs (`--input_mode assembly`)
 - **Beocat locations**: `/fastscratch/tylerdoe/PHINDER/` (main runs), `/fastscratch/tylerdoe/PHINDER-dev/` (module testing)
 - **Branching strategy**: `main` = stable tested; `dev` = new modules; merge via PR once proven
-- **PR #6 MERGED (dev→main)** — main now has everything; both branches at f70d142
+- **PR #6 MERGED (dev→main)**; **PR #7 MERGED 2026-09-28** (5e5f15b) — BacPhlip/Pharokka meta/MultiQC reads-mode fixes now on main
+- **dev synced** with main via merge (70b2899) — identical trees; dev = main now (old "dev has extras" list below is stale: ANI/vConTACT2 are on main)
+- **Publication scrub**: personal `--mail-user` removed from `bin/run_phinder_beocat.sh` (on stress-test branch, not yet on main)
+- **Known bug (not fixed)**: `generate_phinder_summary.py` `parse_bacphlip_results` falls back to `glob("*.bacphlip")[0]` → a sample with missing BacPhlip shows ANOTHER sample's lifestyle on the dashboard. Fix on main after stress results
+- **Dashboard sample discovery keys off `quast/*_quast`** → samples whose QUAST failed vanish from dashboard (stress scorer flags this as "Dashboard MISSING")
+
+#### PHINDER stress test — `stress-test` branch (c3d2c61), Beocat dir `/fastscratch/tylerdoe/PHINDER-stress/`
+- **Goal**: find what PHINDER can/can't handle, with known answers. Docs in `TEST_PHAGES.md`
+- **Stress tier (47 samples)**: 31 simulated (19 verified RefSeq phages + E. coli K-12): architecture (phiX174, M13, MS2, Phi6, PM2, PRD1, T7/T5/T4, phiKZ 280kb, phage G 498kb), lifestyle (lambda/P22/Mu/P1), host/GC (phage K, L5, D29, crAss001), coverage T7 5x→10,000x, host contamination T7+10/50/90% E. coli, mixed (T7+lambda, T4+T7), negatives (E. coli only, random); + 7 real-read samples (SPAdes-compare reads) + 8 assembly-mode + 1 SRA
+- **Breadth tier (1000 samples)**: `assets/stress_breadth_panel.tsv` — diversity-stratified RefSeq panel: 12 classes, 129 families, 230 host genera, 22 phyla, 131 archaeal, 65 jumbo; clean 100x each
+- **Scripts**: `bin/stress_fetch_refs.py` (download+verify; `--panel` for breadth), `bin/stress_simulate.py` (pure-Python 2x150 simulator; `--breadth-panel`), `bin/stress_breadth_panel.py` (panel builder from `datasets summary virus genome taxon <Class> --refseq --complete-only --as-json-lines`), `bin/score_stress_test.py` (trace status + k-mer recovery/purity + CheckV/geNomad/BacPhlip/VIBRANT + geNomad-vs-NCBI taxonomy + per-group breakdown), `conf/stress.config` (retry 2x then ignore), `bin/run_phinder_stress_beocat.sh` (modes reads/assembly/sra from separate launch dirs; `MODES=breadth` for panel)
+- **Job 11520464 RUNNING** — stress tier (reads→assembly→sra, then scoring). Log: `tail -f phinder_stress_11520464.log`
+  - Early: SPAdes failed `sim_random` (exit 21, expected — negative control), `real_phiX174` + `real_Ecoli_K12` (exit 255 — SRR001665/6 are 2008 Illumina GA runs, likely ~36bp reads too short for SPAdes k-mers; unconfirmed), 1 more unknown. Diagnose: see `.command.err` in `stress_runs/reads/work/<hash>`
+- **Breadth**: 1000/1000 genomes fetched on Beocat ✔; simulate was running (~9 min, ~3.5 GB) → then `MODES=breadth sbatch bin/run_phinder_stress_beocat.sh` (~12k tasks, 2-3 days, resubmit to resume) — **check whether submitted**
+- **Outputs**: `stress_runs/stress_scorecard.html` + `.tsv` + `_breakdown.tsv` (copy to Windows with scp)
+- **Caveats**: PhageTerm on simulated reads meaningless (uniform read ends) — judge only real reads; `test_phages_20_sra.txt` 17 "diverse" SRRs are unverified placeholders (flagged in TEST_PHAGES.md); real SRR5131134/5/6 identities (lambda/T4/T7) unverified — scorer's recovery vs claimed ref will confirm
+- **Local Nextflow in claude container is 26.04** — strict parser rejects `def check_max` in nextflow.config; use `NXF_SYNTAX_PARSER=v1` to test configs locally (Beocat 24.04 fine)
+- **Nextflow config gotcha**: inside `trace { }` block `params.x` resolves to `trace.params.x`; and `params.outdir` isn't reliably visible in a `-c` config → pass `-with-trace <path>` on CLI instead
 - **Publication scrub done** (d2803b2): db paths null in core config, site paths in `conf/beocat.config` (run scripts use `-profile slurm,beocat`), README rewritten (SPAdes not Unicycler, all 17 tools), CITATIONS.md created, version 1.0.0
 - **main branch** (commit f70d142) — stable, all working modules:
   - FastQC, fastp, SPAdes, QUAST, CheckV, Pharokka, VIBRANT, DIAMOND prophage, PHANOTATE, BacPhlip
@@ -152,8 +172,8 @@ gh auth setup-git   # wires gh credentials to git
     - BACPHLIP: awk filter fix (uses `next`), threshold 500bp, `errorStrategy=ignore`
     - PHAROKKA: handle prodigal-gv.faa in meta mode
     - MultiQC: strip sample_id from FASTQC zip tuple (`.map { sid, zip -> zip }`)
-  - **PR #7 open** (fnn-reads-test -> main): all three reads-mode bug fixes + SLURM email
-  - **Next**: resolve SA_4 (above), check SA_2/SA_3 same way; merge PR #7
+  - PR #7 (fnn-reads-test -> main) MERGED 2026-09-28
+  - **Next**: resolve SA_4 (above), check SA_2/SA_3 same way
 - **Dev test run 11392176 PASSED**: all modules ✔ incl. vConTACT2 (6 Fn phages hit graceful no-edges path — too dissimilar with --db None, expected)
 - **SPAdes mode discussion (2026-09-17)**: current pipeline uses `--isolate`; discussed switching to `--meta` (better for high/uneven phage coverage) and designed a full comparison test
 - **spades-mode-test branch** (commit b33ecf7) — test all 6 SPAdes modes across phage types:

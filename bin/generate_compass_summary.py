@@ -491,7 +491,8 @@ def parse_diamond_prophage(diamond_dir):
                 if df.empty:
                     diamond_data[sample_id] = {
                         'num_prophage_hits': 0,
-                        'top_prophage_matches': '-'
+                        'top_prophage_matches': '-',
+                        'prophage_best_matches': '-'
                     }
                 else:
                     # Count unique prophage hits
@@ -505,9 +506,20 @@ def parse_diamond_prophage(diamond_dir):
                             match_str = f"{row['sseqid']}({row['pident']:.1f}%)"
                             top_matches.append(match_str)
 
+                    # Best reference per prophage (query), by bitscore. Unlike top_prophage_matches
+                    # (top 3 rows overall by identity, often all from one prophage), this lists one
+                    # match for EVERY prophage in the isolate — what the exclusion tab needs.
+                    best = df.loc[df.groupby('qseqid')['bitscore'].idxmax()]
+                    best_matches, seen_ref = [], set()
+                    for _, row in best.sort_values('bitscore', ascending=False).iterrows():
+                        if row['sseqid'] not in seen_ref:
+                            seen_ref.add(row['sseqid'])
+                            best_matches.append(f"{row['sseqid']}({row['pident']:.1f}%)")
+
                     diamond_data[sample_id] = {
                         'num_prophage_hits': num_hits,
-                        'top_prophage_matches': ', '.join(top_matches) if top_matches else '-'
+                        'top_prophage_matches': ', '.join(top_matches) if top_matches else '-',
+                        'prophage_best_matches': ', '.join(best_matches) if best_matches else '-'
                     }
             except Exception as e:
                 print(f"Warning: Could not parse DIAMOND results for {diamond_file}: {e}", file=sys.stderr)
@@ -1325,7 +1337,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                        'num_contigs', 'assembly_quality', 'busco_complete_pct',
                        'busco_duplicated_pct', 'busco_summary', 'mlst_st', 'mlst_scheme',
                        'serovar', 'inc_groups', 'mob_types', 'num_lytic', 'num_lysogenic',
-                       'num_prophage_hits', 'top_prophage_matches'}
+                       'num_prophage_hits', 'top_prophage_matches', 'prophage_best_matches'}
 
     # Whitelist of useful metadata fields to display (instead of all 49 SRA fields)
     # This keeps the dropdown manageable and focused on relevant information
@@ -5542,7 +5554,8 @@ def main():
         else:
             row.update({
                 'num_prophage_hits': 0,
-                'top_prophage_matches': '-'
+                'top_prophage_matches': '-',
+                'prophage_best_matches': '-'
             })
 
         # geNomad prophage ICTV taxonomy
@@ -5631,6 +5644,7 @@ def main():
         'num_plasmids', 'inc_groups', 'mob_types',
         # Phages
         'num_prophages', 'num_lytic', 'num_lysogenic', 'num_prophage_hits', 'top_prophage_matches',
+        'prophage_best_matches',
         # geNomad ICTV taxonomy
         'prophage_count_genomad', 'prophage_families_ictv', 'prophage_genera_ictv',
         'top_prophage_family', 'top_prophage_genus'

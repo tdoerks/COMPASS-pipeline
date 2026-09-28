@@ -227,6 +227,8 @@ def load_compass(path):
                 'num_lytic':      int(num(r.get('num_lytic'), 0)),
                 'num_lysogenic':  int(num(r.get('num_lysogenic'), 0)),
                 'top_prophage_matches': r.get('top_prophage_matches', '') or '',
+                # one best reference per prophage; absent in summaries built before this column existed
+                'prophage_best_matches': r.get('prophage_best_matches', '') or '',
                 'prophage_families_ictv': r.get('prophage_families_ictv', '') or '',
                 'top_prophage_family': r.get('top_prophage_family', '') or '',
                 'prophage_genera_ictv': r.get('prophage_genera_ictv', '') or '',
@@ -294,8 +296,10 @@ def summarize(records, resolve_names=False):
     # ST frequency
     st_freq = Counter(sts)
 
-    # Prophage exclusion data: for each organism, count how many isolates carry each phage ID
-    # Format of top_prophage_matches: "NC_001501.1(98.5%), phage_X(95.2%)" — extract IDs
+    # Prophage exclusion data: for each organism, count how many isolates carry each phage ID.
+    # Prefer prophage_best_matches (best reference for EVERY prophage in the isolate); fall back to
+    # top_prophage_matches (top 3 rows overall — undercounts) for summaries built before it existed.
+    # Format: "NC_001501.1(98.5%), phage_X(95.2%)" — extract IDs
     _phage_id_re = re.compile(r'([^\s,\(]+)\(\d+\.\d+%\)')
     # Fall back to 'All isolates' when organism column is unpopulated
     def _org_label(r):
@@ -309,7 +313,7 @@ def summarize(records, resolve_names=False):
         phage_counts = Counter()
         for r in org_recs:
             seen = set()
-            for m in _phage_id_re.findall(r['top_prophage_matches']):
+            for m in _phage_id_re.findall(r['prophage_best_matches'] or r['top_prophage_matches']):
                 if m not in seen:
                     phage_counts[m] += 1
                     seen.add(m)

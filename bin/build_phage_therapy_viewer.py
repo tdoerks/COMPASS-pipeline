@@ -1086,7 +1086,8 @@ function renderExclusion() {{
   if (src === 'ictv' && hasICTV) {{
     data = (STATS.exclusion_ictv_by_org||{{}})[org];
     document.getElementById('excl-source-note').textContent =
-      'Source: ICTV family names from geNomad.';
+      'Source: ICTV family names from geNomad. "(no family)" = prophage has no ICTV family (e.g. most ' +
+      'lambdoid/Stx phages since 2022) — family-level taxonomy cannot separate these; use DIAMOND or clustering.';
     document.getElementById('excl-col-id').textContent = 'ICTV Family';
   }} else {{
     data = STATS.exclusion_by_org[org];

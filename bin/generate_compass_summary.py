@@ -535,10 +535,16 @@ def parse_genomad_prophage_ictv(genomad_dir):
     from collections import Counter as _Counter
 
     def _ictv_from_taxonomy(tax_str):
+        # geNomad lineage: Viruses;realm;kingdom;phylum;class;order;family — it stops at family,
+        # so there is no genus to read. Most E. coli prophages (lambdoid/Stx phages) have NO ICTV
+        # family since the 2022 abolition of Siphoviridae/Myoviridae; label those by the deepest
+        # assigned rank ("Caudoviricetes (no family)") instead of dropping them as 'unclassified',
+        # otherwise the exclusion tab silently ignores ~99% of STEC prophages.
         parts = [p.strip() for p in (tax_str or '').split(';')]
-        family = parts[6] if len(parts) > 6 and parts[6] else 'unclassified'
-        genus  = parts[8] if len(parts) > 8 and parts[8] else 'unclassified'
-        return family, genus
+        if len(parts) > 6 and parts[6]:
+            return parts[6], 'unclassified'
+        deepest = next((p for p in reversed(parts[1:6]) if p), '')
+        return (f'{deepest} (no family)' if deepest else 'unclassified'), 'unclassified'
 
     for sample_dir in sorted(genomad_path.iterdir()):
         if not sample_dir.is_dir():

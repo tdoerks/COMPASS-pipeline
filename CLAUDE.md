@@ -74,7 +74,15 @@ gh auth setup-git   # wires gh credentials to git
   - Viewer: `results_stec_500_pt/summary/phage_therapy_viewer.html` (outdir per notes — `find . -name phage_therapy_viewer.html` if not there)
   - **Viewer caveats (DIAMOND accessions view)**: Name column all `—` (pipeline step has no internet → no `--resolve-names`); rows are reference ACCESSIONS (mostly `562.SAMN…` E. coli genomes, one metagenome contig `k141_…`), not phage families → one prophage type split across several accessions → max only 15%, 5 excluded / 45 "candidate" inflated
   - For named version: `python3 bin/build_phage_therapy_viewer.py --compass results_stec_500_pt/summary/compass_summary.tsv --resolve-names --out phage_therapy_viewer_named.html` (login node)
-  - **Next**: read the "ICTV families (geNomad)" Source view (now all 497 isolates) for the real exclusion call
+  - **Exclusion-tab bugs fixed (phage-therapy branch)**:
+    - 59bd1f6: `top_prophage_matches` = top 3 DIAMOND rows OVERALL by pident (short 100% hits from ONE prophage) → isolates with ~8 prophages credited ~1. New summary column `prophage_best_matches` = best ref per prophage (qseqid, by bitscore); viewer uses it (falls back to old col). Result: max 15%→28.8%, excluded 5→21
+    - 4e7e20b: geNomad lineage stops at FAMILY (no genus — old `parts[8]` genus read never worked). 541/547 STEC prophages = `Caudoviricetes;;` (no ICTV family: lambdoid/Stx phages lost family when Siphoviridae/Myoviridae abolished 2022) → were dropped as 'unclassified'. Now labeled by deepest rank "Caudoviricetes (no family)"
+  - **Regenerate (no pipeline rerun)** — ORDER MATTERS, viewer reads the summary TSV:
+    `python3 bin/generate_compass_summary.py --outdir results_stec_500_pt --output_tsv compass_summary_pt.tsv --output_html compass_summary_pt.html` then
+    `python3 bin/build_phage_therapy_viewer.py --compass compass_summary_pt.tsv --resolve-names --out phage_therapy_viewer_pt.html` (login node, needs internet). Done 2026-09-28 ✔
+  - **STEC results (2026-09-28)**: DIAMOND view — 21 refs >10% (top: E. coli/Shigella/O157 Sakai-matched prophages 21–29%). ICTV view — Caudoviricetes (no family) 98.8% (Exclude); named families rare: Straboviridae (T4-like) 1.6%, Autographiviridae (T7-like) 1.2%, Peduoviridae (P2, temperate) 1.0%, Drexlerviridae (T1-like) 0.8%, Inoviridae 0.6%, Chimalliviridae (phiKZ-like jumbo) 0.2%. Priority 1: 163
+  - **Interpretation**: exclusion logic mainly argues against lambdoid/temperate phages. Lytic families (T4/T7/T1-like, jumbo) being rare AS PROPHAGES is expected (they don't lysogenize) — NOT evidence of susceptibility. Lytic success depends on receptors (O-antigen/capsule) + defense systems (CRISPR, R-M, Abi). Peduoviridae/Inoviridae shown as "candidate window" but are temperate/chronic — not therapy candidates
+  - Harmless noise: "Could not parse prophage-AMR results … No columns to parse" = empty files (no prophage AMR); "Resolved 60/42 names" = SAMN IDs double-counted in counter
   - Check ignored failures: `L=.nextflow.log; grep GENOMAD_PROPHAGE $L | grep -oE "exit: [0-9]+" | sort | uniq -c`
   - Results in `results_stec_500_pt/`; after completion rebuild: `python3 bin/generate_compass_summary.py --outdir results_stec_500_pt && python3 bin/build_phage_therapy_viewer.py --compass compass_summary.tsv --out phage_therapy_viewer_pt.html`
   - Exclusion tab: "Source" dropdown → switch DIAMOND accessions ↔ ICTV families (geNomad)
@@ -94,7 +102,7 @@ gh auth setup-git   # wires gh credentials to git
   - **STEC results**: 165 Priority 1 candidates, 435/497 last-resort resistance, 497/497 MDR, 8.0 median prophages, 157 unique STs
   - **Prophage Exclusion tab**: 5 excluded families (>10%): Shigella sonnei, E. coli O16:H48, E. coli DSM 30083, E. coli generic, E. fergusonii — all core E. coli/Shigella lineage prophages
   - **Candidate window**: E. albertii, E. marmotae, E. ruysiae lineage prophages (<10% prevalence)
-  - **Next ideas**: **cluster DIAMOND hits by matched prophage (not accession) in exclusion tab** — accession-level splitting understates prevalence; ST-level exclusion filter; cross with PHINDER library (--phinder flag already built)
+  - **Next ideas (ranked 2026-09-28)**: (1) lifestyle-aware labels in exclusion tab (temperate/chronic families not "candidate"); (2) E. coli serotyping (ECTyper — O-antigen = key receptor); (3) defense-system screen (DefenseFinder/PADLOC) per isolate; (4) cross with PHINDER library via --phinder (7 E. coli phages); (5) vOTU clustering of prophages (95% ANI/85% AF) to split the 98.8% "no family" group; **cluster DIAMOND hits by matched prophage (not accession) in exclusion tab** — accession-level splitting understates prevalence; ST-level exclusion filter; cross with PHINDER library (--phinder flag already built)
 
 ### NARMS bulk storage cleanup — `/bulk/tylerdoe/NARMS/`
 - **Goal**: Flatten FASTQs by year into `samples_clean/` folders, remove nested BaseSpace hash dirs
@@ -278,7 +286,7 @@ gh auth setup-git   # wires gh credentials to git
 - https://skillsmp.com/ (skills marketplace — browse for relevant skills to install)
 
 ## Key Patterns
-- **Pasting multi-line commands into Beocat terminal joins lines** → give single-line `;`-separated commands
+- **Pasting multi-line commands into Beocat terminal joins lines** → give ONE command per code block, paste each separately. Long lines (~>100 chars) also get spaces inserted at wrap points (breaks quoted paths/python -c) → keep commands short, use variables (e.g. `F=path` then `find $F …`)
 - COMPASS log: `tail -f compass*stdout*<JOBID>*` (NOT `slurm-<JOBID>.out`)
 - ARBOR log: `tail -f arbor_head_<JOBID>.log`
 - Beocat jobs: `squeue -u tylerdoe`

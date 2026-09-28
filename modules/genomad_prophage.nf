@@ -23,8 +23,11 @@ process GENOMAD_PROPHAGE {
         exit 0
     fi
 
-    # geNomad uses input filename stem as prefix — rename to sample_id
-    [ "${phage_fasta}" != "${sample_id}.fasta" ] && cp ${phage_fasta} ${sample_id}.fasta || true
+    # geNomad uses input filename stem as prefix — rename to sample_id.
+    # geNomad keys on the first header word; VIBRANT keeps full NCBI descriptions,
+    # so multiple prophages on one contig collide. Whitespace -> '_' and de-dupe.
+    awk '/^>/{h=substr(\$0,2); gsub(/[[:space:]]+/,"_",h); n[h]++; if(n[h]>1) h=h"_dup"n[h]; print ">"h; next} {print}' \\
+        ${phage_fasta} > ${sample_id}.fasta.tmp && mv ${sample_id}.fasta.tmp ${sample_id}.fasta
 
     genomad end-to-end \\
         ${sample_id}.fasta \\

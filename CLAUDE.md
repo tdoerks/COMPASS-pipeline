@@ -1,6 +1,6 @@
 # Claude Code — Session Notes
 
-Last active: (updated 2026-09-24, session 17)
+Last active: (updated 2026-09-28, session 18)
 
 ## Environment
 - WSL Ubuntu-24.04 on Windows (KSU — tylerdoe)
@@ -64,11 +64,18 @@ gh auth setup-git   # wires gh credentials to git
   - 10,615 total STEC in `isolates (3).tsv` (no Has AMR filter); 500 most recent selected
   - Assemblies downloaded: `datasets download genome accession --inputfile <(awk -F, 'NR>1{print $3}' samplesheet_stec_500.csv) --include genome --filename stec_500_assemblies.zip`
   - FASTA samplesheet: `echo "sample,fasta,organism" > samplesheet_stec_500_fasta.csv && find $(pwd)/stec_500_assemblies/ncbi_dataset/data -name "*_genomic.fna" | while read f; do gca=$(basename $(dirname $f)); sample=$(echo $gca | tr '.' '_'); echo "${sample},${f},Escherichia"; done >> samplesheet_stec_500_fasta.csv`
-- **phage-therapy branch** (commit fd7cbe1) — geNomad prophage module + ICTV exclusion tab
-  - Job 11484915 RUNNING on Beocat — `/fastscratch/tylerdoe/COMPASS-phage-therapy/`
-  - Results will be in `results_stec_500_pt/`; reuses existing STEC 500 samplesheet
-  - After completion: `python3 bin/generate_compass_summary.py --outdir results_stec_500_pt && python3 bin/build_phage_therapy_viewer.py --compass compass_summary.tsv --out phage_therapy_viewer_pt.html`
+- **phage-therapy branch** (commit b7557e7) — geNomad prophage module + ICTV exclusion tab + viewer as pipeline step
+  - Job 11484915 COMPLETE — 11h57m, 6468 succeeded, 497 geNomad FAILED (apptainer /bulk not bound)
+  - **Fix**: added `/bulk/tylerdoe` to apptainer bind mounts (commit b7557e7)
+  - Rerun job 11503072 + 11519299 (Sep 28): geNomad still 95 FAILED (hidden by errorStrategy ignore) + PHAGE_THERAPY_VIEWER crashed
+  - **Fix 639c6db**: viewer script chmod +x, called by name via PATH (like COMPASS_SUMMARY) — `python3 ${projectDir}/bin/...` fails under apptainer `--contain`
+  - **Fix 687f8c9**: geNomad keys on first header word; VIBRANT `*_phages.fna` keeps full NCBI description → multiple prophages on one contig = duplicate IDs → "empty or contains multiple entries with the same identifier". Module now awk-sanitizes headers (whitespace→`_`, `_dupN` suffix)
+  - **Job 11519817 RUNNING** (`run_compass_phage_therapy_test.sbatch`, dir `/fastscratch/tylerdoe/COMPASS-phage-therapy/`) — all 497 geNomad rerun (module hash changed), rest cached
+  - **Next**: confirm `GENOMAD_PROPHAGE 497 of 497` with no failed + `summary/phage_therapy_viewer.html` exists
+  - Check ignored failures: `L=.nextflow.log; grep GENOMAD_PROPHAGE $L | grep -oE "exit: [0-9]+" | sort | uniq -c`
+  - Results in `results_stec_500_pt/`; after completion rebuild: `python3 bin/generate_compass_summary.py --outdir results_stec_500_pt && python3 bin/build_phage_therapy_viewer.py --compass compass_summary.tsv --out phage_therapy_viewer_pt.html`
   - Exclusion tab: "Source" dropdown → switch DIAMOND accessions ↔ ICTV families (geNomad)
+  - **PHAGE_THERAPY_VIEWER** now a pipeline step — outputs `summary/phage_therapy_viewer.html` automatically; skip with `--skip_phage_therapy_viewer`
 - **STEC run COMPLETE** — job 11403305, 10h49m, 497/497 samples ✔
   - Results: `/fastscratch/tylerdoe/COMPASS-1.1.0/results_stec_500/`
   - Viewer: `compass_mic_viewer.html` (1.8MB) — 497 isolates, 92 antibiotics, 100% MDR
@@ -135,13 +142,18 @@ gh auth setup-git   # wires gh credentials to git
   - Reads: `/fastscratch/tylerdoe/fnn_phage_alleged/SA_2_DNA_CP04336_S33_R1/R2.fastq.gz` (x3 samples)
   - Samplesheet: `/fastscratch/tylerdoe/PHINDER-dev/samplesheet_fnn_alleged.csv`
   - Run script: `run_phinder_fnn_alleged.sh` (in PHINDER-dev dir)
-  - **Job 11481827 RUNNING** on PHINDER-dev (dev branch) — Pharokka/PHANOTATE finishing 3rd sample, PHINDER_SUMMARY pending
+  - Job 11481827 finished — assemblies in `/fastscratch/tylerdoe/PHINDER-dev/results_20260924_094406/assemblies/`
+  - **SA_4 = BACTERIAL CONTAMINATION** (COMPASS check job 11519589, `results_sa4_check/`, commits d0bf3ff/0f4889c on scratch):
+    - 2.77 Mb, 976 contigs, N50 8 kb, **BUSCO 94.7% complete** → near-complete bacterial chromosome, not a phage prep
+    - Likely NOT Fuso: GC 36.3% (Fn ~27%), partial MLST hit to **campylobacter** scheme, AMR erm(B)/aadE/tet(O) — oral Campylobacter (concisus/rectus/showae?) suspected, unconfirmed
+    - VIBRANT found 22 viral regions (21 lytic) — possible real phage buried in it
+    - **Next**: check SPAdes coverage for a high-cov phage-sized contig: `grep '^>' <SA_4 assembly> | sed 's/^>//' | sort -t_ -k6,6gr | head -15`; if found → extract → PHINDER `--input_mode assembly`; else tell collaborator prep is contaminated. Species ID via Kraken2/GTDB-Tk/BLAST of top contigs. SA_2/SA_3 not yet checked
   - Bug fixes (dev + fnn-reads-test branches, all pushed):
     - BACPHLIP: awk filter fix (uses `next`), threshold 500bp, `errorStrategy=ignore`
     - PHAROKKA: handle prodigal-gv.faa in meta mode
     - MultiQC: strip sample_id from FASTQC zip tuple (`.map { sid, zip -> zip }`)
   - **PR #7 open** (fnn-reads-test -> main): all three reads-mode bug fixes + SLURM email
-  - **Next**: wait for job 11481827 to finish PHINDER_SUMMARY; review dashboard; if real phages add to fuso_all samplesheet + 86-phage library; merge PR #7
+  - **Next**: resolve SA_4 (above), check SA_2/SA_3 same way; merge PR #7
 - **Dev test run 11392176 PASSED**: all modules ✔ incl. vConTACT2 (6 Fn phages hit graceful no-edges path — too dissimilar with --db None, expected)
 - **SPAdes mode discussion (2026-09-17)**: current pipeline uses `--isolate`; discussed switching to `--meta` (better for high/uneven phage coverage) and designed a full comparison test
 - **spades-mode-test branch** (commit b33ecf7) — test all 6 SPAdes modes across phage types:
@@ -246,6 +258,7 @@ gh auth setup-git   # wires gh credentials to git
 - https://skillsmp.com/ (skills marketplace — browse for relevant skills to install)
 
 ## Key Patterns
+- **Pasting multi-line commands into Beocat terminal joins lines** → give single-line `;`-separated commands
 - COMPASS log: `tail -f compass*stdout*<JOBID>*` (NOT `slurm-<JOBID>.out`)
 - ARBOR log: `tail -f arbor_head_<JOBID>.log`
 - Beocat jobs: `squeue -u tylerdoe`

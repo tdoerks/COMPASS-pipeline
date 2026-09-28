@@ -17,7 +17,7 @@ process PHAGE_THERAPY_VIEWER {
 
     script:
     """
-    python3 build_phage_therapy_viewer.py \\
+    python3 ${projectDir}/bin/build_phage_therapy_viewer.py \\
         --compass ${compass_tsv} \\
         --out phage_therapy_viewer.html
 

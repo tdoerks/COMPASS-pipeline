@@ -475,6 +475,52 @@ def parse_vibrant_annotations(vibrant_dir):
 
     return dict(functional_data)
 
+DEFENSE_DEFAULTS = {'defense_system_count': '-', 'defense_system_types': '-', 'defense_has_crispr_cas': '-'}
+ECTYPER_DEFAULTS = {'o_type': '-', 'h_type': '-', 'serotype': '-', 'ectyper_qc': '-',
+                    'pathotype': '-', 'stx_subtypes': '-'}
+
+
+def parse_defensefinder(df_dir):
+    """DefenseFinder *_defense_finder_systems.tsv -> per-sample anti-phage defense systems.
+    Only activity == 'Defense' rows count (DefenseFinder 3 also reports anti-defense systems)."""
+    data = {}
+    for f in Path(df_dir).glob('*_defense_finder_systems.tsv') if Path(df_dir).exists() else []:
+        sample_id = f.name.replace('_defense_finder_systems.tsv', '')
+        try:
+            df = pd.read_csv(f, sep='\t')
+        except pd.errors.EmptyDataError:
+            df = pd.DataFrame()
+        if not df.empty and 'activity' in df.columns:
+            df = df[df['activity'].astype(str).str.lower() == 'defense']
+        types = sorted(set(df['type'].astype(str))) if not df.empty else []
+        data[sample_id] = {
+            'defense_system_count': len(df),
+            'defense_system_types': ';'.join(types) if types else 'none',
+            'defense_has_crispr_cas': 'Yes' if any(t.lower().startswith('cas') for t in types) else 'No',
+        }
+    return data
+
+
+def parse_ectyper(ec_dir):
+    """ECTyper <sample>_ectyper.tsv -> O:H serotype, QC, pathotype and stx subtypes."""
+    data = {}
+    for f in Path(ec_dir).glob('*_ectyper.tsv') if Path(ec_dir).exists() else []:
+        sample_id = f.name.replace('_ectyper.tsv', '')
+        try:
+            df = pd.read_csv(f, sep='\t', dtype=str).fillna('-')
+        except pd.errors.EmptyDataError:
+            continue
+        if df.empty:
+            continue
+        r = df.iloc[0]
+        data[sample_id] = {
+            'o_type': r.get('O-type', '-'), 'h_type': r.get('H-type', '-'),
+            'serotype': r.get('Serotype', '-'), 'ectyper_qc': r.get('QC', '-'),
+            'pathotype': r.get('Pathotype', '-'), 'stx_subtypes': r.get('StxSubtypes', '-'),
+        }
+    return data
+
+
 def parse_diamond_prophage(diamond_dir):
     """Parse DIAMOND prophage database matches"""
     diamond_data = {}
@@ -5427,6 +5473,9 @@ def main():
 
     print("Parsing geNomad prophage ICTV taxonomy...")
     genomad_data = parse_genomad_prophage_ictv(outdir / 'genomad_prophage')
+    defense_data = parse_defensefinder(outdir / 'defensefinder')
+    ectyper_data = parse_ectyper(outdir / 'ectyper')
+    print(f"  -> DefenseFinder results for {len(defense_data)} samples, ECTyper for {len(ectyper_data)}")
     if genomad_data:
         print(f"  → Found geNomad data for {len(genomad_data)} samples")
 
@@ -5576,6 +5625,10 @@ def main():
                 'top_prophage_genus': '-',
             })
 
+        # Phage-therapy add-ons: anti-phage defense systems + E. coli serotype/pathotype
+        row.update(defense_data.get(sample, DEFENSE_DEFAULTS))
+        row.update(ectyper_data.get(sample, ECTYPER_DEFAULTS))
+
         # Prokka annotations
         if sample in prokka_data:
             row.update(prokka_data[sample])
@@ -5653,7 +5706,10 @@ def main():
         'prophage_best_matches',
         # geNomad ICTV taxonomy
         'prophage_count_genomad', 'prophage_families_ictv', 'prophage_genera_ictv',
-        'top_prophage_family', 'top_prophage_genus'
+        'top_prophage_family', 'top_prophage_genus',
+        # Phage-therapy add-ons
+        'defense_system_count', 'defense_system_types', 'defense_has_crispr_cas',
+        'o_type', 'h_type', 'serotype', 'ectyper_qc', 'pathotype', 'stx_subtypes',
     ])
 
     # Reorder columns: put known analysis columns first, then append ALL remaining columns (metadata)

@@ -121,6 +121,25 @@ CLASS_LABELS = {
     'trimethoprim': 'Trimethoprim',
 }
 
+# ── ICTV family -> typical lifestyle (for the exclusion tab) ─────────────────
+# Only lytic families are phage-therapy candidates; temperate phages can lysogenize instead of
+# killing, and chronic (filamentous) phages are released without lysis.
+FAMILY_LIFESTYLE = {
+    'Straboviridae': 'lytic', 'Autographiviridae': 'lytic', 'Drexlerviridae': 'lytic',
+    'Demerecviridae': 'lytic', 'Herelleviridae': 'lytic', 'Chimalliviridae': 'lytic',
+    'Schitoviridae': 'lytic', 'Ackermannviridae': 'lytic', 'Kyanoviridae': 'lytic',
+    'Microviridae': 'lytic', 'Fiersviridae': 'lytic', 'Tectiviridae': 'lytic',
+    'Corticoviridae': 'lytic', 'Salasmaviridae': 'lytic', 'Guelinviridae': 'lytic',
+    'Peduoviridae': 'temperate', 'Inoviridae': 'chronic', 'Plasmaviridae': 'temperate',
+}
+
+
+def family_lifestyle(fam):
+    if fam.endswith('(no family)'):
+        return 'mostly temperate'   # lambdoid/Stx phages lost their family in the 2022 ICTV revision
+    return FAMILY_LIFESTYLE.get(fam, '')
+
+
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def num(v, default=0):
@@ -236,6 +255,15 @@ def load_compass(path):
                 'inc_groups':     r.get('inc_groups', '') or '',
                 'top_vf_genes':   r.get('top_virulence_genes', '') or r.get('top_vf_genes', '') or '',
                 'stx_type':       r.get('stx_type', '') or '',
+                # phage-therapy add-ons (absent in older summaries -> None / '')
+                'defense_count':  (int(num(r.get('defense_system_count'), 0))
+                                   if r.get('defense_system_count', '-') not in ('', '-', None) else None),
+                'defense_types':  (r.get('defense_system_types', '') or '').replace('-', ''),
+                'defense_crispr': r.get('defense_has_crispr_cas', '') or '',
+                'serotype':       (r.get('serotype', '') or '').replace('-', '') if r.get('serotype') != '-' else '',
+                'o_type':         r.get('o_type', '') if r.get('o_type') not in (None, '-') else '',
+                'pathotype':      r.get('pathotype', '') if r.get('pathotype') not in (None, '-') else '',
+                'stx_subtypes':   r.get('stx_subtypes', '') if r.get('stx_subtypes') not in (None, '-') else '',
                 'assembly_quality': r.get('assembly_quality', '') or '',
                 'n50':            int(num(r.get('n50'), 0)),
                 'amr_score':      amr_s,
@@ -356,7 +384,8 @@ def summarize(records, resolve_names=False):
             exclusion_ictv_by_org[org] = {
                 'n': n_org,
                 'phage_freq': [
-                    {'id': fam, 'count': cnt, 'pct': round(100 * cnt / n_org, 1), 'name': fam}
+                    {'id': fam, 'count': cnt, 'pct': round(100 * cnt / n_org, 1), 'name': fam,
+                     'lifestyle': family_lifestyle(fam)}
                     for fam, cnt in family_counts.most_common(50)
                 ],
             }
@@ -368,8 +397,40 @@ def summarize(records, resolve_names=False):
                 r['mdr_status'] in _mdr_pos or
                 (r['mdr_status'] in _mdr_null and r['amr_score'] >= 2))
 
+    # Defense systems + receptor typing (only when DefenseFinder / ECTyper ran)
+    df_recs = [r for r in records if r['defense_count'] is not None]
+    defense = {}
+    if df_recs:
+        type_counts = Counter(t for r in df_recs for t in set(filter(None, r['defense_types'].split(';'))))
+        by_tier = defaultdict(list)
+        for r in df_recs:
+            by_tier[r['priority']].append(r['defense_count'])
+        defense = {
+            'n': len(df_recs),
+            'median_systems': median([r['defense_count'] for r in df_recs]),
+            'crispr_pct': round(100 * sum(r['defense_crispr'] == 'Yes' for r in df_recs) / len(df_recs), 1),
+            'none_n': sum(r['defense_count'] == 0 for r in df_recs),
+            'type_freq': [{'type': t, 'count': c, 'pct': round(100 * c / len(df_recs), 1)}
+                          for t, c in type_counts.most_common(40)],
+            'median_by_tier': {str(k): median(v) for k, v in sorted(by_tier.items())},
+            'hist': build_histogram([r['defense_count'] for r in df_recs], bins=list(range(0, 31))),
+        }
+    typed = [r for r in records if r['serotype'] or r['o_type']]
+    receptors = {}
+    if typed:
+        receptors = {
+            'n': len(typed),
+            'serotypes': Counter(r['serotype'] or r['o_type'] for r in typed).most_common(25),
+            'o_types': Counter(r['o_type'] for r in typed if r['o_type']).most_common(25),
+            'pathotypes': Counter(r['pathotype'] for r in typed if r['pathotype']).most_common(10),
+            'stx_subtypes': Counter(s.strip() for r in typed for s in r['stx_subtypes'].replace(',', ';').split(';')
+                                    if s.strip()).most_common(15),
+        }
+
     return {
         'n': n,
+        'defense': defense,
+        'receptors': receptors,
         'mdr_n': mdr_n,
         'mdr_counts': dict(mdr_counts),
         'tier_counts': {str(k): v for k, v in tier_counts.items()},
@@ -512,6 +573,7 @@ td {{ padding: 6px 9px; vertical-align: top; }}
   <button onclick="showTab('prophage')">Prophage Landscape</button>
   <button onclick="showTab('strains')">Strain Diversity</button>
   <button onclick="showTab('exclusion')">Prophage Exclusion</button>
+  <button onclick="showTab('defense')">Defense &amp; Receptors</button>
   <button id="phinder-tab-btn" onclick="showTab('matching')">Phage Matching</button>
 </nav>
 
@@ -573,6 +635,8 @@ td {{ padding: 6px 9px; vertical-align: top; }}
           <th onclick="sortBy('mdr_status')">MDR Status ↕</th>
           <th onclick="sortBy('num_amr_classes')">AMR Classes ↕</th>
           <th onclick="sortBy('num_prophages')">Prophages ↕</th>
+          <th onclick="sortBy('serotype')" title="ECTyper O:H — O-antigen is a key phage receptor">Serotype ↕</th>
+          <th onclick="sortBy('defense_count')" title="DefenseFinder anti-phage systems (hover a cell for types)">Defense systems ↕</th>
           <th>Last Resort</th>
           <th>Top AMR Genes</th>
         </tr>
@@ -683,6 +747,7 @@ td {{ padding: 6px 9px; vertical-align: top; }}
           <th>Organism / Description</th>
           <th>Isolates carrying it</th>
           <th>% of organism isolates</th>
+          <th>Lifestyle</th>
           <th>Verdict</th>
         </tr></thead>
         <tbody id="excl-tbody"></tbody>
@@ -692,6 +757,17 @@ td {{ padding: 6px 9px; vertical-align: top; }}
 </div>
 
 <!-- ── PHAGE MATCHING TAB ─────────────────────────────────────────────── -->
+<div id="tab-defense" class="tab">
+  <div class="info-box">
+    <strong>Why this matters:</strong> a lytic phage has to (1) bind a receptor — for STEC the O-antigen is a
+    major one, so serotype predicts which phages can adsorb — and (2) get past the host's anti-phage defense
+    systems (restriction-modification, abortive infection, CRISPR-Cas, CBASS, Gabija, …). Prophage exclusion
+    only covers related temperate phages; this tab covers what decides lytic-phage success.
+    Defense systems: DefenseFinder. Serotype / pathotype / stx subtype: ECTyper.
+  </div>
+  <div id="defense-content"></div>
+</div>
+
 <div id="tab-matching" class="tab">
   <div class="info-box">
     PHINDER phages are matched to bacterial isolates by host organism. Exact host range
@@ -825,12 +901,12 @@ function renderCandidates() {{
     if (fp && r.priority !== +fp) return false;
     if (fo && !r.organism.toLowerCase().includes(fo.toLowerCase())) return false;
     if (lr && !r.last_resort) return false;
-    if (fs && !(r.id+r.st+r.top_amr_genes+r.organism).toLowerCase().includes(fs)) return false;
+    if (fs && !(r.id+r.st+r.top_amr_genes+r.organism+r.serotype+r.defense_types).toLowerCase().includes(fs)) return false;
     return true;
   }});
 
   rows.sort((a,b) => {{
-    let av = a[sortCol], bv = b[sortCol];
+    let av = a[sortCol] ?? -1, bv = b[sortCol] ?? -1;
     if (typeof av === 'string') {{ av=av.toLowerCase(); bv=bv.toLowerCase(); }}
     if (av < bv) return sortAsc ? -1 : 1;
     if (av > bv) return sortAsc ? 1 : -1;
@@ -859,6 +935,8 @@ function renderCandidates() {{
       <td>${{r.mdr_status||'—'}}</td>
       <td style="text-align:center">${{r.num_amr_classes}}</td>
       <td style="text-align:center">${{r.num_prophages}}</td>
+      <td style="font-size:11px">${{r.serotype || r.o_type || '—'}}</td>
+      <td style="text-align:center" title="${{r.defense_types.split(';').join(', ')}}">${{r.defense_count === null ? '—' : r.defense_count}}</td>
       <td>${{lrBadge}}</td>
       <td>${{topGenes}}</td>
     </tr>`;
@@ -1100,11 +1178,15 @@ function renderExclusion() {{
   const all    = data.phage_freq;          // [{{id, count, pct}}, ...] already sorted desc
   const top30  = all.slice(0, 30);
   const nTotal = data.n;
-  const nCand  = all.filter(p => p.pct <= thresh).length;
+  // Rare temperate/chronic families are not therapy candidates regardless of prevalence
+  const notTherapy = p => ['temperate', 'chronic', 'mostly temperate'].includes(p.lifestyle || '');
+  const nCand  = all.filter(p => p.pct <= thresh && !notTherapy(p)).length;
   const nExcl  = all.filter(p => p.pct > thresh).length;
+  const nNot   = all.filter(p => p.pct <= thresh && notTherapy(p)).length;
 
   document.getElementById('excl-summary').textContent =
-    `${{nTotal}} isolates · ${{nExcl}} excluded families · ${{nCand}} candidate families (≤${{thresh}}%)`;
+    `${{nTotal}} isolates · ${{nExcl}} excluded · ${{nCand}} candidate (≤${{thresh}}%)` +
+    (nNot ? ` · ${{nNot}} rare but temperate/chronic` : '');
 
   // Bar chart
   const labels  = top30.map(p => p.id.length > 28 ? p.id.slice(0,25)+'…' : p.id);
@@ -1151,9 +1233,12 @@ function renderExclusion() {{
   const tbody = document.getElementById('excl-tbody');
   tbody.innerHTML = all.map(p => {{
     const isCandidate = p.pct <= thresh;
-    const badge = isCandidate
-      ? `<span class="badge" style="background:#27ae60;color:#fff">Candidate window</span>`
-      : `<span class="badge" style="background:#c0392b;color:#fff">Exclude</span>`;
+    const badge = !isCandidate
+      ? `<span class="badge" style="background:#c0392b;color:#fff">Exclude</span>`
+      : notTherapy(p)
+        ? `<span class="badge" style="background:#95a5a6;color:#fff" title="Rare as a prophage, but temperate/chronic phages are not used for therapy">Not a therapy phage</span>`
+        : `<span class="badge" style="background:#27ae60;color:#fff">Candidate window</span>`;
+    const lifeCell = `<td style="font-size:11px">${{p.lifestyle || '—'}}</td>`;
     const nameCell = p.name
       ? `<td style="font-size:11px;color:#555;max-width:260px">${{p.name}}</td>`
       : `<td style="color:var(--muted);font-size:11px">—</td>`;
@@ -1162,9 +1247,54 @@ function renderExclusion() {{
       ${{nameCell}}
       <td style="text-align:center">${{p.count}}</td>
       <td style="text-align:center">${{p.pct}}%</td>
+      ${{lifeCell}}
       <td>${{badge}}</td>
     </tr>`;
   }}).join('');
+}}
+
+// ── defense systems + receptors ──────────────────────────────────────────
+function renderDefense() {{
+  const d = STATS.defense || {{}}, rc = STATS.receptors || {{}};
+  const el = document.getElementById('defense-content');
+  if (!d.n && !rc.n) {{
+    el.innerHTML = `<p style="color:var(--muted)">No DefenseFinder / ECTyper results in this summary.
+      Run COMPASS with the phage-therapy databases set up (bin/setup_phage_therapy_dbs.sh).</p>`;
+    return;
+  }}
+  const tbl = (head, rows) => `<table><thead><tr>${{head.map(h => `<th>${{h}}</th>`).join('')}}</tr></thead>
+    <tbody>${{rows.map(r => `<tr>${{r.map(c => `<td>${{c}}</td>`).join('')}}</tr>`).join('')}}</tbody></table>`;
+  let html = '';
+  if (d.n) {{
+    const tiers = Object.entries(d.median_by_tier).map(([t, m]) => `${{PRIORITY_LABELS[t] || t}}: ${{m}}`).join(' · ');
+    html += `<div class="info-box" style="background:#f8f9fa">
+      <b>${{d.n}}</b> isolates screened · median <b>${{d.median_systems}}</b> defense systems per isolate ·
+      <b>${{d.crispr_pct}}%</b> carry CRISPR-Cas · <b>${{d.none_n}}</b> with none detected<br>
+      <span style="font-size:12px;color:var(--muted)">Median systems by priority tier — ${{tiers}}</span></div>
+      <div class="grid-2"><div class="card"><h3>Defense system prevalence (% of isolates)</h3>
+        <div style="position:relative;height:${{Math.max(260, d.type_freq.length * 16)}}px"><canvas id="chart-defense"></canvas></div></div>
+      <div class="card"><h3>Defense system types</h3>
+        ${{tbl(['System', 'Isolates', '%'], d.type_freq.map(t => [t.type, t.count, t.pct + '%']))}}</div></div>`;
+  }}
+  if (rc.n) {{
+    html += `<div class="grid-2" style="margin-top:16px">
+      <div class="card"><h3>Serotypes (O:H) — ${{rc.n}} typed</h3>${{tbl(['Serotype', 'Isolates'], rc.serotypes)}}</div>
+      <div class="card"><h3>Pathotype</h3>${{tbl(['Pathotype', 'Isolates'], rc.pathotypes)}}
+        <h3 style="margin-top:14px">stx subtypes (ECTyper)</h3>${{tbl(['Subtype', 'Isolates'], rc.stx_subtypes)}}</div></div>`;
+  }}
+  el.innerHTML = html;
+  if (d.n) {{
+    new Chart(document.getElementById('chart-defense'), {{
+      type: 'bar',
+      data: {{ labels: d.type_freq.map(t => t.type),
+               datasets: [{{ label: '% of isolates', data: d.type_freq.map(t => t.pct),
+                             backgroundColor: 'rgba(52,73,94,0.8)', borderWidth: 0 }}] }},
+      options: {{ indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                  plugins: {{ legend: {{ display: false }} }},
+                  scales: {{ x: {{ min: 0, max: 100, title: {{ display: true, text: '% of isolates' }} }},
+                             y: {{ ticks: {{ font: {{ size: 10 }} }} }} }} }}
+    }});
+  }}
 }}
 
 // ── phage matching ────────────────────────────────────────────────────────
@@ -1231,6 +1361,7 @@ window.addEventListener('DOMContentLoaded', () => {{
   renderStrains();
   initExclusionOrgFilter();
   renderExclusion();
+  renderDefense();
   if (HAS_PHINDER) {{
     document.getElementById('phinder-tab-btn').style.display = '';
     renderMatching();

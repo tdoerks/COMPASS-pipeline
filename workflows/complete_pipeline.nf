@@ -14,6 +14,7 @@ include { COMBINE_RESULTS } from '../modules/combine_results'
 include { COMPASS_SUMMARY } from '../modules/compass_summary'
 include { PHAGE_THERAPY_VIEWER } from '../modules/phage_therapy_viewer'
 include { MULTIQC } from '../modules/multiqc'
+include { DEFENSEFINDER } from '../modules/defensefinder'
 include { BUSCO } from '../modules/busco'
 include { QUAST } from '../modules/quast'
 include { CHECK_DATABASES } from '../modules/check_databases'
@@ -146,6 +147,7 @@ workflow COMPLETE_PIPELINE {
             typing: [meta, fasta]
             mobile: [meta, fasta]
             annotation: [meta, fasta]
+            defense: [meta.id, fasta]
         }
         .set { ch_assemblies_split }
 
@@ -167,6 +169,16 @@ workflow COMPLETE_PIPELINE {
     // Run Typing analysis (MLST, serotyping) - samples processed as they arrive
     TYPING(ch_assemblies_split.typing)
     ch_versions = ch_versions.mix(TYPING.out.versions)
+
+    // Anti-phage defense systems (phage therapy: can a lytic phage get through?)
+    ch_defense_systems = Channel.empty()
+    if (!params.skip_defensefinder && params.defensefinder_models) {
+        DEFENSEFINDER(ch_assemblies_split.defense)
+        ch_defense_systems = DEFENSEFINDER.out.systems
+        ch_versions = ch_versions.mix(DEFENSEFINDER.out.versions.first())
+    } else if (!params.skip_defensefinder) {
+        log.warn "DefenseFinder skipped: params.defensefinder_models not set (run bin/setup_phage_therapy_dbs.sh)"
+    }
 
     // Run Mobile Elements analysis (plasmids) - samples processed as they arrive
     MOBILE_ELEMENTS(ch_assemblies_split.mobile)
@@ -271,11 +283,15 @@ workflow COMPLETE_PIPELINE {
 
     // Generate comprehensive COMPASS summary after all analyses complete
     // Wait for COMBINE_RESULTS, MultiQC, and geNomad (if enabled) before generating summary
+    // The signal is the NUMBER of upstream results (not a constant) so that adding a module on
+    // -resume (e.g. DefenseFinder/ECTyper) invalidates the cached summary and it is regenerated.
     ch_summary_ready = COMBINE_RESULTS.out.summary
         .concat(ch_multiqc_report)
         .concat(ch_genomad_summaries.ifEmpty(Channel.empty()).map { it[1] })
+        .concat(ch_defense_systems.map { it[1] })
+        .concat(TYPING.out.ectyper_results.map { it[1] })
         .collect()
-        .map { 'ready' }
+        .map { "ready:${it.size()}" }
 
     COMPASS_SUMMARY(
         ch_sra_runinfo.ifEmpty(file('NO_FILE')),  // Pass full SRA runinfo CSV (40+ fields) not filtered_samples.csv

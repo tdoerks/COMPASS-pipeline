@@ -5,6 +5,7 @@
 
 include { MLST } from '../modules/mlst'
 include { SISTR } from '../modules/sistr'
+include { ECTYPER } from '../modules/ectyper'
 
 workflow TYPING {
     take:
@@ -29,6 +30,15 @@ workflow TYPING {
     // Run SISTR for Salmonella serotyping (conditional on organism)
     SISTR(typing_input)
 
+    // E. coli / Shigella serotype (O:H) + pathotype/stx — O-antigen is a key phage receptor
+    ch_ectyper = Channel.empty()
+    if (!params.skip_ectyper && params.ectyper_mash) {
+        ECTYPER(typing_input)
+        ch_ectyper = ECTYPER.out.results
+    } else if (!params.skip_ectyper) {
+        log.warn "ECTyper skipped: params.ectyper_mash not set (run bin/setup_phage_therapy_dbs.sh)"
+    }
+
     // Collect versions
     ch_versions = Channel.empty()
     ch_versions = ch_versions.mix(MLST.out.versions.first())
@@ -37,5 +47,6 @@ workflow TYPING {
     emit:
     mlst_results = MLST.out.results                         // channel: [sample_id, tsv]
     sistr_results = SISTR.out.results                       // channel: [sample_id, tsv]
+    ectyper_results = ch_ectyper                            // channel: [sample_id, tsv]
     versions = ch_versions
 }

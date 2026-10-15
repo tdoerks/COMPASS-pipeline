@@ -15,6 +15,8 @@ include { COMPASS_SUMMARY } from '../modules/compass_summary'
 include { PHAGE_THERAPY_VIEWER } from '../modules/phage_therapy_viewer'
 include { MULTIQC } from '../modules/multiqc'
 include { DEFENSEFINDER } from '../modules/defensefinder'
+include { PADLOC } from '../modules/padloc'
+include { MINCED; CRISPRCASFINDER } from '../modules/crispr'
 include { BUSCO } from '../modules/busco'
 include { QUAST } from '../modules/quast'
 include { CHECK_DATABASES } from '../modules/check_databases'
@@ -148,12 +150,17 @@ workflow COMPLETE_PIPELINE {
             mobile: [meta, fasta]
             annotation: [meta, fasta]
             defense: [meta.id, fasta]
+            crispr: [meta.id, fasta]
         }
         .set { ch_assemblies_split }
 
-    // Run genome annotation (Prokka) if enabled - optional for comparative genomics
+    // Run genome annotation (Prokka) if enabled - comparative genomics, and PADLOC's gene calls
+    def ch_prokka_faa = Channel.empty()
+    def ch_prokka_gff = Channel.empty()
     if (!params.skip_prokka) {
         COMPARATIVE_GENOMICS(ch_assemblies_split.annotation)
+        ch_prokka_faa = COMPARATIVE_GENOMICS.out.proteins
+        ch_prokka_gff = COMPARATIVE_GENOMICS.out.gff
         ch_versions = ch_versions.mix(COMPARATIVE_GENOMICS.out.versions)
     }
 
@@ -178,6 +185,33 @@ workflow COMPLETE_PIPELINE {
         ch_versions = ch_versions.mix(DEFENSEFINDER.out.versions.first())
     } else if (!params.skip_defensefinder) {
         log.warn "DefenseFinder skipped: params.defensefinder_models not set (run bin/setup_phage_therapy_dbs.sh)"
+    }
+
+    // PADLOC — second defence-system caller. Uses Prokka's gene calls when Prokka ran (so
+    // DefenseFinder/PADLOC/Prokka describe the same genes), else PADLOC calls genes itself.
+    ch_padloc = Channel.empty()
+    if (!params.skip_padloc && params.padloc_db) {
+        def ch_padloc_in = params.skip_prokka
+            ? ch_assemblies_split.defense.map { id, fasta -> [ id, fasta, [], [] ] }
+            : ch_assemblies_split.defense
+                .join(ch_prokka_faa, by: 0, remainder: false)
+                .join(ch_prokka_gff, by: 0, remainder: false)
+        PADLOC(ch_padloc_in)
+        ch_padloc = PADLOC.out.csv
+        ch_versions = ch_versions.mix(PADLOC.out.versions.first())
+    } else if (!params.skip_padloc) {
+        log.warn "PADLOC skipped: params.padloc_db not set (run bin/setup_phage_therapy_dbs.sh)"
+    }
+
+    // CRISPR arrays + spacer sequences (minced). Spacers are what lets you ask later whether an
+    // isolate has already encountered a candidate phage; DefenseFinder types Cas but has no spacers.
+    ch_crispr = Channel.empty()
+    if (!params.skip_crispr) {
+        MINCED(ch_assemblies_split.crispr)
+        ch_crispr = MINCED.out.summary
+        if (!params.skip_crisprcasfinder) {
+            CRISPRCASFINDER(ch_assemblies_split.crispr)
+        }
     }
 
     // Run Mobile Elements analysis (plasmids) - samples processed as they arrive
@@ -289,6 +323,8 @@ workflow COMPLETE_PIPELINE {
         .concat(ch_multiqc_report)
         .concat(ch_genomad_summaries.ifEmpty(Channel.empty()).map { it[1] })
         .concat(ch_defense_systems.map { it[1] })
+        .concat(ch_padloc.map { it[1] })
+        .concat(ch_crispr.map { it[1] })
         .concat(TYPING.out.ectyper_results.map { it[1] })
         .collect()
         .map { "ready:${it.size()}" }

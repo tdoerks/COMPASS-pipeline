@@ -1,5 +1,6 @@
 /*
- * DEFENSEFINDER - Anti-phage defense system detection (R-M, Abi, CBASS, Gabija, CRISPR-Cas, ...)
+ * DEFENSEFINDER - Anti-phage defense AND anti-defense system detection
+ * (R-M, Abi, CBASS, Gabija, CRISPR-Cas, ... plus AntiDefenseFinder via -a)
  * DefenseFinder 3.x takes the nucleotide assembly and calls genes itself (pyrodigal), so this
  * does not depend on Prokka (skip_prokka = true by default).
  * Models are installed once (no internet on compute nodes): bin/setup_phage_therapy_dbs.sh
@@ -9,7 +10,7 @@
 
 process DEFENSEFINDER {
     tag "$sample_id"
-    publishDir "${params.outdir}/defensefinder", mode: 'copy', pattern: "${sample_id}_defense_finder_*.tsv"
+    publishDir "${params.outdir}/defensefinder", mode: 'copy', pattern: "${sample_id}{_defense_finder_*.tsv,.prt}"
     container 'quay.io/biocontainers/defense-finder:3.0.0--pyhdfd78af_0'
     errorStrategy 'ignore'
 
@@ -19,6 +20,9 @@ process DEFENSEFINDER {
     output:
     tuple val(sample_id), path("${sample_id}_defense_finder_systems.tsv"), emit: systems
     tuple val(sample_id), path("${sample_id}_defense_finder_genes.tsv"), emit: genes, optional: true
+    // pyrodigal proteins: prodigal-style headers carry contig + bp coordinates, the only way to
+    // place a system on the assembly (systems.tsv reports protein IDs, not coordinates)
+    tuple val(sample_id), path("${sample_id}.prt"), emit: proteins, optional: true
     path "versions.yml", emit: versions
 
     script:
@@ -28,6 +32,7 @@ process DEFENSEFINDER {
 
     defense-finder run \\
         --models-dir ${params.defensefinder_models} \\
+        ${params.defensefinder_antidefense ? '-a' : ''} \\
         --index-dir . \\
         --skip-model-version-check \\
         --workers ${task.cpus} \\
@@ -35,6 +40,7 @@ process DEFENSEFINDER {
         ${sample_id}.fna
 
     mv df_out/${sample_id}_defense_finder_systems.tsv .
+    [ -f df_out/${sample_id}.prt ] && mv df_out/${sample_id}.prt . || true
     [ -f df_out/${sample_id}_defense_finder_genes.tsv ] && mv df_out/${sample_id}_defense_finder_genes.tsv . || true
 
     printf '"%s":\\n    defense-finder: "%s"\\n' "${task.process}" "\$(defense-finder version 2>&1 | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | head -1)" > versions.yml

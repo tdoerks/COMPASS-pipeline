@@ -19,6 +19,9 @@ process MINCED {
     tuple val(sample_id), path("${sample_id}_crispr"), emit: results
     tuple val(sample_id), path("${sample_id}_crispr/${sample_id}_crisprs.txt"), emit: crisprs, optional: true
     tuple val(sample_id), path("${sample_id}_crispr/${sample_id}_crispr_summary.csv"), emit: summary, optional: true
+    // -spacers writes the spacer SEQUENCES: the input for matching spacers against phage genomes
+    // (DefenseFinder/CRISPRCasFinder type the Cas systems but never give you the spacers)
+    tuple val(sample_id), path("${sample_id}_crispr/*_spacers.fa"), emit: spacers, optional: true
 
     script:
     """
@@ -26,6 +29,7 @@ process MINCED {
 
     # Run MinCED to detect CRISPR arrays
     minced \\
+        -spacers \\
         -minNR 3 \\
         -minRL 23 \\
         -maxRL 47 \\

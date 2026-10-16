@@ -29,6 +29,17 @@ process PROKKA {
     echo "Genus: ${genus}"
     echo "==================================================="
 
+    # Keep the ORIGINAL contig names: --centre/--compliant rename every contig to gnl|COMPASS|<tag>_N
+    # (and --compliant drops contigs <200 bp), so PADLOC calls made on Prokka's genes could not be
+    # matched to VIBRANT prophages / MOB-suite plasmids / minced arrays. Prokka refuses contig IDs
+    # >37 chars, so only rename when an assembly actually has one.
+    MAXID=\$(grep '>' ${assembly} | awk '{ l = length(\$1) - 1; if (l > m) m = l } END { print m + 0 }')
+    RENAME=""
+    if [ "\$MAXID" -gt 37 ]; then
+        echo "Contig IDs up to \$MAXID chars (>37) - letting Prokka rename contigs (--centre COMPASS)"
+        RENAME="--centre COMPASS"
+    fi
+
     # Run Prokka annotation
     prokka \\
         --outdir ${sample_id}_prokka \\
@@ -37,8 +48,7 @@ process PROKKA {
         --kingdom ${kingdom} \\
         --genus ${genus} \\
         --usegenus \\
-        --centre COMPASS \\
-        --compliant \\
+        \$RENAME \\
         --force \\
         ${assembly}
 

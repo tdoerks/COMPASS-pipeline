@@ -155,8 +155,8 @@ workflow COMPLETE_PIPELINE {
         .set { ch_assemblies_split }
 
     // Run genome annotation (Prokka) if enabled - comparative genomics, and PADLOC's gene calls
-    def ch_prokka_faa = Channel.empty()
-    def ch_prokka_gff = Channel.empty()
+    ch_prokka_faa = Channel.empty()
+    ch_prokka_gff = Channel.empty()
     if (!params.skip_prokka) {
         COMPARATIVE_GENOMICS(ch_assemblies_split.annotation)
         ch_prokka_faa = COMPARATIVE_GENOMICS.out.proteins
@@ -191,7 +191,7 @@ workflow COMPLETE_PIPELINE {
     // DefenseFinder/PADLOC/Prokka describe the same genes), else PADLOC calls genes itself.
     ch_padloc = Channel.empty()
     if (!params.skip_padloc && params.padloc_db) {
-        def ch_padloc_in = params.skip_prokka
+        ch_padloc_in = params.skip_prokka
             ? ch_assemblies_split.defense.map { id, fasta -> [ id, fasta, [], [] ] }
             : ch_assemblies_split.defense
                 .join(ch_prokka_faa, by: 0, remainder: false)

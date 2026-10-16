@@ -8,9 +8,9 @@
 process MINCED {
     tag "$sample_id"
     publishDir "${params.outdir}/crispr/minced", mode: 'copy'
-
-    // MinCED is faster and more lightweight than CRISPRCasFinder
-    container = 'staphb/minced:0.4.2'
+    // biocontainer is Java + busybox only (no python) -> summary is built with awk from minced's GFF
+    container 'quay.io/biocontainers/minced:0.4.2--hdfd78af_1'
+    errorStrategy 'ignore'
 
     input:
     tuple val(sample_id), path(assembly)
@@ -24,85 +24,21 @@ process MINCED {
     tuple val(sample_id), path("${sample_id}_crispr/*_spacers.fa"), emit: spacers, optional: true
 
     script:
+    def out = "${sample_id}_crispr/${sample_id}_crisprs"
     """
     mkdir -p ${sample_id}_crispr
 
-    # Run MinCED to detect CRISPR arrays
-    minced \\
-        -spacers \\
-        -minNR 3 \\
-        -minRL 23 \\
-        -maxRL 47 \\
-        -minSL 26 \\
-        -maxSL 50 \\
-        ${assembly} \\
-        ${sample_id}_crispr/${sample_id}_crisprs.txt
+    # txt (human-readable) + gff (contig, start, end, repeat count per array) + spacer FASTA
+    minced -spacers -minNR 3 -minRL 23 -maxRL 47 -minSL 26 -maxSL 50 \
+        ${assembly} ${out}.txt ${out}.gff
 
-    # Parse MinCED output to CSV for easier downstream analysis
-    python3 <<'PYTHON_EOF'
-import csv
-import re
-
-# Parse MinCED output
-crisprs = []
-current_crispr = None
-
-try:
-    with open('${sample_id}_crispr/${sample_id}_crisprs.txt', 'r') as f:
-        for line in f:
-            line = line.strip()
-
-            # Detect new CRISPR array
-            if line.startswith('CRISPR'):
-                if current_crispr:
-                    crisprs.append(current_crispr)
-
-                # Parse: "CRISPR 1   Range: 145000 - 147000"
-                match = re.search(r'CRISPR\\s+(\\d+)\\s+Range:\\s+(\\d+)\\s+-\\s+(\\d+)', line)
-                if match:
-                    current_crispr = {
-                        'crispr_id': match.group(1),
-                        'start': match.group(2),
-                        'end': match.group(3),
-                        'repeats': 0,
-                        'spacers': 0
-                    }
-
-            # Count repeats
-            elif line.startswith('Repeats:'):
-                match = re.search(r'Repeats:\\s+(\\d+)', line)
-                if match and current_crispr:
-                    current_crispr['repeats'] = match.group(1)
-
-            # Count spacers
-            elif line.startswith('Spacers:'):
-                match = re.search(r'Spacers:\\s+(\\d+)', line)
-                if match and current_crispr:
-                    current_crispr['spacers'] = match.group(1)
-
-        # Add last CRISPR
-        if current_crispr:
-            crisprs.append(current_crispr)
-
-    # Write CSV
-    if crisprs:
-        with open('${sample_id}_crispr/${sample_id}_crispr_summary.csv', 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=['crispr_id', 'start', 'end', 'repeats', 'spacers'])
-            writer.writeheader()
-            writer.writerows(crisprs)
-        print(f"Found {len(crisprs)} CRISPR arrays")
-    else:
-        # No CRISPRs found - create empty files
-        open('${sample_id}_crispr/${sample_id}_crispr_summary.csv', 'w').close()
-        print("No CRISPR arrays detected")
-
-except FileNotFoundError:
-    # MinCED didn't create output file (no CRISPRs)
-    open('${sample_id}_crispr/${sample_id}_crisprs.txt', 'w').close()
-    open('${sample_id}_crispr/${sample_id}_crispr_summary.csv', 'w').close()
-    print("No CRISPR arrays detected")
-
-PYTHON_EOF
+    touch ${out}.txt ${out}.gff
+    # GFF col 6 = number of repeats; spacers = repeats - 1. Contig kept for prophage/plasmid intersection.
+    awk -F'\t' 'BEGIN { OFS=","; print "crispr_id,contig,start,end,repeats,spacers" }
+                 \$3 == "repeat_region" { id=\$9; sub(/^ID=/, "", id); sub(/;.*/, "", id)
+                                         print id, \$1, \$4, \$5, \$6, \$6 - 1 }' \
+        ${out}.gff > ${sample_id}_crispr/${sample_id}_crispr_summary.csv
+    echo "\$(( \$(wc -l < ${sample_id}_crispr/${sample_id}_crispr_summary.csv) - 1 )) CRISPR arrays"
     """
 }
 

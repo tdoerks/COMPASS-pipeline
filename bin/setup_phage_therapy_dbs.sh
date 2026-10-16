@@ -35,8 +35,11 @@ echo "== PADLOC database -> ${DB}/padloc_db"
 if [ -n "$(ls -A "${DB}/padloc_db" 2>/dev/null)" ]; then
     echo "   already installed ($(du -sh "${DB}/padloc_db" | cut -f1))"
 else
-    apptainer exec --bind "${DB}" "${PL_IMG}" padloc --db-update --data "${DB}/padloc_db" \
-        || echo "   WARNING: padloc --db-update failed — check whether this padloc build accepts --data"
+    # padloc --db-update ignores --data and writes to its own install dir (/usr/local/data),
+    # which is read-only in the container — so bind our directory over that path instead.
+    apptainer exec --bind "${DB}/padloc_db:/usr/local/data" "${PL_IMG}" padloc --db-update \
+        && echo "   installed ($(du -sh "${DB}/padloc_db" | cut -f1))" \
+        || echo "   WARNING: padloc --db-update failed"
 fi
 
 SKETCH="${DB}/ectyper/EnteroRef_GTDBSketch_20231003_V2.msh"

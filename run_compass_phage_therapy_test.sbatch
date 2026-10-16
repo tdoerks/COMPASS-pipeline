@@ -31,4 +31,5 @@ nextflow run "$PIPELINE" -profile beocat \
     --prophage_db "$PROPHAGE_DB" \
     --skip_busco \
     --outdir "$OUTDIR" \
-    -resume
+    -resume \
+    "$@"      # extra flags, e.g.: sbatch run_compass_phage_therapy_test.sbatch --skip_prokka false

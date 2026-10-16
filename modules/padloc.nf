@@ -8,8 +8,9 @@
  * all describe the SAME genes; otherwise PADLOC falls back to --fna and calls genes itself
  * (prodigal), in which case its protein IDs will not match DefenseFinder's.
  *
- * Database: installed once (compute nodes have no internet) by bin/setup_phage_therapy_dbs.sh
- * (`padloc --db-update`), passed here with --data.
+ * Database: installed once (compute nodes have no internet) by bin/setup_phage_therapy_dbs.sh.
+ * padloc 2.0.0 ignores --data and always reads/creates <install>/data (/usr/local/data, read-only
+ * in the container), so the database is bind-mounted over that path instead of passed as a flag.
  */
 
 process PADLOC {
@@ -17,6 +18,10 @@ process PADLOC {
     publishDir "${params.outdir}/padloc", mode: 'copy', pattern: "${sample_id}_padloc*"
     container 'quay.io/biocontainers/padloc:2.0.0--hdfd78af_1'
     errorStrategy 'ignore'
+    containerOptions { params.padloc_db
+        ? (workflow.containerEngine == 'docker' ? "-v ${params.padloc_db}:/usr/local/data"
+                                                : "--bind ${params.padloc_db}:/usr/local/data")
+        : '' }
 
     input:
     tuple val(sample_id), path(assembly), path(faa), path(gff)
@@ -29,9 +34,8 @@ process PADLOC {
     script:
     // Prokka output when present (same gene calls as the rest of the run), else nucleotide input
     def input_args = (faa && gff) ? "--faa ${faa} --gff ${gff}" : "--fna ${assembly}"
-    def db_arg = params.padloc_db ? "--data ${params.padloc_db}" : ''
     """
-    padloc ${input_args} ${db_arg} --outdir padloc_out --cpu ${task.cpus}
+    padloc ${input_args} --outdir padloc_out --cpu ${task.cpus}
 
     # padloc names outputs after the input file stem — normalise to the sample id
     for ext in csv gff; do

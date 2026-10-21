@@ -523,7 +523,7 @@ def parse_padloc(padloc_dir):
             data[sample_id] = dict(PADLOC_DEFAULTS)
             continue
         # Prefer 'target.name' (PADLOC 2.x system name), fall back to 'system'
-        sys_col = next((c for c in ['target.name', 'system', 'system_name'] if c in df.columns), None)
+        sys_col = next((c for c in ['system', 'system_name', 'target.name'] if c in df.columns), None)
         if sys_col:
             systems = sorted(set(df[sys_col].dropna().astype(str)))
             data[sample_id] = {

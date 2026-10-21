@@ -35,6 +35,7 @@ process PADLOC {
     // Prokka output when present (same gene calls as the rest of the run), else nucleotide input
     def input_args = (faa && gff) ? "--faa ${faa} --gff ${gff}" : "--fna ${assembly}"
     """
+    mkdir -p padloc_out
     padloc ${input_args} --outdir padloc_out --cpu ${task.cpus}
 
     # padloc names outputs after the input file stem — normalise to the sample id

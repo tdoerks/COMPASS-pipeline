@@ -454,7 +454,9 @@ def summarize(records, resolve_names=False):
         'median_arrays':  median([r['crispr_arrays']  for r in records]),
         'median_spacers': median([r['crispr_spacers'] for r in records]),
         'total_spacers':  sum(r['crispr_spacers'] for r in records),
-        'array_hist': build_histogram([r['crispr_arrays'] for r in records], bins=list(range(0, 11))),
+        'array_hist': [{'bin': int(b), 'count': c}
+                       for b, c in sorted(build_histogram([r['crispr_arrays'] for r in records],
+                                                          bins=list(range(0, 11))).items(), key=lambda x: int(x[0]))],
     }
 
     typed = [r for r in records if r['serotype'] or r['o_type']]

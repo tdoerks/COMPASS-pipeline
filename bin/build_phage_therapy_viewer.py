@@ -1302,6 +1302,7 @@ function renderExclusion() {{
 function renderDefense() {{
   const d = STATS.defense || {{}}, rc = STATS.receptors || {{}};
   const el = document.getElementById('defense-content');
+  try {{
   if (!d.n && !rc.n) {{
     el.innerHTML = `<p style="color:var(--muted)">No DefenseFinder / ECTyper results in this summary.
       Run COMPASS with the phage-therapy databases set up (bin/setup_phage_therapy_dbs.sh).</p>`;
@@ -1377,6 +1378,8 @@ function renderDefense() {{
                   scales: {{ x: {{ min: 0, max: 100, title: {{ display: true, text: '% of isolates' }} }},
                              y: {{ ticks: {{ font: {{ size: 10 }} }} }} }} }}
     }});
+  }} catch(e) {{
+    el.innerHTML = `<p style="color:red;font-family:monospace;padding:12px"><b>renderDefense error:</b> ${{e.message}}<br><small>${{e.stack}}</small></p>`;
   }}
 }}
 

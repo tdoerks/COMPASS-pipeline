@@ -495,7 +495,8 @@ def parse_defensefinder(df_dir):
             df = pd.DataFrame()
         activity_col = df['activity'].astype(str).str.lower() if not df.empty and 'activity' in df.columns else pd.Series(dtype=str)
         defense_df = df[activity_col == 'defense'] if not activity_col.empty else df
-        anti_df    = df[activity_col == 'anti-defense'] if not activity_col.empty else pd.DataFrame()
+        # DefenseFinder uses 'Antidefense' (no hyphen); tolerate both spellings
+        anti_df    = df[activity_col.isin(['anti-defense', 'antidefense'])] if not activity_col.empty else pd.DataFrame()
         types      = sorted(set(defense_df['type'].astype(str))) if not defense_df.empty else []
         anti_types = sorted(set(anti_df['type'].astype(str)))    if not anti_df.empty    else []
         data[sample_id] = {

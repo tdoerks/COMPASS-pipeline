@@ -260,6 +260,13 @@ def load_compass(path):
                                    if r.get('defense_system_count', '-') not in ('', '-', None) else None),
                 'defense_types':  (r.get('defense_system_types', '') or '').replace('-', ''),
                 'defense_crispr': r.get('defense_has_crispr_cas', '') or '',
+                'antidefense_count': int(num(r.get('antidefense_system_count'), 0)),
+                'antidefense_types': (r.get('antidefense_system_types', '') or '').replace('-', 'none'),
+                'padloc_count':   (int(num(r.get('padloc_system_count'), 0))
+                                   if r.get('padloc_system_count', '-') not in ('', '-', None) else None),
+                'padloc_types':   (r.get('padloc_system_types', '') or '').replace('-', ''),
+                'crispr_arrays':  int(num(r.get('crispr_array_count'), 0)),
+                'crispr_spacers': int(num(r.get('crispr_spacer_count'), 0)),
                 'serotype':       (r.get('serotype', '') or '').replace('-', '') if r.get('serotype') != '-' else '',
                 'o_type':         r.get('o_type', '') if r.get('o_type') not in (None, '-') else '',
                 'pathotype':      r.get('pathotype', '') if r.get('pathotype') not in (None, '-') else '',
@@ -415,6 +422,41 @@ def summarize(records, resolve_names=False):
             'median_by_tier': {str(k): median(v) for k, v in sorted(by_tier.items())},
             'hist': build_histogram([r['defense_count'] for r in df_recs], bins=list(range(0, 31))),
         }
+    # PADLOC
+    padloc_recs = [r for r in records if r['padloc_count'] is not None]
+    padloc = {}
+    if padloc_recs:
+        padloc_type_counts = Counter(t for r in padloc_recs for t in set(filter(None, r['padloc_types'].split(';'))))
+        padloc = {
+            'n': len(padloc_recs),
+            'type_freq': [{'type': t, 'count': c, 'pct': round(100 * c / len(padloc_recs), 1)}
+                          for t, c in padloc_type_counts.most_common(40)],
+        }
+
+    # Antidefense systems (phage counter-defense genes found in bacterial genome)
+    anti_recs = [r for r in records if r['antidefense_count'] > 0]
+    antidefense = {}
+    if df_recs:
+        anti_type_counts = Counter(t for r in df_recs for t in set(filter(None, r['antidefense_types'].split(';')))
+                                   if t and t != 'none')
+        antidefense = {
+            'n_with': len(anti_recs),
+            'pct': round(100 * len(anti_recs) / len(df_recs), 1) if df_recs else 0,
+            'type_freq': [{'type': t, 'count': c, 'pct': round(100 * c / len(df_recs), 1)}
+                          for t, c in anti_type_counts.most_common(20)],
+        }
+
+    # CRISPR arrays + spacers from MINCED
+    crispr_recs = [r for r in records if r['crispr_arrays'] > 0]
+    crispr_minced = {
+        'n_with_arrays': len(crispr_recs),
+        'pct': round(100 * len(crispr_recs) / len(records), 1) if records else 0,
+        'median_arrays':  median([r['crispr_arrays']  for r in records]),
+        'median_spacers': median([r['crispr_spacers'] for r in records]),
+        'total_spacers':  sum(r['crispr_spacers'] for r in records),
+        'array_hist': build_histogram([r['crispr_arrays'] for r in records], bins=list(range(0, 11))),
+    }
+
     typed = [r for r in records if r['serotype'] or r['o_type']]
     receptors = {}
     if typed:
@@ -430,6 +472,9 @@ def summarize(records, resolve_names=False):
     return {
         'n': n,
         'defense': defense,
+        'padloc': padloc,
+        'antidefense': antidefense,
+        'crispr_minced': crispr_minced,
         'receptors': receptors,
         'mdr_n': mdr_n,
         'mdr_counts': dict(mdr_counts),
@@ -1276,6 +1321,32 @@ function renderDefense() {{
       <div class="card"><h3>Defense system types</h3>
         ${{tbl(['System', 'Isolates', '%'], d.type_freq.map(t => [t.type, t.count, t.pct + '%']))}}</div></div>`;
   }}
+  // PADLOC section
+  const pl = STATS.padloc || {{}};
+  if (pl.n) {{
+    html += `<div class="grid-2" style="margin-top:16px">
+      <div class="card"><h3>PADLOC defense systems (% of isolates)</h3>
+        <div style="position:relative;height:${{Math.max(200, pl.type_freq.length * 16)}}px"><canvas id="chart-padloc"></canvas></div></div>
+      <div class="card"><h3>PADLOC system types</h3>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:8px">${{pl.n}} isolates screened · second caller alongside DefenseFinder</p>
+        ${{tbl(['System', 'Isolates', '%'], pl.type_freq.map(t => [t.type, t.count, t.pct + '%']))}}</div></div>`;
+  }}
+
+  // Antidefense section
+  const ad = STATS.antidefense || {{}};
+  if (ad.n_with !== undefined) {{
+    const adRows = (ad.type_freq || []).map(t => [t.type, t.count, t.pct + '%']);
+    html += `<div class="grid-2" style="margin-top:16px">
+      <div class="card"><h3>Antidefense systems</h3>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:8px">
+          <b>${{ad.n_with}}</b> isolates (${{ad.pct}}%) carry phage-encoded counter-defense genes in their chromosome
+          (prophage or MGE-borne). Antidefense presence may enable incoming lytic phages to overcome RM/CRISPR barriers.</p>
+        ${{adRows.length ? tbl(['System type', 'Isolates', '%'], adRows) :
+          '<p style="color:var(--muted);font-size:12px">No antidefense systems detected.</p>'}}</div>
+      <div class="card"><h3>CRISPR arrays (MINCED)</h3>
+        ${{renderCrisprSection(STATS.crispr_minced || {{}})}}</div></div>`;
+  }}
+
   if (rc.n) {{
     html += `<div class="grid-2" style="margin-top:16px">
       <div class="card"><h3>Serotypes (O:H) — ${{rc.n}} typed</h3>${{tbl(['Serotype', 'Isolates'], rc.serotypes)}}</div>
@@ -1295,6 +1366,33 @@ function renderDefense() {{
                              y: {{ ticks: {{ font: {{ size: 10 }} }} }} }} }}
     }});
   }}
+  if (pl.n && document.getElementById('chart-padloc')) {{
+    new Chart(document.getElementById('chart-padloc'), {{
+      type: 'bar',
+      data: {{ labels: pl.type_freq.map(t => t.type),
+               datasets: [{{ label: '% of isolates', data: pl.type_freq.map(t => t.pct),
+                             backgroundColor: 'rgba(41,128,185,0.8)', borderWidth: 0 }}] }},
+      options: {{ indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                  plugins: {{ legend: {{ display: false }} }},
+                  scales: {{ x: {{ min: 0, max: 100, title: {{ display: true, text: '% of isolates' }} }},
+                             y: {{ ticks: {{ font: {{ size: 10 }} }} }} }} }}
+    }});
+  }}
+}}
+
+function renderCrisprSection(cm) {{
+  if (!cm || cm.n_with_arrays === undefined) return '<p style="color:var(--muted);font-size:12px">No MINCED data.</p>';
+  const bars = (cm.array_hist || []).map(b =>
+    `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;font-size:11px">
+      <span style="width:16px;text-align:right;color:var(--muted)">${{b.bin}}</span>
+      <div style="background:#16a085;height:12px;width:${{Math.round(b.count / Math.max(...(cm.array_hist||[{{count:1}}]).map(x=>x.count)) * 120)}}px"></div>
+      <span style="color:var(--muted)">${{b.count}}</span></div>`).join('');
+  return `<p style="font-size:12px;margin-bottom:8px">
+    <b>${{cm.n_with_arrays}}</b> isolates (${{cm.pct}}%) have ≥1 CRISPR array ·
+    median <b>${{cm.median_arrays}}</b> arrays · median <b>${{cm.median_spacers}}</b> spacers ·
+    <b>${{cm.total_spacers}}</b> total spacers across all isolates</p>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:6px">Arrays per isolate distribution:</p>
+    ${{bars}}`;
 }}
 
 // ── phage matching ────────────────────────────────────────────────────────

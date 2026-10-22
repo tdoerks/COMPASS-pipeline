@@ -321,7 +321,7 @@ workflow COMPLETE_PIPELINE {
     // -resume (e.g. DefenseFinder/ECTyper) invalidates the cached summary and it is regenerated.
     ch_summary_ready = COMBINE_RESULTS.out.summary
         .concat(ch_multiqc_report)
-        .concat(ch_genomad_summaries.ifEmpty(Channel.empty()).map { it[1] })
+        .concat(ch_genomad_summaries.map { it[1] })
         .concat(ch_defense_systems.map { it[1] })
         .concat(ch_padloc.map { it[1] })
         .concat(ch_crispr.map { it[1] })

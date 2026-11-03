@@ -14,11 +14,13 @@ process CHECKM2 {
     script:
     def db_flag = params.checkm2_db ? "--database_path ${params.checkm2_db}" : "--database_path /tmp/checkm2_db/uniref100.KO.1.dmnd"
     """
+    mkdir -p tmpdir
     checkm2 predict \\
         --threads ${task.cpus} \\
         --input ${assembly} \\
         --output-directory ${sample_id}_checkm2 \\
         ${db_flag} \\
+        --tmpdir ./tmpdir \\
         --force
 
     cat <<-END_VERSIONS > versions.yml

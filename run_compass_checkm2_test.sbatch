@@ -25,6 +25,7 @@ CHECKM2_DB="/fastscratch/tylerdoe/databases/checkm2_db/CheckM2_database/uniref10
 OUTDIR="/fastscratch/tylerdoe/COMPASS-phage-therapy/results_checkm2_test"
 
 nextflow run "$PIPELINE" -profile beocat \
+    -work-dir /fastscratch/tylerdoe/COMPASS-phage-therapy/work_checkm2_test \
     --input_mode fasta \
     --input "$INPUT" \
     --prophage_db "$PROPHAGE_DB" \

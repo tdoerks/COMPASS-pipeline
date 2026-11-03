@@ -18,17 +18,16 @@ module load nextflow  2>/dev/null || module load Nextflow  2>/dev/null || true
 
 export NXF_OPTS='-Xms2g -Xmx8g'
 
-PIPELINE="/fastscratch/tylerdoe/COMPASS-phage-therapy/main.nf"
-INPUT="/fastscratch/tylerdoe/COMPASS-phage-therapy/samplesheet_checkm2_test.csv"
+cd "$SLURM_SUBMIT_DIR"
+
 PROPHAGE_DB="/fastscratch/tylerdoe/databases/prophage_db.dmnd"
 CHECKM2_DB="/fastscratch/tylerdoe/databases/checkm2_db/CheckM2_database/uniref100.KO.1.dmnd"
-OUTDIR="/fastscratch/tylerdoe/COMPASS-phage-therapy/results_checkm2_test"
 
-nextflow run "$PIPELINE" -profile beocat \
-    -work-dir /fastscratch/tylerdoe/COMPASS-phage-therapy/work_checkm2_test \
+nextflow run main.nf -profile beocat \
+    -work-dir "$SLURM_SUBMIT_DIR/work_checkm2_test" \
     --input_mode fasta \
-    --input "$INPUT" \
+    --input "$SLURM_SUBMIT_DIR/samplesheet_checkm2_test.csv" \
     --prophage_db "$PROPHAGE_DB" \
     --checkm2_db "$CHECKM2_DB" \
-    --outdir "$OUTDIR" \
+    --outdir "$SLURM_SUBMIT_DIR/results_checkm2_test" \
     "$@"

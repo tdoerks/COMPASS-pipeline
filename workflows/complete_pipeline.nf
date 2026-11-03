@@ -18,6 +18,7 @@ include { DEFENSEFINDER } from '../modules/defensefinder'
 include { PADLOC } from '../modules/padloc'
 include { MINCED; CRISPRCASFINDER } from '../modules/crispr'
 include { BUSCO } from '../modules/busco'
+include { CHECKM2 } from '../modules/checkm2'
 include { QUAST } from '../modules/quast'
 include { CHECK_DATABASES } from '../modules/check_databases'
 include { DOWNLOAD_ASSEMBLY } from '../modules/download_assembly'
@@ -42,6 +43,7 @@ workflow COMPLETE_PIPELINE {
 
     ch_qc_outputs = Channel.empty()
     ch_has_assembly_qc = false
+    ch_checkm2_reports = Channel.empty()
 
     if (input_mode == 'fasta') {
         // Direct FASTA input: [meta, fasta]
@@ -59,6 +61,15 @@ workflow COMPLETE_PIPELINE {
             ch_versions = ch_versions.mix(BUSCO.out.versions)
         } else {
             ch_busco_summary = Channel.empty()
+        }
+
+        // CheckM2 (optional): completeness + contamination via ML
+        if (!params.skip_checkm2 && params.checkm2_db) {
+            CHECKM2(ch_assemblies_for_qc)
+            ch_checkm2_reports = CHECKM2.out.report
+            ch_versions = ch_versions.mix(CHECKM2.out.versions)
+        } else {
+            ch_checkm2_reports = Channel.empty()
         }
 
         // QUAST
@@ -129,6 +140,13 @@ workflow COMPLETE_PIPELINE {
             ch_versions = ch_versions.mix(BUSCO.out.versions)
         } else {
             ch_busco_summary = Channel.empty()
+        }
+
+        // CheckM2 (optional): completeness + contamination via ML
+        if (!params.skip_checkm2 && params.checkm2_db) {
+            CHECKM2(ch_assemblies_for_qc)
+            ch_checkm2_reports = CHECKM2.out.report
+            ch_versions = ch_versions.mix(CHECKM2.out.versions)
         }
 
         // QUAST
@@ -326,6 +344,7 @@ workflow COMPLETE_PIPELINE {
         .concat(ch_padloc.map { it[1] })
         .concat(ch_crispr.map { it[1] })
         .concat(TYPING.out.ectyper_results.map { it[1] })
+        .concat(ch_checkm2_reports.map { _id, tsv -> tsv }.ifEmpty([]))
         .collect()
         .map { "ready:${it.size()}" }
 

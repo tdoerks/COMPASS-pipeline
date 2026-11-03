@@ -151,6 +151,33 @@ def parse_busco(busco_dir):
                 print(f"Warning: Could not parse BUSCO results for {summary_file}: {e}", file=sys.stderr)
     return busco_data
 
+def parse_checkm2(checkm2_dir):
+    """Parse CheckM2 genome completeness and contamination from quality_report.tsv"""
+    checkm2_data = {}
+    checkm2_path = Path(checkm2_dir)
+    if not checkm2_path.exists():
+        return checkm2_data
+    for report_file in checkm2_path.glob('*/quality_report.tsv'):
+        sample_id = report_file.parent.name.replace('_checkm2', '')
+        try:
+            df = pd.read_csv(report_file, sep='\t')
+            if df.empty:
+                continue
+            row = df.iloc[0]
+            completeness  = float(row.get('Completeness', 0))
+            contamination = float(row.get('Contamination', 0))
+            model         = str(row.get('Completeness_Model_Used', ''))
+            checkm2_data[sample_id] = {
+                'checkm2_completeness':  completeness,
+                'checkm2_contamination': contamination,
+                'checkm2_model':         model,
+                'checkm2_pass': 'Pass' if completeness >= 90 and contamination <= 5 else
+                                'Medium' if completeness >= 50 and contamination <= 10 else 'Fail',
+            }
+        except Exception as e:
+            print(f"Warning: Could not parse CheckM2 results for {report_file}: {e}", file=sys.stderr)
+    return checkm2_data
+
 def parse_mlst(mlst_dir):
     """Parse MLST sequence typing results"""
     mlst_data = {}
@@ -1672,6 +1699,24 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             except (ValueError, TypeError):
                 pass
 
+    # CheckM2 scatter data: completeness vs contamination per sample
+    checkm2_scatter = []
+    checkm2_pass_counts = {'Pass': 0, 'Medium': 0, 'Fail': 0}
+    for _, row in df.iterrows():
+        comp  = row.get('checkm2_completeness', '-')
+        cont  = row.get('checkm2_contamination', '-')
+        qpass = row.get('checkm2_pass', '-')
+        sid   = row.get('sample_id', '')
+        if comp != '-' and str(comp) != 'nan' and cont != '-' and str(cont) != 'nan':
+            try:
+                checkm2_scatter.append({'x': float(comp), 'y': float(cont), 'label': sid})
+                if qpass in checkm2_pass_counts:
+                    checkm2_pass_counts[qpass] += 1
+            except (ValueError, TypeError):
+                pass
+    checkm2_hq = checkm2_pass_counts['Pass']
+    checkm2_total = sum(checkm2_pass_counts.values())
+
     # Create bins for histograms
     # N50 histogram bins (0-200kb in 10kb increments)
     n50_bins = list(range(0, 210000, 10000))
@@ -2549,6 +2594,37 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 <p style="color: #666; margin-bottom: 20px;">Genome completeness assessment (higher is better)</p>
                 <div class="chart-wrapper">
                     <canvas id="buscoHistChart"></canvas>
+                </div>
+            </div>
+        </div>"""
+
+    if checkm2_total > 0:
+        html += f"""
+        <div style="margin-top: 40px;">
+            <h2 style="margin-bottom: 8px;">CheckM2 Genome Quality</h2>
+            <p style="color: #666; margin-bottom: 20px;">
+                ML-based completeness vs contamination &mdash;
+                High quality: &ge;90% complete, &le;5% contamination &nbsp;|&nbsp;
+                {checkm2_hq}/{checkm2_total} samples pass HQ threshold
+            </p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 20px;">
+                <div class="chart-container">
+                    <h2>Completeness vs Contamination</h2>
+                    <p style="color: #666; margin-bottom: 15px;">Each point is one sample. Upper-left = high quality.</p>
+                    <div class="chart-wrapper" style="height: 400px;">
+                        <canvas id="checkm2ScatterChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <h2>Quality Tier Distribution</h2>
+                    <p style="color: #666; margin-bottom: 15px;">
+                        High (&ge;90% complete, &le;5% contam) &bull;
+                        Medium (&ge;50%, &le;10%) &bull;
+                        Fail (below medium)
+                    </p>
+                    <div class="chart-wrapper" style="height: 400px;">
+                        <canvas id="checkm2TierChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>"""
@@ -4597,6 +4673,9 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             }
         });
 
+        // CheckM2 Genome Quality Charts
+        CHECKM2_CHARTS_PLACEHOLDER
+
         // MultiQC Read Quality Charts (if data available)
         MULTIQC_CHARTS_PLACEHOLDER
 
@@ -4696,6 +4775,62 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = js_code.replace('CONTIG_COUNTS_PLACEHOLDER', json.dumps(contig_counts))
     js_code = js_code.replace('BUSCO_LABELS_PLACEHOLDER', json.dumps(busco_labels))
     js_code = js_code.replace('BUSCO_COUNTS_PLACEHOLDER', json.dumps(busco_counts))
+
+    # CheckM2 charts
+    if checkm2_total > 0:
+        checkm2_js = f"""
+        const checkm2ScatterEl = document.getElementById('checkm2ScatterChart');
+        if (checkm2ScatterEl) {{
+            const checkm2ScatterChart = new Chart(checkm2ScatterEl.getContext('2d'), {{
+                type: 'scatter',
+                data: {{
+                    datasets: [{{
+                        label: 'Samples',
+                        data: {json.dumps(checkm2_scatter)},
+                        backgroundColor: 'rgba(99, 179, 237, 0.6)',
+                        pointRadius: 4,
+                    }}]
+                }},
+                options: {{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {{
+                        tooltip: {{
+                            callbacks: {{
+                                label: ctx => ctx.raw.label + ': ' + ctx.raw.x.toFixed(1) + '% complete, ' + ctx.raw.y.toFixed(2) + '% contam'
+                            }}
+                        }},
+                        legend: {{ display: false }}
+                    }},
+                    scales: {{
+                        x: {{ title: {{ display: true, text: 'Completeness (%)' }}, min: 0, max: 100 }},
+                        y: {{ title: {{ display: true, text: 'Contamination (%)' }}, min: 0 }}
+                    }}
+                }}
+            }});
+        }}
+        const checkm2TierEl = document.getElementById('checkm2TierChart');
+        if (checkm2TierEl) {{
+            const checkm2TierChart = new Chart(checkm2TierEl.getContext('2d'), {{
+                type: 'doughnut',
+                data: {{
+                    labels: ['High Quality', 'Medium Quality', 'Fail'],
+                    datasets: [{{
+                        data: [{checkm2_pass_counts['Pass']}, {checkm2_pass_counts['Medium']}, {checkm2_pass_counts['Fail']}],
+                        backgroundColor: ['#48BB78', '#F6AD55', '#FC8181'],
+                        borderWidth: 2
+                    }}]
+                }},
+                options: {{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {{ legend: {{ position: 'bottom' }} }}
+                }}
+            }});
+        }}"""
+    else:
+        checkm2_js = "// CheckM2 not run for this dataset"
+    js_code = js_code.replace('CHECKM2_CHARTS_PLACEHOLDER', checkm2_js)
 
     # MultiQC Read Quality Charts
     multiqc_charts_js = ""
@@ -5512,6 +5647,10 @@ def main():
     busco_data = parse_busco(outdir / 'busco')
     print(f"  → Found BUSCO data for {len(busco_data)} samples")
 
+    print("Parsing CheckM2 genome quality metrics...")
+    checkm2_data = parse_checkm2(outdir / 'checkm2')
+    print(f"  → Found CheckM2 data for {len(checkm2_data)} samples")
+
     print("Parsing MLST typing results...")
     mlst_data = parse_mlst(outdir / 'mlst')
 
@@ -5630,6 +5769,17 @@ def main():
                 'busco_complete_pct': '-',
                 'busco_duplicated_pct': '-',
                 'busco_summary': '-'
+            })
+
+        # CheckM2 genome quality
+        if sample in checkm2_data:
+            row.update(checkm2_data[sample])
+        else:
+            row.update({
+                'checkm2_completeness': '-',
+                'checkm2_contamination': '-',
+                'checkm2_model': '-',
+                'checkm2_pass': '-',
             })
 
         # Strain typing

@@ -1,6 +1,6 @@
 process ABRICATE {
     tag "$sample_id-$db"
-    publishDir "${params.outdir}/abricate", mode: 'copy'
+    publishDir "${params.outdir}/abricate", mode: 'copy', pattern: '*.tsv'
     container = 'quay.io/biocontainers/abricate:1.0.1--ha8f3691_1'
 
     input:

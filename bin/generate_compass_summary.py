@@ -1314,6 +1314,25 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     amr_class_labels = [cls for cls, count in amr_class_counter.most_common()]
     amr_class_counts = [count for cls, count in amr_class_counter.most_common()]
 
+    # Top 50 AMR genes for wordcloud (sized by sample frequency)
+    top50_amr_wc = amr_gene_counter.most_common(50)
+    amr_wordcloud_json = json.dumps([{"g": g, "c": c} for g, c in top50_amr_wc])
+
+    # MGE / Defense radar — population-level averages
+    def _safe_mean(col):
+        if col not in df.columns:
+            return 0.0
+        return round(float(df[col].replace('-', 0).fillna(0).astype(float).mean()), 2)
+
+    mge_radar_labels = json.dumps(['CRISPR Arrays', 'DefenseFinder', 'PADLOC', 'Antidefense', 'Prophages'])
+    mge_radar_values = json.dumps([
+        _safe_mean('crispr_array_count'),
+        _safe_mean('defense_system_count'),
+        _safe_mean('padloc_system_count'),
+        _safe_mean('antidefense_system_count'),
+        _safe_mean('num_prophages'),
+    ])
+
     # Prepare Plasmid Analysis data for visualizations
     inc_group_counter = Counter()
     mobility_type_counter = Counter()
@@ -2293,6 +2312,24 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 <div class="subtext">{samples_with_plasmids} samples with plasmids</div>
             </div>
         </div>
+
+        <!-- MGE / Defense Radar -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;">
+            <div class="chart-container">
+                <h2>Population Defense Profile</h2>
+                <p style="color:#666;margin-bottom:16px;">Average systems per genome across all samples</p>
+                <div class="chart-wrapper" style="height:320px;">
+                    <canvas id="mgeRadarChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h2>MGE Signal Summary</h2>
+                <p style="color:#666;margin-bottom:16px;">Samples carrying each mobile / defense element type</p>
+                <div class="chart-wrapper" style="height:320px;">
+                    <canvas id="mgeBarChart"></canvas>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- AMR Analysis Tab -->
@@ -2343,6 +2380,18 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             <p style="color: #666; margin-bottom: 20px;">Samples with multidrug resistance (≥3 resistance classes) vs susceptible samples</p>
             <div class="chart-wrapper" style="height: 300px;">
                 <canvas id="mdrComparisonChart"></canvas>
+            </div>
+        </div>
+
+        <!-- AMR Gene Wordcloud -->
+        <div class="chart-container" style="margin-top:20px;">
+            <h2>AMR Gene Frequency Cloud</h2>
+            <p style="color:#666;margin-bottom:20px;">Top 50 genes sized by prevalence across all samples — larger = more samples carry that gene</p>
+            <div id="amrWordcloud" style="display:flex;flex-wrap:wrap;gap:10px 14px;padding:24px;background:#f8f9fa;border-radius:8px;align-items:center;justify-content:center;min-height:180px;"></div>
+            <div style="margin-top:12px;display:flex;gap:20px;justify-content:center;font-size:0.8em;color:#888;">
+                <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#d32f2f;"></span> High prevalence</span>
+                <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#f57c00;"></span> Medium</span>
+                <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#388e3c;"></span> Lower</span>
             </div>
         </div>
     </div>
@@ -4166,6 +4215,99 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             }
         });
 
+        // ── AMR Gene Wordcloud ───────────────────────────────────────────────────
+        (function() {{
+            const data = AMR_WORDCLOUD_PLACEHOLDER;
+            if (!data || !data.length) return;
+            const container = document.getElementById('amrWordcloud');
+            if (!container) return;
+            const maxCount = data[0].c;
+            const minCount = data[data.length - 1].c;
+            const range = maxCount - minCount || 1;
+            data.forEach(d => {{
+                const pct = (d.c - minCount) / range;
+                const size = Math.round(12 + pct * 28);  // 12px–40px
+                const color = pct > 0.66 ? '#c62828' : pct > 0.33 ? '#e65100' : '#2e7d32';
+                const span = document.createElement('span');
+                span.textContent = d.g;
+                span.title = d.g + ': ' + d.c + ' samples';
+                span.style.cssText = `font-size:${{size}}px;font-weight:600;color:${{color}};cursor:default;transition:opacity 0.15s;`;
+                span.onmouseenter = () => {{ span.style.opacity = '0.65'; }};
+                span.onmouseleave = () => {{ span.style.opacity = '1'; }};
+                container.appendChild(span);
+            }});
+        }})();
+
+        // ── MGE / Defense Radar ──────────────────────────────────────────────────
+        const mgeRadarLabels = MGE_RADAR_LABELS_PLACEHOLDER;
+        const mgeRadarValues = MGE_RADAR_VALUES_PLACEHOLDER;
+
+        const mgeRadarCtx = document.getElementById('mgeRadarChart');
+        if (mgeRadarCtx) {{
+            new Chart(mgeRadarCtx.getContext('2d'), {{
+                type: 'radar',
+                data: {{
+                    labels: mgeRadarLabels,
+                    datasets: [{{
+                        label: 'Avg per genome',
+                        data: mgeRadarValues,
+                        backgroundColor: 'rgba(102,126,234,0.2)',
+                        borderColor: '#667eea',
+                        pointBackgroundColor: '#667eea',
+                        pointRadius: 4,
+                        borderWidth: 2
+                    }}]
+                }},
+                options: {{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {{ legend: {{ display: false }} }},
+                    scales: {{
+                        r: {{
+                            beginAtZero: true,
+                            ticks: {{ font: {{ size: 10 }} }},
+                            pointLabels: {{ font: {{ size: 12 }}, color: '#444' }}
+                        }}
+                    }}
+                }}
+            }});
+        }}
+
+        // ── MGE Summary Bar Chart ────────────────────────────────────────────────
+        const mgeBarCtx = document.getElementById('mgeBarChart');
+        if (mgeBarCtx) {{
+            const mgeBarLabels = ['Has CRISPR', 'Has DefenseFinder', 'Has PADLOC', 'Has Antidefense', 'Has Prophage'];
+            const mgeBarCounts = [
+                MGE_HAS_CRISPR_PLACEHOLDER,
+                MGE_HAS_DEFENSE_PLACEHOLDER,
+                MGE_HAS_PADLOC_PLACEHOLDER,
+                MGE_HAS_ANTIDEF_PLACEHOLDER,
+                MGE_HAS_PROPHAGE_PLACEHOLDER
+            ];
+            new Chart(mgeBarCtx.getContext('2d'), {{
+                type: 'bar',
+                data: {{
+                    labels: mgeBarLabels,
+                    datasets: [{{
+                        label: 'Samples',
+                        data: mgeBarCounts,
+                        backgroundColor: ['#4CAF50','#2196F3','#9C27B0','#FF5722','#FF9800'],
+                        borderWidth: 0,
+                        borderRadius: 4
+                    }}]
+                }},
+                options: {{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {{ legend: {{ display: false }} }},
+                    scales: {{
+                        y: {{ beginAtZero: true, title: {{ display: true, text: 'Samples' }} }},
+                        x: {{ ticks: {{ font: {{ size: 11 }} }} }}
+                    }}
+                }}
+            }});
+        }}
+
         // Plasmid Inc Groups Bar Chart
         const incGroupLabels = INC_GROUP_LABELS_PLACEHOLDER;
         const incGroupCounts = INC_GROUP_COUNTS_PLACEHOLDER;
@@ -4747,6 +4889,21 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     # Replace NON_MDR first to avoid partial match with MDR_SAMPLES_PLACEHOLDER
     js_code = js_code.replace('NON_MDR_SAMPLES_PLACEHOLDER', str(total_samples - mdr_samples))
     js_code = js_code.replace('MDR_SAMPLES_PLACEHOLDER', str(mdr_samples))
+
+    # AMR wordcloud + MGE radar
+    js_code = js_code.replace('AMR_WORDCLOUD_PLACEHOLDER', amr_wordcloud_json)
+    js_code = js_code.replace('MGE_RADAR_LABELS_PLACEHOLDER', mge_radar_labels)
+    js_code = js_code.replace('MGE_RADAR_VALUES_PLACEHOLDER', mge_radar_values)
+    js_code = js_code.replace('MGE_HAS_CRISPR_PLACEHOLDER',
+        str(len(df[df.get('crispr_array_count', pd.Series(dtype=float)).replace('-', 0).fillna(0).astype(float) > 0])) if 'crispr_array_count' in df.columns else '0')
+    js_code = js_code.replace('MGE_HAS_DEFENSE_PLACEHOLDER',
+        str(len(df[df.get('defense_system_count', pd.Series(dtype=float)).replace('-', 0).fillna(0).astype(float) > 0])) if 'defense_system_count' in df.columns else '0')
+    js_code = js_code.replace('MGE_HAS_PADLOC_PLACEHOLDER',
+        str(len(df[df.get('padloc_system_count', pd.Series(dtype=float)).replace('-', 0).fillna(0).astype(float) > 0])) if 'padloc_system_count' in df.columns else '0')
+    js_code = js_code.replace('MGE_HAS_ANTIDEF_PLACEHOLDER',
+        str(len(df[df.get('antidefense_system_count', pd.Series(dtype=float)).replace('-', 0).fillna(0).astype(float) > 0])) if 'antidefense_system_count' in df.columns else '0')
+    js_code = js_code.replace('MGE_HAS_PROPHAGE_PLACEHOLDER',
+        str(len(df[df.get('num_prophages', pd.Series(dtype=float)).replace('-', 0).fillna(0).astype(float) > 0])) if 'num_prophages' in df.columns else '0')
 
     # Plasmid data
     js_code = js_code.replace('INC_GROUP_LABELS_PLACEHOLDER', json.dumps(inc_group_labels))

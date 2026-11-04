@@ -18,10 +18,10 @@
 #
 # Examples:
 #   # Basic setup (recommended):
-#   ./bin/setup_busco_databases.sh --download-path /fastscratch/tylerdoe/databases/busco_downloads --auto-lineage
+#   ./bin/setup_busco_databases.sh --download-path /path/to/databases/busco_downloads --auto-lineage
 #
 #   # Download all lineages for offline use:
-#   ./bin/setup_busco_databases.sh --download-path /fastscratch/tylerdoe/databases/busco_downloads --all-lineages
+#   ./bin/setup_busco_databases.sh --download-path /path/to/databases/busco_downloads --all-lineages
 #
 # Notes:
 #   - First run may take 30-60 minutes depending on network speed

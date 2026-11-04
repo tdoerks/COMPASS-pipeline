@@ -4894,16 +4894,16 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
     js_code = js_code.replace('AMR_WORDCLOUD_PLACEHOLDER', amr_wordcloud_json)
     js_code = js_code.replace('MGE_RADAR_LABELS_PLACEHOLDER', mge_radar_labels)
     js_code = js_code.replace('MGE_RADAR_VALUES_PLACEHOLDER', mge_radar_values)
-    js_code = js_code.replace('MGE_HAS_CRISPR_PLACEHOLDER',
-        str(len(df[df.get('crispr_array_count', pd.Series(dtype=float)).replace('-', 0).fillna(0).astype(float) > 0])) if 'crispr_array_count' in df.columns else '0')
-    js_code = js_code.replace('MGE_HAS_DEFENSE_PLACEHOLDER',
-        str(len(df[df.get('defense_system_count', pd.Series(dtype=float)).replace('-', 0).fillna(0).astype(float) > 0])) if 'defense_system_count' in df.columns else '0')
-    js_code = js_code.replace('MGE_HAS_PADLOC_PLACEHOLDER',
-        str(len(df[df.get('padloc_system_count', pd.Series(dtype=float)).replace('-', 0).fillna(0).astype(float) > 0])) if 'padloc_system_count' in df.columns else '0')
-    js_code = js_code.replace('MGE_HAS_ANTIDEF_PLACEHOLDER',
-        str(len(df[df.get('antidefense_system_count', pd.Series(dtype=float)).replace('-', 0).fillna(0).astype(float) > 0])) if 'antidefense_system_count' in df.columns else '0')
-    js_code = js_code.replace('MGE_HAS_PROPHAGE_PLACEHOLDER',
-        str(len(df[df.get('num_prophages', pd.Series(dtype=float)).replace('-', 0).fillna(0).astype(float) > 0])) if 'num_prophages' in df.columns else '0')
+    def _count_has(col):
+        if col not in df.columns:
+            return 0
+        return int((df[col].replace('-', 0).fillna(0).astype(float) > 0).sum())
+
+    js_code = js_code.replace('MGE_HAS_CRISPR_PLACEHOLDER', str(_count_has('crispr_array_count')))
+    js_code = js_code.replace('MGE_HAS_DEFENSE_PLACEHOLDER', str(_count_has('defense_system_count')))
+    js_code = js_code.replace('MGE_HAS_PADLOC_PLACEHOLDER', str(_count_has('padloc_system_count')))
+    js_code = js_code.replace('MGE_HAS_ANTIDEF_PLACEHOLDER', str(_count_has('antidefense_system_count')))
+    js_code = js_code.replace('MGE_HAS_PROPHAGE_PLACEHOLDER', str(_count_has('num_prophages')))
 
     # Plasmid data
     js_code = js_code.replace('INC_GROUP_LABELS_PLACEHOLDER', json.dumps(inc_group_labels))

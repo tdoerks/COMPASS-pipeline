@@ -1,5 +1,5 @@
 # Claude Code — Session Notes
-Last active: 2026-11-03 (session 35)
+Last active: 2026-11-04 (session 36)
 
 ## Session Start
 **Always read `sessions/CURRENT.md` first**, then the relevant project file:

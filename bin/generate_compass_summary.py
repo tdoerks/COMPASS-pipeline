@@ -4216,7 +4216,7 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
         });
 
         // ── AMR Gene Wordcloud ───────────────────────────────────────────────────
-        (function() {{
+        (function() {
             const data = AMR_WORDCLOUD_PLACEHOLDER;
             if (!data || !data.length) return;
             const container = document.getElementById('amrWordcloud');
@@ -4224,31 +4224,31 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
             const maxCount = data[0].c;
             const minCount = data[data.length - 1].c;
             const range = maxCount - minCount || 1;
-            data.forEach(d => {{
+            data.forEach(d => {
                 const pct = (d.c - minCount) / range;
                 const size = Math.round(12 + pct * 28);  // 12px–40px
                 const color = pct > 0.66 ? '#c62828' : pct > 0.33 ? '#e65100' : '#2e7d32';
                 const span = document.createElement('span');
                 span.textContent = d.g;
                 span.title = d.g + ': ' + d.c + ' samples';
-                span.style.cssText = `font-size:${{size}}px;font-weight:600;color:${{color}};cursor:default;transition:opacity 0.15s;`;
-                span.onmouseenter = () => {{ span.style.opacity = '0.65'; }};
-                span.onmouseleave = () => {{ span.style.opacity = '1'; }};
+                span.style.cssText = `font-size:${size}px;font-weight:600;color:${color};cursor:default;transition:opacity 0.15s;`;
+                span.onmouseenter = () => { span.style.opacity = '0.65'; };
+                span.onmouseleave = () => { span.style.opacity = '1'; };
                 container.appendChild(span);
-            }});
-        }})();
+            });
+        })();
 
         // ── MGE / Defense Radar ──────────────────────────────────────────────────
         const mgeRadarLabels = MGE_RADAR_LABELS_PLACEHOLDER;
         const mgeRadarValues = MGE_RADAR_VALUES_PLACEHOLDER;
 
         const mgeRadarCtx = document.getElementById('mgeRadarChart');
-        if (mgeRadarCtx) {{
-            new Chart(mgeRadarCtx.getContext('2d'), {{
+        if (mgeRadarCtx) {
+            new Chart(mgeRadarCtx.getContext('2d'), {
                 type: 'radar',
-                data: {{
+                data: {
                     labels: mgeRadarLabels,
-                    datasets: [{{
+                    datasets: [{
                         label: 'Avg per genome',
                         data: mgeRadarValues,
                         backgroundColor: 'rgba(102,126,234,0.2)',
@@ -4256,26 +4256,26 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                         pointBackgroundColor: '#667eea',
                         pointRadius: 4,
                         borderWidth: 2
-                    }}]
-                }},
-                options: {{
+                    }]
+                },
+                options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {{ legend: {{ display: false }} }},
-                    scales: {{
-                        r: {{
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        r: {
                             beginAtZero: true,
-                            ticks: {{ font: {{ size: 10 }} }},
-                            pointLabels: {{ font: {{ size: 12 }}, color: '#444' }}
-                        }}
-                    }}
-                }}
-            }});
-        }}
+                            ticks: { font: { size: 10 } },
+                            pointLabels: { font: { size: 12 }, color: '#444' }
+                        }
+                    }
+                }
+            });
+        }
 
         // ── MGE Summary Bar Chart ────────────────────────────────────────────────
         const mgeBarCtx = document.getElementById('mgeBarChart');
-        if (mgeBarCtx) {{
+        if (mgeBarCtx) {
             const mgeBarLabels = ['Has CRISPR', 'Has DefenseFinder', 'Has PADLOC', 'Has Antidefense', 'Has Prophage'];
             const mgeBarCounts = [
                 MGE_HAS_CRISPR_PLACEHOLDER,
@@ -4284,29 +4284,29 @@ def generate_html_report(df, output_file, functional_diversity=None, multiqc_pat
                 MGE_HAS_ANTIDEF_PLACEHOLDER,
                 MGE_HAS_PROPHAGE_PLACEHOLDER
             ];
-            new Chart(mgeBarCtx.getContext('2d'), {{
+            new Chart(mgeBarCtx.getContext('2d'), {
                 type: 'bar',
-                data: {{
+                data: {
                     labels: mgeBarLabels,
-                    datasets: [{{
+                    datasets: [{
                         label: 'Samples',
                         data: mgeBarCounts,
                         backgroundColor: ['#4CAF50','#2196F3','#9C27B0','#FF5722','#FF9800'],
                         borderWidth: 0,
                         borderRadius: 4
-                    }}]
-                }},
-                options: {{
+                    }]
+                },
+                options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {{ legend: {{ display: false }} }},
-                    scales: {{
-                        y: {{ beginAtZero: true, title: {{ display: true, text: 'Samples' }} }},
-                        x: {{ ticks: {{ font: {{ size: 11 }} }} }}
-                    }}
-                }}
-            }});
-        }}
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Samples' } },
+                        x: { ticks: { font: { size: 11 } } }
+                    }
+                }
+            });
+        }
 
         // Plasmid Inc Groups Bar Chart
         const incGroupLabels = INC_GROUP_LABELS_PLACEHOLDER;

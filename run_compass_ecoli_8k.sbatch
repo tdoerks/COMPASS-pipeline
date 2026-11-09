@@ -46,6 +46,7 @@ nextflow run "$PIPELINE" -profile beocat \
     --database_dir "/fastscratch/tylerdoe/databases" \
     --prophage_db "$PROPHAGE_DB" \
     --padloc_db "/fastscratch/tylerdoe/databases/padloc_db" \
+    --busco_download_path "/fastscratch/tylerdoe/databases/busco_downloads" \
     --outdir "$OUTDIR" \
     -resume \
     "$@"

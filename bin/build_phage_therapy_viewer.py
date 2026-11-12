@@ -121,6 +121,44 @@ CLASS_LABELS = {
     'trimethoprim': 'Trimethoprim',
 }
 
+# ── Known antibiotic names (lowercase/underscore) from NCBI Pathogen Isolates TSV ──
+# Used to detect phenotypic AST columns in the COMPASS summary TSV.
+KNOWN_AST_DRUGS = {
+    'ampicillin':                    'AMP',
+    'azithromycin':                  'AZI',
+    'cefoxitin':                     'FOX',
+    'ceftriaxone':                   'AXO',
+    'chloramphenicol':               'CHL',
+    'ciprofloxacin':                 'CIP',
+    'gentamicin':                    'GEN',
+    'meropenem':                     'MEM',
+    'nalidixic_acid':                'NAL',
+    'streptomycin':                  'STR',
+    'sulfisoxazole':                 'FIS',
+    'tetracycline':                  'TET',
+    'trimethoprim':                  'TMP',
+    'trimethoprim-sulfamethoxazole': 'SXT',
+    'trimethoprim/sulfamethoxazole': 'SXT',
+    'colistin':                      'COL',
+    'kanamycin':                     'KAN',
+    'amikacin':                      'AMK',
+    'imipenem':                      'IPM',
+    'ertapenem':                     'ETP',
+}
+# Map AMR gene classes to relevant phenotypic drugs for concordance analysis
+CLASS_TO_AST_DRUGS = {
+    'aminoglycoside':  ['gentamicin', 'streptomycin', 'kanamycin', 'amikacin'],
+    'beta-lactam':     ['ampicillin', 'ceftriaxone', 'cefoxitin'],
+    'carbapenem':      ['meropenem', 'imipenem', 'ertapenem'],
+    'fluoroquinolone': ['ciprofloxacin', 'nalidixic_acid'],
+    'tetracycline':    ['tetracycline'],
+    'macrolide':       ['azithromycin'],
+    'phenicol':        ['chloramphenicol'],
+    'sulfonamide':     ['sulfisoxazole'],
+    'trimethoprim':    ['trimethoprim', 'trimethoprim-sulfamethoxazole'],
+    'colistin':        ['colistin'],
+}
+
 # ── ICTV family -> typical lifestyle (for the exclusion tab) ─────────────────
 # Only lytic families are phage-therapy candidates; temperate phages can lysogenize instead of
 # killing, and chronic (filamentous) phages are released without lysis.
@@ -277,6 +315,14 @@ def load_compass(path):
                 'phage_score':    phg_s,
                 'pt_score':       pt,
                 'priority':       tier,
+                'ast_sir':        {
+                    col_l: v
+                    for col, val in r.items()
+                    for col_l in [col.lower().replace(' ', '_').replace('/', '_')]
+                    if col_l in KNOWN_AST_DRUGS
+                    for v in [(val or '').strip().upper()]
+                    if v in ('S', 'I', 'R')
+                },
             })
     print(f'COMPASS: {len(rows)} isolates loaded')
     return rows
@@ -471,6 +517,60 @@ def summarize(records, resolve_names=False):
                                     if s.strip()).most_common(15),
         }
 
+    # ── Phenotypic AST stats ──────────────────────────────────────────────────
+    _drug_counts = defaultdict(lambda: {'S': 0, 'I': 0, 'R': 0, 'n': 0})
+    for r in records:
+        for drug, sir in r.get('ast_sir', {}).items():
+            _drug_counts[drug][sir] += 1
+            _drug_counts[drug]['n'] += 1
+
+    _drug_display = {
+        'ampicillin': 'Ampicillin', 'azithromycin': 'Azithromycin',
+        'cefoxitin': 'Cefoxitin', 'ceftriaxone': 'Ceftriaxone',
+        'chloramphenicol': 'Chloramphenicol', 'ciprofloxacin': 'Ciprofloxacin',
+        'gentamicin': 'Gentamicin', 'meropenem': 'Meropenem',
+        'nalidixic_acid': 'Nalidixic acid', 'streptomycin': 'Streptomycin',
+        'sulfisoxazole': 'Sulfisoxazole', 'tetracycline': 'Tetracycline',
+        'trimethoprim': 'Trimethoprim', 'trimethoprim-sulfamethoxazole': 'TMP-SMX',
+        'trimethoprim_sulfamethoxazole': 'TMP-SMX', 'colistin': 'Colistin',
+        'kanamycin': 'Kanamycin', 'amikacin': 'Amikacin',
+        'imipenem': 'Imipenem', 'ertapenem': 'Ertapenem',
+    }
+    ast_profile = sorted([
+        {
+            'drug': drug, 'label': _drug_display.get(drug, drug.replace('_', ' ').title()),
+            'n': c['n'], 'R': c['R'], 'I': c['I'], 'S': c['S'],
+            'r_pct': round(100 * c['R'] / c['n'], 1),
+            'i_pct': round(100 * c['I'] / c['n'], 1),
+            's_pct': round(100 * c['S'] / c['n'], 1),
+        }
+        for drug, c in _drug_counts.items() if c['n'] > 0
+    ], key=lambda x: -x['r_pct'])
+
+    # Genotype-phenotype concordance
+    ast_concordance = []
+    for cls, drugs in CLASS_TO_AST_DRUGS.items():
+        geno_pos = [r for r in records if cls in r['amr_classes_list']]
+        geno_neg = [r for r in records if cls not in r['amr_classes_list']]
+        if not geno_pos:
+            continue
+        has_ast = [r for r in geno_pos if any(r.get('ast_sir', {}).get(d) for d in drugs)]
+        if not has_ast:
+            continue
+        pheno_r_given_geno = sum(1 for r in has_ast
+                                 if any(r.get('ast_sir', {}).get(d) == 'R' for d in drugs))
+        false_neg = sum(1 for r in geno_neg
+                        if any(r.get('ast_sir', {}).get(d) == 'R' for d in drugs))
+        ast_concordance.append({
+            'class': cls, 'label': CLASS_LABELS.get(cls, cls),
+            'geno_n': len(geno_pos), 'has_ast': len(has_ast),
+            'pheno_r': pheno_r_given_geno,
+            'pct': round(100 * pheno_r_given_geno / max(len(has_ast), 1), 1),
+            'false_neg': false_neg,
+        })
+    ast_concordance.sort(key=lambda x: -x['pct'])
+    ast_n_isolates = sum(1 for r in records if r.get('ast_sir'))
+
     return {
         'n': n,
         'defense': defense,
@@ -492,6 +592,9 @@ def summarize(records, resolve_names=False):
         'prophage_hist': build_histogram(prophage_vals, bins=list(range(0, 25))),
         'exclusion_by_org': exclusion_by_org,
         'exclusion_ictv_by_org': exclusion_ictv_by_org,
+        'ast_profile': ast_profile,
+        'ast_concordance': ast_concordance,
+        'ast_n_isolates': ast_n_isolates,
     }
 
 def build_histogram(values, bins):
@@ -514,6 +617,7 @@ def build_html(records, phinder_records, stats, out_path):
     priority_bg_js     = json_s(PRIORITY_BG)
     priority_labels_js = json_s({str(k): v for k, v in PRIORITY_LABEL.items()})
     has_phinder  = 'true' if phinder_records else 'false'
+    has_ast      = 'true' if stats.get('ast_n_isolates', 0) > 0 else 'false'
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -594,6 +698,7 @@ td {{ padding: 6px 9px; vertical-align: top; }}
 .score-legend span {{ display: flex; align-items: center; gap: 5px; }}
 .dot {{ width: 12px; height: 12px; border-radius: 50%; display: inline-block; }}
 #phinder-tab-btn {{ display: none; }}
+#ast-tab-btn {{ display: none; }}
 </style>
 </head>
 <body>
@@ -621,6 +726,7 @@ td {{ padding: 6px 9px; vertical-align: top; }}
   <button onclick="showTab('strains')">Strain Diversity</button>
   <button onclick="showTab('exclusion')">Prophage Exclusion</button>
   <button onclick="showTab('defense')">Defense &amp; Receptors</button>
+  <button id="ast-tab-btn" onclick="showTab('ast')">Phenotypic AMR</button>
   <button id="phinder-tab-btn" onclick="showTab('matching')">Phage Matching</button>
 </nav>
 
@@ -815,6 +921,22 @@ td {{ padding: 6px 9px; vertical-align: top; }}
   <div id="defense-content"></div>
 </div>
 
+<!-- ── PHENOTYPIC AMR TAB ──────────────────────────────────────────────── -->
+<div id="tab-ast" class="tab">
+  <div class="info-box">
+    <strong>Phenotypic AMR</strong> — susceptibility test results (S/I/R) from NCBI Pathogen
+    Isolates, joined to COMPASS isolates by assembly accession. The resistance profile shows
+    phenotypic rates per antibiotic. The concordance table compares genomic AMR gene detection
+    (AMRFinder) to observed phenotypic resistance — high concordance validates the AMR burden
+    score used for phage therapy candidate ranking.
+  </div>
+  <div id="ast-content">
+    <p style="color:var(--muted)">No phenotypic AST data found — rerun
+    <code>generate_compass_summary.py</code> with
+    <code>--metadata &lt;ncbi_isolates.tsv&gt;</code> to include it.</p>
+  </div>
+</div>
+
 <div id="tab-matching" class="tab">
   <div class="info-box">
     PHINDER phages are matched to bacterial isolates by host organism. Exact host range
@@ -833,6 +955,7 @@ const PRIORITY_COLORS = {priority_colors_js};
 const PRIORITY_BG     = {priority_bg_js};
 const PRIORITY_LABELS = {priority_labels_js};
 const HAS_PHINDER     = {has_phinder};
+const HAS_AST         = {has_ast};
 
 // ── tab switching ─────────────────────────────────────────────────────────
 function showTab(name) {{
@@ -1397,6 +1520,90 @@ function renderCrisprSection(cm) {{
     ${{bars}}`;
 }}
 
+// ── phenotypic AMR ────────────────────────────────────────────────────────
+function renderAST() {{
+  if (!HAS_AST) return;
+  const el = document.getElementById('ast-content');
+  const profile = STATS.ast_profile || [];
+  const concordance = STATS.ast_concordance || [];
+  const nIso = STATS.ast_n_isolates || 0;
+
+  // Summary card
+  const anyR = profile.reduce((s,d) => s + d.R, 0);
+  const totalObs = profile.reduce((s,d) => s + d.n, 0);
+  const topR = profile.length ? profile[0] : null;
+
+  let html = `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+    ${{[
+      ['Isolates with AST data', nIso],
+      ['Antibiotics tested', profile.length],
+      ['Highest resistance', topR ? topR.label+' ('+topR.r_pct+'%)' : '—'],
+    ].map(([l,v])=>`<div class="stat"><div class="val">${{v}}</div><div class="lbl">${{l}}</div></div>`).join('')}}
+  </div>`;
+
+  // Stacked S/I/R bar chart
+  if (profile.length) {{
+    html += `<h3 class="section-title">Resistance Profile (% S / I / R per antibiotic)</h3>
+    <div style="position:relative;height:${{Math.max(260, profile.length * 28)}}px;margin-bottom:28px">
+      <canvas id="chart-ast-profile"></canvas></div>`;
+  }}
+
+  // Concordance table
+  if (concordance.length) {{
+    html += `<h3 class="section-title" style="margin-top:8px">Genotype–Phenotype Concordance</h3>
+    <p class="muted" style="margin-bottom:12px">Of isolates with a genomic AMR marker detected, what % are also phenotypically resistant?
+    High concordance validates the AMR burden score. <em>False negatives</em> = phenotypically R without the genomic marker (acquired resistance not in AMRFinder DB, or expression effects).</p>
+    <div style="overflow-x:auto"><table>
+      <thead><tr>
+        <th>AMR Class</th><th>Genomic+</th><th>With AST</th>
+        <th>Pheno R</th><th>Concordance</th><th style="color:var(--muted)">False neg.</th>
+      </tr></thead><tbody>
+      ${{concordance.map(c => `<tr>
+        <td><strong>${{c.label}}</strong></td>
+        <td>${{c.geno_n}}</td>
+        <td>${{c.has_ast}}</td>
+        <td>${{c.pheno_r}}</td>
+        <td><div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:0 0 80px;height:10px;background:#eee;border-radius:5px;overflow:hidden">
+            <div style="width:${{c.pct}}%;height:100%;background:${{c.pct>=80?'#c0392b':c.pct>=50?'#e67e22':'#27ae60'}}"></div>
+          </div>
+          <strong>${{c.pct}}%</strong>
+        </div></td>
+        <td style="color:var(--muted)">${{c.false_neg}}</td>
+      </tr>`).join('')}}
+      </tbody>
+    </table></div>`;
+  }}
+
+  el.innerHTML = html;
+
+  // Draw stacked bar chart
+  if (profile.length) {{
+    new Chart(document.getElementById('chart-ast-profile'), {{
+      type: 'bar',
+      data: {{
+        labels: profile.map(d => d.label),
+        datasets: [
+          {{ label: 'Susceptible', data: profile.map(d => d.s_pct), backgroundColor: '#27ae60' }},
+          {{ label: 'Intermediate', data: profile.map(d => d.i_pct), backgroundColor: '#f39c12' }},
+          {{ label: 'Resistant', data: profile.map(d => d.r_pct), backgroundColor: '#c0392b' }},
+        ]
+      }},
+      options: {{
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: {{ legend: {{ position: 'top' }}, tooltip: {{
+          callbacks: {{ label: ctx => `${{ctx.dataset.label}}: ${{ctx.raw}}%` }}
+        }} }},
+        scales: {{
+          x: {{ stacked: true, min: 0, max: 100, ticks: {{ callback: v => v+'%' }} }},
+          y: {{ stacked: true }}
+        }}
+      }}
+    }});
+  }}
+}}
+
 // ── phage matching ────────────────────────────────────────────────────────
 function renderMatching() {{
   if (!HAS_PHINDER) return;
@@ -1462,6 +1669,10 @@ window.addEventListener('DOMContentLoaded', () => {{
   initExclusionOrgFilter();
   renderExclusion();
   renderDefense();
+  if (HAS_AST) {{
+    document.getElementById('ast-tab-btn').style.display = '';
+    renderAST();
+  }}
   if (HAS_PHINDER) {{
     document.getElementById('phinder-tab-btn').style.display = '';
     renderMatching();

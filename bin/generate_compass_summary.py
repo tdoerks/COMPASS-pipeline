@@ -23,20 +23,24 @@ def parse_args():
     return parser.parse_args()
 
 def parse_metadata(metadata_file):
-    """Parse metadata CSV if provided - passes through ALL columns for dynamic exploration
+    """Parse metadata CSV/TSV if provided - passes through ALL columns for dynamic exploration
 
-    This function now extracts ALL metadata columns from the SRA runinfo CSV file,
-    not just 4 hardcoded fields. This enables the Metadata Explorer to work with
-    any SRA metadata field (platform, instrument, host, library details, etc.)
+    Supports both CSV and TSV (auto-detected). Handles NCBI Pathogen Isolates TSV exports
+    where the sample ID column is 'Assembly' (e.g. GCA_000692755.1) — normalized to
+    GCA_000692755_1 to match COMPASS sample naming conventions.
     """
     metadata = {}
     if metadata_file and Path(metadata_file).exists():
         try:
-            df = pd.read_csv(metadata_file)
+            # Auto-detect delimiter
+            with open(metadata_file, encoding='utf-8-sig') as f:
+                first_line = f.readline()
+            sep = '\t' if '\t' in first_line else ','
+            df = pd.read_csv(metadata_file, sep=sep, low_memory=False, encoding='utf-8-sig')
 
-            # Identify the sample ID column
+            # Identify the sample ID column; include NCBI Pathogen Isolates column names
             sample_id_col = None
-            for col in ['Run', 'sample_id', 'sample', 'SampleName']:
+            for col in ['Run', 'sample_id', 'sample', 'SampleName', 'Assembly', 'assembly_accession', 'Isolate']:
                 if col in df.columns:
                     sample_id_col = col
                     break
@@ -46,24 +50,18 @@ def parse_metadata(metadata_file):
                 return metadata
 
             for _, row in df.iterrows():
-                sample_id = row.get(sample_id_col, '')
-                if not sample_id or pd.isna(sample_id):
+                raw_id = row.get(sample_id_col, '')
+                if not raw_id or pd.isna(raw_id):
                     continue
+                # Normalize accession dots → underscores to match COMPASS sample naming
+                # e.g. GCA_000692755.1 → GCA_000692755_1
+                sample_id = str(raw_id).strip().replace('.', '_')
 
-                # Pass through ALL columns from metadata CSV
-                # This includes all SRA runinfo fields: Platform, Model, LibraryStrategy,
-                # BioProject, SampleName, organism, source, Year, etc.
                 sample_metadata = {}
-
                 for col in df.columns:
-                    # Skip the sample ID column itself
                     if col == sample_id_col:
                         continue
-
-                    # Use lowercase column name with underscores for consistency
                     field_name = col.lower().replace(' ', '_')
-
-                    # Get value and handle NaN/None
                     val = row.get(col, '-')
                     if pd.isna(val) or val == '' or val is None:
                         sample_metadata[field_name] = '-'
